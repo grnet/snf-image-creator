@@ -45,7 +45,9 @@ def main():
     disk = Disk(source)
     try:
         dev = disk.get_device()
-
+        metadata = dev.get_image_metadata()
+        for key, val in metadata.iteritems():
+            print "%s=%s" % (key,val)
     finally:
         disk.cleanup()
 

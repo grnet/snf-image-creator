@@ -6,12 +6,14 @@ import os
 import tempfile
 import uuid
 import re
+import sys
+import guestfs
+
 from pbs import dmsetup
 from pbs import blockdev
 from pbs import dd
-from pbs import kpartx
-from pbs import mount
-from pbs import umount
+
+class DiskError(Exception): pass
 
 class Disk(object):
 
@@ -33,6 +35,10 @@ class Disk(object):
         raise NotImplementedError
 
     def cleanup(self):
+        while len(self._devices):
+            device = self._devices.pop()
+            device.destroy()
+            
         while len(self._cleanup_jobs):
             job, args = self._cleanup_jobs.pop()
             job(*args)
@@ -65,51 +71,57 @@ class Disk(object):
         finally:
             os.unlink(table)
 
-        new_device = DiskDevice(self, "/dev/mapper/%s" % snapshot)
+        new_device = DiskDevice("/dev/mapper/%s" % snapshot)
         self._devices.append(new_device)
         return new_device
 
+    def destroy_device(self, device):
+        self._devices.remove(device)
+        device.destroy()
+
 class DiskDevice(object):
 
-    def __init__(self, disk, device, bootable = True):
-        self.disk = disk
+    def __init__(self, device, bootable = True):
         self.device = device
-        self.is_bootable = bootable
-        self.partitions_mapped = False
-        self.magic_number = uuid.uuid4().hex
+        self.bootable = bootable
 
-    def list_partitions(self):
-        if not self.partitions_mapped:
-            kpartx("-a", "-p", self.magic_number, self.dev)
-            self.disk._cleanup_jobs.append(kpartx, "-d", "-p",
-                        self.magic_number, self.dev)
-            self.partitions_mapped = True
+        self.g = guestfs.GuestFS()
+        self.g.add_drive_opts(device, readonly = 0)
+        self.g.launch()
+        roots = self.g.inspect_os()
+        if len(roots) == 0:
+            raise DiskError("No operating system found")
+        if len(roots) > 1:
+            raise DiskError("Multiple operating systems found")
 
-        output = kpartx("-l", "-p", self.magic_number, self.dev)
-        return [ "/dev/mapper/%s" % x for x in
-                re.findall('^\S+', str(output), flags=re.MULTILINE)]
+        self.root = roots[0]
+    
+    def destroy(self):
+        self.g.umount_all()
+        self.g.sync()
+        # Close the guestfs handler
+        del self.g
+    
+    def get_image_metadata(self):
+        meta = {}
+        meta["OSFAMILY"] = self.g.inspect_get_type(self.root)
+        meta["OS"] = self.g.inspect_get_distro(self.root)
+        meta["description"] = self.g.inspect_get_product_name(self.root)
+        return meta
 
-    def mount(self, partition):
-        if not self.partitions_mapped:
-            self.list_partitions()
-            kpartx("-a", "-p", self.magic_number, self.dev)
-            self.disk._cleanup_jobs.append(kpartx, "-d", "-p",
-                        self.magic_number, self.dev)
-            self.partitions_mapped = True
-
-        targetfd, target = tempfile.mkdtemp()
-        try:
-            mount(dev, partition)
-        except:
-            os.rmdir(table)
-            raise
-        return target
-
-    def unmount(self, partition):
-        umount(target)
-
-        mode = os.stat(self.source).st_mode
-        if stat.S_ISDIR(mode):
-            os.rmdir(target)
+    def mount(self):
+        mps = g.inspect_get_mountpoints(self.root)
+        # Sort the keys to mount the fs in a correct order.
+        # / should be mounted befor /boot, etc
+        def compare (a, b):
+            if len(a[0]) > len(b[0]): return 1
+            elif len(a[0]) == len(b[0]): return 0
+            else: return -1
+        mps.sort(compare)
+        for mp, dev in mps:
+            try:
+                self.g.mount(dev, mp)
+            except RuntimeError as msg:
+                print "%s (ignored)" % msg
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
