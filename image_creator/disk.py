@@ -51,7 +51,8 @@ class Disk(object):
         size = blockdev('--getsize', sourcedev)
         cowfd, cow = tempfile.mkstemp()
         self._add_cleanup(os.unlink, cow)
-        dd('if=/dev/zero', 'of=%s' % cow, 'count=%d' % (1024*1024))#(int(size)/4))
+        # Create 1G cow file
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k' ,'seek=%d' % (1024*1024))
         cowdev = self._losetup(cow)
 
         snapshot = uuid.uuid4().hex
@@ -70,19 +71,27 @@ class Disk(object):
 
 class DiskDevice(object):
 
-    def __init__(self, disk, device):
+    def __init__(self, disk, device, bootable = True):
         self.disk = disk
-        self.dev = device
+        self.device = device
+        self.is_bootable = bootable
         self.partitions_mapped = False
         self.magic_number = uuid.uuid4().hex
 
     def list_partitions(self):
+        if not self.partitions_mapped:
+            kpartx("-a", "-p", self.magic_number, self.dev)
+            self.disk._cleanup_jobs.append(kpartx, "-d", "-p",
+                        self.magic_number, self.dev)
+            self.partitions_mapped = True
+
         output = kpartx("-l", "-p", self.magic_number, self.dev)
         return [ "/dev/mapper/%s" % x for x in
                 re.findall('^\S+', str(output), flags=re.MULTILINE)]
 
     def mount(self, partition):
         if not self.partitions_mapped:
+            self.list_partitions()
             kpartx("-a", "-p", self.magic_number, self.dev)
             self.disk._cleanup_jobs.append(kpartx, "-d", "-p",
                         self.magic_number, self.dev)
