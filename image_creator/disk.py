@@ -95,20 +95,16 @@ class DiskDevice(object):
             raise DiskError("Multiple operating systems found")
 
         self.root = roots[0]
+        self.ostype = self.g.inspect_get_type(self.root)
+        self.distro = self.g.inspect_get_distro(self.root)
     
     def destroy(self):
         self.g.umount_all()
         self.g.sync()
         # Close the guestfs handler
+        self.g.close()
         del self.g
     
-    def get_image_metadata(self):
-        meta = {}
-        meta["OSFAMILY"] = self.g.inspect_get_type(self.root)
-        meta["OS"] = self.g.inspect_get_distro(self.root)
-        meta["description"] = self.g.inspect_get_product_name(self.root)
-        return meta
-
     def mount(self):
         mps = g.inspect_get_mountpoints(self.root)
         # Sort the keys to mount the fs in a correct order.

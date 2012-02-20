@@ -31,6 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+from image_creator import get_os_class
 from image_creator.disk import Disk
 import sys
 import os
@@ -45,9 +46,12 @@ def main():
     disk = Disk(source)
     try:
         dev = disk.get_device()
-        metadata = dev.get_image_metadata()
+        osclass = get_os_class(dev.distro, dev.ostype)
+        image_os = osclass(dev.root, dev.g)
+        metadata = image_os.get_metadata()
         for key, val in metadata.iteritems():
             print "%s=%s" % (key,val)
+
     finally:
         disk.cleanup()
 
