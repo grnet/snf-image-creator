@@ -46,11 +46,14 @@ def main():
     disk = Disk(source)
     try:
         dev = disk.get_device()
+        dev.mount()
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
         for key, val in metadata.iteritems():
             print "%s=%s" % (key,val)
+
+        image_os.data_cleanup()
 
     finally:
         disk.cleanup()

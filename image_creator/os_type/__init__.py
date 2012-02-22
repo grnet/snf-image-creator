@@ -1,9 +1,21 @@
 #!/usr/bin/env python
 
+def add_prefix(target):
+    def wrapper(self, *args):
+        prefix = args[0]
+        return map(lambda x: prefix + x, target(self, *args))
+    return wrapper
+
 class OSBase(object):
     def __init__(self, rootdev, ghandler):
         self.root = rootdev
         self.g = ghandler
+
+    @add_prefix
+    def ls(self, directory): return self.g.ls(directory)
+
+    @add_prefix
+    def find(self, directory): return self.g.find(directory)
 
     def get_metadata(self):
         meta = {}

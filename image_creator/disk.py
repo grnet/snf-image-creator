@@ -86,6 +86,9 @@ class DiskDevice(object):
         self.bootable = bootable
 
         self.g = guestfs.GuestFS()
+
+        self.g.set_trace(1)
+
         self.g.add_drive_opts(device, readonly = 0)
         self.g.launch()
         roots = self.g.inspect_os()
@@ -106,7 +109,7 @@ class DiskDevice(object):
         del self.g
     
     def mount(self):
-        mps = g.inspect_get_mountpoints(self.root)
+        mps = self.g.inspect_get_mountpoints(self.root)
         # Sort the keys to mount the fs in a correct order.
         # / should be mounted befor /boot, etc
         def compare (a, b):
