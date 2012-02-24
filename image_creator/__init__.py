@@ -35,6 +35,7 @@ __version__ = '0.1'
 
 import image_creator.os_type
 
+
 def get_os_class(distro, osfamily):
     module = None
     classname = None

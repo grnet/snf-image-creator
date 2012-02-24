@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import re
+import sys
 
 from image_creator.os_type import OSBase
+
 
 class Unix(OSBase):
 
@@ -36,26 +38,17 @@ class Unix(OSBase):
         self.cleanup_log()
 
     def cleanup_tmp(self):
-        files = []
-        files.extend(self.ls('/tmp/'))
-        files.extend(self.ls('/var/tmp/'))
-    
-        for filename in files:
-            self.g.rm_rf(filename)
+        self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
 
     def cleanup_log(self):
-        files = self.find( '/var/log/')
+        self.foreach_file('/var/log', self.g.truncate, ftype='r')
 
-        for filename in filter(self.g.is_file, files):
-            self.g.truncate(filename)
-        
     def cleanup_userdata(self):
         homedirs = ['/root'] + self.ls('/home/')
 
         for homedir in homedirs:
             for data in self.sensitive_userdata:
                 fname = "%s/%s" % (homedir, data)
-                print "Filename: %s\n" % fname
                 if self.g.is_file(fname):
                     self.g.scrub_file(fname)
 

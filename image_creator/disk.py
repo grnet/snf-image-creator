@@ -13,7 +13,10 @@ from pbs import dmsetup
 from pbs import blockdev
 from pbs import dd
 
-class DiskError(Exception): pass
+
+class DiskError(Exception):
+    pass
+
 
 class Disk(object):
 
@@ -38,7 +41,7 @@ class Disk(object):
         while len(self._devices):
             device = self._devices.pop()
             device.destroy()
-            
+
         while len(self._cleanup_jobs):
             job, args = self._cleanup_jobs.pop()
             job(*args)
@@ -57,8 +60,8 @@ class Disk(object):
         size = blockdev('--getsize', sourcedev)
         cowfd, cow = tempfile.mkstemp()
         self._add_cleanup(os.unlink, cow)
-        # Create 1G cow file
-        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k' ,'seek=%d' % (1024*1024))
+        # Create 1G cow sparse file
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', 'seek=%d' % (1024 * 1024))
         cowdev = self._losetup(cow)
 
         snapshot = uuid.uuid4().hex
@@ -79,9 +82,10 @@ class Disk(object):
         self._devices.remove(device)
         device.destroy()
 
+
 class DiskDevice(object):
 
-    def __init__(self, device, bootable = True):
+    def __init__(self, device, bootable=True):
         self.device = device
         self.bootable = bootable
 
@@ -89,7 +93,7 @@ class DiskDevice(object):
 
         self.g.set_trace(1)
 
-        self.g.add_drive_opts(device, readonly = 0)
+        self.g.add_drive_opts(device, readonly=0)
         self.g.launch()
         roots = self.g.inspect_os()
         if len(roots) == 0:
@@ -100,27 +104,66 @@ class DiskDevice(object):
         self.root = roots[0]
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
-    
+
     def destroy(self):
         self.g.umount_all()
         self.g.sync()
         # Close the guestfs handler
         self.g.close()
         del self.g
-    
+
     def mount(self):
         mps = self.g.inspect_get_mountpoints(self.root)
+
         # Sort the keys to mount the fs in a correct order.
         # / should be mounted befor /boot, etc
-        def compare (a, b):
-            if len(a[0]) > len(b[0]): return 1
-            elif len(a[0]) == len(b[0]): return 0
-            else: return -1
+        def compare(a, b):
+            if len(a[0]) > len(b[0]):
+                return 1
+            elif len(a[0]) == len(b[0]):
+                return 0
+            else:
+                return -1
         mps.sort(compare)
         for mp, dev in mps:
             try:
                 self.g.mount(dev, mp)
             except RuntimeError as msg:
                 print "%s (ignored)" % msg
+
+    def umount(self):
+        self.g.umount_all()
+
+    def shrink(self):
+        dev = self.g.part_to_dev(self.root)
+        parttype = self.g.part_get_parttype(dev)
+        if parttype != 'msdos':
+            raise DiskError("You have a %s partition table. "
+                "Only msdos partitions are supported" % parttype)
+
+        last_partition = self.g.part_list(dev)[-1]
+
+        if last_partition['part_num'] > 4:
+            raise DiskError("This disk contains logical partitions. "
+                "Only primary partitions are supported.")
+
+        part_dev = "%s%d" % (dev, last_partition['part_num'])
+        fs_type = self.g.vfs_type(part_dev)
+        if not re.match("ext[234]", fs_type):
+            print "Warning, don't know how to resize %s partitions" % vfs_type
+            return
+
+        self.g.e2fsck_f(part_dev)
+        self.g.resize2fs_M(part_dev)
+        output = self.g.tune2fs_l(part_dev)
+        block_size = int(filter(lambda x: x[0] == 'Block size', output)[0][1])
+        block_cnt = int(filter(lambda x: x[0] == 'Block count', output)[0][1])
+
+        sector_size = self.g.blockdev_getss(dev)
+
+        start = last_partition['part_start'] / sector_size
+        end = start + (block_size * block_cnt) / sector_size - 1
+
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

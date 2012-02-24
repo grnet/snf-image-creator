@@ -36,6 +36,7 @@ from image_creator.disk import Disk
 import sys
 import os
 
+
 def main():
     if len(sys.argv) != 3:
         sys.exit("Usage: %s <source> <output_file>" %
@@ -50,10 +51,9 @@ def main():
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
-        for key, val in metadata.iteritems():
-            print "%s=%s" % (key,val)
-
         image_os.data_cleanup()
+        dev.umount()
+        dev.shrink()
 
     finally:
         disk.cleanup()
@@ -62,4 +62,3 @@ if __name__ == '__main__':
     main()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
-
