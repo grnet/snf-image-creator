@@ -164,6 +164,8 @@ class DiskDevice(object):
         start = last_partition['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
+        return (end + 1) * sector_size
+
 
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
