@@ -19,8 +19,16 @@ class DiskError(Exception):
 
 
 class Disk(object):
+    """This class represents a hard disk hosting an Operating System
+
+    A Disk instance never alters the source media it is created from.
+    Any change is done on a snapshot created by the device-mapper of
+    the Linux kernel.
+    """
 
     def __init__(self, source):
+        """Create a new Disk instance out of a source media. The source
+        media can be an image file, a block device or a directory."""
         self._cleanup_jobs = []
         self._devices = []
         self.source = source
@@ -38,6 +46,9 @@ class Disk(object):
         raise NotImplementedError
 
     def cleanup(self):
+        """Cleanup internal data. This needs to be called before the
+        program ends.
+        """
         while len(self._devices):
             device = self._devices.pop()
             device.destroy()
@@ -47,6 +58,11 @@ class Disk(object):
             job(*args)
 
     def get_device(self):
+        """Returns a newly created DiskDevice instance.
+        
+        This instance is a snapshot of the original source media of
+        the Disk instance.
+        """
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
@@ -79,13 +95,20 @@ class Disk(object):
         return new_device
 
     def destroy_device(self, device):
+        """Destroys a DiskDevice instance previously created by
+        get_device method.
+        """
         self._devices.remove(device)
         device.destroy()
 
 
 class DiskDevice(object):
+    """This class represents a block device hosting an Operating System
+    as created by the device-mapper.
+    """
 
     def __init__(self, device, bootable=True):
+        """Create a new DiskDevice."""
         self.device = device
         self.bootable = bootable
 
@@ -106,13 +129,14 @@ class DiskDevice(object):
         self.distro = self.g.inspect_get_distro(self.root)
 
     def destroy(self):
+        """Destroy this DiskDevice instance."""
         self.g.umount_all()
         self.g.sync()
         # Close the guestfs handler
         self.g.close()
-        del self.g
 
     def mount(self):
+        """Mount all disk partitions in a correct order."""
         mps = self.g.inspect_get_mountpoints(self.root)
 
         # Sort the keys to mount the fs in a correct order.
@@ -132,9 +156,16 @@ class DiskDevice(object):
                 print "%s (ignored)" % msg
 
     def umount(self):
+        """Umount all mounted filesystems."""
         self.g.umount_all()
 
     def shrink(self):
+        """Shrink the disk.
+
+        This is accomplished by shrinking the last filesystem in the
+        disk and then updating the partition table. The new disk size
+        (in bytes) is returned.
+        """
         dev = self.g.part_to_dev(self.root)
         parttype = self.g.part_get_parttype(dev)
         if parttype != 'msdos':
@@ -165,7 +196,6 @@ class DiskDevice(object):
         end = start + (block_size * block_cnt) / sector_size - 1
 
         return (end + 1) * sector_size
-
 
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

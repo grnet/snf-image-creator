@@ -51,9 +51,11 @@ def main():
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
+        for key in metadata.keys():
+            print "%s=%s" % (key, metadata[key])
         image_os.data_cleanup()
         dev.umount()
-        dev.shrink()
+        #dev.shrink()
 
     finally:
         disk.cleanup()

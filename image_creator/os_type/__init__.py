@@ -11,20 +11,36 @@ def add_prefix(target):
 
 
 class OSBase(object):
+    """Basic operating system class"""
     def __init__(self, rootdev, ghandler):
         self.root = rootdev
         self.g = ghandler
 
     @add_prefix
     def ls(self, directory):
+        """List the name of all files under a directory"""
         return self.g.ls(directory)
 
     @add_prefix
     def find(self, directory):
+        """List the name of all files recursively under a directory"""
         return self.g.find(directory)
 
     def foreach_file(self, directory, action, **kargs):
+        """Perform an action recursively on all files under a directory.
 
+        The following options are allowed:
+
+        * maxdepth: If defined the action will not be performed on
+          files that are below this level of directories under the
+          directory parameter.
+
+        * ftype: The action will only be performed on files of this
+          type. For a list of all allowed filetypes, see here:
+          http://libguestfs.org/guestfs.3.html#guestfs_readdir
+
+        * exclude: Exclude all files that follow this pattern.
+        """
         maxdepth = None if 'maxdepth' not in kargs else kargs['maxdepth']
         if maxdepth == 0:
             return
@@ -53,6 +69,7 @@ class OSBase(object):
                 action(full_path)
 
     def get_metadata(self):
+        """Returnes some descriptive metadata of the OS."""
         meta = {}
         meta["OSFAMILY"] = self.g.inspect_get_type(self.root)
         meta["OS"] = self.g.inspect_get_distro(self.root)
@@ -61,6 +78,7 @@ class OSBase(object):
         return meta
 
     def data_cleanup(self):
+        """Cleanup sesitive data out of the OS image."""
         raise NotImplementedError
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
