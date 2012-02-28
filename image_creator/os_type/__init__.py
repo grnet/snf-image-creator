@@ -59,7 +59,7 @@ class OSBase(object):
         meta["description"] = self.g.inspect_get_product_name(self.root)
 
         return meta
-        
+
     def data_cleanup(self):
         raise NotImplementedError
 
