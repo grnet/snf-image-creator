@@ -69,7 +69,7 @@ class OSBase(object):
                 action(full_path)
 
     def get_metadata(self):
-        """Returnes some descriptive metadata of the OS."""
+        """Returns some descriptive metadata about the OS."""
         meta = {}
         meta["OSFAMILY"] = self.g.inspect_get_type(self.root)
         meta["OS"] = self.g.inspect_get_distro(self.root)
@@ -78,7 +78,7 @@ class OSBase(object):
         return meta
 
     def data_cleanup(self):
-        """Cleanup sesitive data out of the OS image."""
+        """Cleanup sensitive data out of the OS image."""
         raise NotImplementedError
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

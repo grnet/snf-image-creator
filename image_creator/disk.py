@@ -181,7 +181,7 @@ class DiskDevice(object):
         part_dev = "%s%d" % (dev, last_partition['part_num'])
         fs_type = self.g.vfs_type(part_dev)
         if not re.match("ext[234]", fs_type):
-            print "Warning, don't know how to resize %s partitions" % vfs_type
+            print "Warning: Don't know how to resize %s partitions." % vfs_type
             return
 
         self.g.e2fsck_f(part_dev)
