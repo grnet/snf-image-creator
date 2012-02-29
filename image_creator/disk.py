@@ -59,7 +59,7 @@ class Disk(object):
 
     def get_device(self):
         """Returns a newly created DiskDevice instance.
-        
+
         This instance is a snapshot of the original source media of
         the Disk instance.
         """
@@ -195,7 +195,20 @@ class DiskDevice(object):
         start = last_partition['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
+        self.g.part_del(dev, last_partition['part_num'])
+        self.g.part_add(dev, 'p', start, end)
+
         return (end + 1) * sector_size
 
+    def size(self):
+        """Returns the "payload" size of the device.
+
+        The size returned by this method is the size of the space occupied by
+        the partitions (including the space before the first partition).
+        """
+        dev = self.g.part_to_dev(self.root)
+        last = self.g.part_list(dev)[-1]
+
+        return last['part_end']
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
