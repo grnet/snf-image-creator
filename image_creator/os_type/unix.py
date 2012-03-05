@@ -19,14 +19,14 @@ class Unix(OSBase):
         users = []
         regexp = re.compile('(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
 
-        for line in open('/etc/shadow', 'r').readlines():
+        for line in self.g.cat('/etc/shadow').splitlines():
             match = regexp.match(line)
             if not match:
                 continue
 
             user, passwd = match.groups()
             if len(passwd) > 0 and passwd[0] == '!':
-                print "Warning: %s is locked" % user
+                print "Warning: Ignoring locked %s account." % user
             else:
                 users.append(user)
 
