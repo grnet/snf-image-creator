@@ -9,13 +9,32 @@ import re
 import sys
 import guestfs
 
-from pbs import dmsetup
-from pbs import blockdev
+import pbs
 from pbs import dd
 
 
 class DiskError(Exception):
     pass
+
+
+def find_sbin_command(command, exception):
+    search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
+    for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
+        if os.path.exists(fullpath) and os.access(fullpath, os.X_OK):
+            return pbs.Command(fullpath)
+        continue
+    raise exception
+
+
+try:
+    from pbs import dmsetup
+except pbs.CommandNotFound as e:
+    dmsetup = find_sbin_command('dmsetup', e)
+
+try:
+    from pbs import blockdev
+except pbs.CommandNotFound as e:
+    blockdev = find_sbin_command('blockdev', e)
 
 
 class Disk(object):
