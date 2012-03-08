@@ -128,6 +128,7 @@ def progress_generator(total):
         if i < position:
             continue
         position = yield
+    yield #suppress the StopIteration exception
 
 
 class DiskDevice(object):
@@ -175,8 +176,6 @@ class DiskDevice(object):
         if self.progress_bar is None:
             self.progress_bar = progress_generator(total)
             self.progress_bar.next()
-            if position == 1:
-                return
 
         self.progress_bar.send(position)
 
