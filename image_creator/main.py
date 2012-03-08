@@ -66,6 +66,17 @@ def parse_options(input_args):
         help="Don't shrink any partition before extracting the image",
         action="store_false")
 
+    parser.add_option("--no-cleanup", dest="cleanup", default=True,
+        help="Don't cleanup sensitive data before extracting the image",
+        action="store_false")
+
+    parser.add_option("-u", "--upload", dest="upload", default=False,
+        help="Upload image to a pithos repository using kamaki",
+        action="store_true")
+
+    parser.add_option("-r", "--register", dest="register", default=False,
+        help="Register image to okeanos using kamaki", action="store_true")
+
     options, args = parser.parse_args(input_args)
 
     if len(args) != 2:
@@ -75,6 +86,9 @@ def parse_options(input_args):
 
     if not os.path.exists(options.source):
         parser.error('Input media is not accessible')
+
+    if options.register:
+        options.upload = True
 
     return options
 
@@ -88,8 +102,8 @@ def main():
                         % os.path.basename(sys.argv[0]))
 
     if not options.force:
-        for ext in ('diskdump', 'meta'):
-            filename = "%s/%s.%s" % (options.outdir, options.name, ext)
+        for extension in ('diskdump', 'meta'):
+            filename = "%s/%s.%s" % (options.outdir, options.name, extension)
             if os.path.exists(filename):
                 raise FatalError("Output file %s exists "
                     "(use --force to overwrite it)." % filename)
@@ -101,8 +115,12 @@ def main():
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
-        image_os.data_cleanup()
+        
+        if options.cleanup:
+            image_os.data_cleanup()
+
         dev.umount()
+
         size = options.shrink and dev.shrink() or dev.size()
         metadata['size'] = str(size // 2 ** 20)
 
@@ -116,6 +134,10 @@ def main():
         f.close()
     finally:
         disk.cleanup()
+
+    #The image is ready, lets call kamaki if necessary
+    if options.upload:
+       pass 
 
     return 0
 
