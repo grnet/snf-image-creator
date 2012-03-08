@@ -11,6 +11,7 @@ import guestfs
 
 import pbs
 from pbs import dd
+from clint.textui import progress
 
 
 class DiskError(Exception):
@@ -121,6 +122,14 @@ class Disk(object):
         device.destroy()
 
 
+def progress_generator(total):
+    position = 0;
+    for i in progress.bar(range(total)):
+        if i < position:
+            continue
+        position = yield
+
+
 class DiskDevice(object):
     """This class represents a block device hosting an Operating System
     as created by the device-mapper.
@@ -130,13 +139,18 @@ class DiskDevice(object):
         """Create a new DiskDevice."""
         self.device = device
         self.bootable = bootable
+        self.progress_bar = None
 
         self.g = guestfs.GuestFS()
-
-        self.g.set_trace(1)
-
         self.g.add_drive_opts(device, readonly=0)
+
+        #self.g.set_trace(1)
+        #self.g.set_verbose(1)
+
+        eh = self.g.set_event_callback(self.progress_callback, guestfs.EVENT_PROGRESS)
         self.g.launch()
+        self.g.delete_event_callback(eh)
+        
         roots = self.g.inspect_os()
         if len(roots) == 0:
             raise DiskError("No operating system found")
@@ -153,6 +167,21 @@ class DiskDevice(object):
         self.g.sync()
         # Close the guestfs handler
         self.g.close()
+
+    def progress_callback(self, ev, eh, buf, array):
+        position = array[2]
+        total = array[3]
+        
+        if self.progress_bar is None:
+            self.progress_bar = progress_generator(total)
+            self.progress_bar.next()
+            if position == 1:
+                return
+
+        self.progress_bar.send(position)
+
+        if position == total:
+            self.progress_bar = None
 
     def mount(self):
         """Mount all disk partitions in a correct order."""
