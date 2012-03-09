@@ -34,10 +34,13 @@
 from image_creator import get_os_class
 from image_creator import __version__ as version
 from image_creator.disk import Disk
+from image_creator.util import get_command
+
 import sys
 import os
 import optparse
-from pbs import dd
+
+dd = get_command('dd')
 
 
 class FatalError(Exception):
@@ -123,7 +126,6 @@ def main():
 
         size = options.shrink and dev.shrink() or dev.size()
         metadata['size'] = str(size // 2 ** 20)
-
         dd('if=%s' % dev.device,
             'of=%s/%s.%s' % (options.outdir, options.name, 'diskdump'),
             'bs=4M', 'count=%d' % ((size + 1) // 2 ** 22))

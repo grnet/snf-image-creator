@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import losetup
+from image_creator.util import get_command
+from clint.textui import progress
+
 import stat
 import os
 import tempfile
@@ -9,33 +11,14 @@ import re
 import sys
 import guestfs
 
-import pbs
-from pbs import dd
-from clint.textui import progress
-
 
 class DiskError(Exception):
     pass
 
-
-def find_sbin_command(command, exception):
-    search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
-    for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
-        if os.path.exists(fullpath) and os.access(fullpath, os.X_OK):
-            return pbs.Command(fullpath)
-        continue
-    raise exception
-
-
-try:
-    from pbs import dmsetup
-except pbs.CommandNotFound as e:
-    dmsetup = find_sbin_command('dmsetup', e)
-
-try:
-    from pbs import blockdev
-except pbs.CommandNotFound as e:
-    blockdev = find_sbin_command('blockdev', e)
+dd = get_command('dd')
+dmsetup = get_command('dmsetup')
+losetup = get_command('losetup')
+blockdev = get_command('blockdev')
 
 
 class Disk(object):
@@ -57,10 +40,10 @@ class Disk(object):
         self._cleanup_jobs.append((job, args))
 
     def _losetup(self, fname):
-        loop = losetup.find_unused_loop_device()
-        loop.mount(fname)
-        self._add_cleanup(loop.unmount)
-        return loop.device
+        loop = losetup('-f', '--show', fname)
+        loop = loop.strip() # remove the new-line char
+        self._add_cleanup(losetup, '-d', loop)
+        return loop
 
     def _dir_to_disk(self):
         raise NotImplementedError
