@@ -36,12 +36,18 @@ class Unix(OSBase):
         self.cleanup_userdata()
         self.cleanup_tmp()
         self.cleanup_log()
+        self.cleanup_mail()
 
     def cleanup_tmp(self):
         self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
+        self.foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
 
     def cleanup_log(self):
         self.foreach_file('/var/log', self.g.truncate, ftype='r')
+
+    def cleanup_mail(self):
+        self.foreach_file('var/spool/mail', self.g.rm_rf, maxdepth=1)
+        self.foreach_file('var/mail', self.g.rm_rf, maxdepth=1)
 
     def cleanup_userdata(self):
         homedirs = ['/root'] + self.ls('/home/')
