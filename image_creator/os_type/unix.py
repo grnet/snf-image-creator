@@ -8,7 +8,13 @@ from image_creator.os_type import OSBase
 
 class Unix(OSBase):
 
-    sensitive_userdata = ['.bash_history']
+    sensitive_userdata = [
+        '.bash_history',
+        '.gnupg',
+        '.ssh',
+        '.mozilla',
+        '.thunderbird'
+    ]
 
     def get_metadata(self):
         meta = super(Unix, self).get_metadata()
@@ -33,27 +39,32 @@ class Unix(OSBase):
         return users
 
     def data_cleanup(self):
-        self.cleanup_userdata()
-        self.cleanup_tmp()
-        self.cleanup_log()
-        self.cleanup_mail()
-        self.cleanup_cache()
+        self.data_cleanup_userdata()
+        self.data_cleanup_tmp()
+        self.data_cleanup_log()
+        self.data_cleanup_mail()
+        self.data_cleanup_cache()
 
-    def cleanup_cache(self):
+    def data_cleanup_cache(self):
+        """Remove all regular files under /var/cache"""
         self.foreach_file('/var/cache', self.g.rm, ftype='r')
 
-    def cleanup_tmp(self):
+    def data_cleanup_tmp(self):
+        """Remove all files under /tmp and /var/tmp"""
         self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
 
-    def cleanup_log(self):
+    def data_cleanup_log(self):
+        """Empty all files under /var/log"""
         self.foreach_file('/var/log', self.g.truncate, ftype='r')
 
-    def cleanup_mail(self):
-        self.foreach_file('var/spool/mail', self.g.rm_rf, maxdepth=1)
-        self.foreach_file('var/mail', self.g.rm_rf, maxdepth=1)
+    def data_cleanup_mail(self):
+        """Remove all files under /var/mail and /var/spool/mail"""
+        self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
+        self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
-    def cleanup_userdata(self):
+    def data_cleanup_userdata(self):
+        """Delete sensitive userdata"""
         homedirs = ['/root'] + self.ls('/home/')
 
         for homedir in homedirs:
