@@ -20,6 +20,11 @@ class Linux(Unix):
                 self._uuid[dev] = attr[1]
                 return attr[1]
 
+    def remove_persistent_net(self):
+        persistent_net_rule = '/etc/udev/rules.d/70-persistent-net.rules'
+        if self.g.is_file(persistent_net_rule):
+            self.g.rm(persistent_net_rule)
+
     def convert_to_persistent_dev(self):
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
