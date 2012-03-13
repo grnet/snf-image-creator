@@ -82,4 +82,8 @@ class OSBase(object):
         """Cleanup sensitive data out of the OS image."""
         raise NotImplementedError
 
+    def sysprep(self):
+        """Prepere system for image creation."""
+        raise NotImplementedError
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

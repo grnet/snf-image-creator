@@ -20,19 +20,46 @@ class Linux(Unix):
                 self._uuid[dev] = attr[1]
                 return attr[1]
 
-    def remove_persistent_net(self):
-        persistent_net_rule = '/etc/udev/rules.d/70-persistent-net.rules'
-        if self.g.is_file(persistent_net_rule):
-            self.g.rm(persistent_net_rule)
+    def sysprep(self):
+        """Prepere system for image creation."""
+        self.sysprep_acpid()
+        self.sysprep_persistent_net_rules()
+        self.sysprep_persistent_devs()
 
-    def convert_to_persistent_dev(self):
+    def sysprep_acpid(self):
+        """Replace acpid powerdown action scripts to automatically shutdown
+        the system without checking if a GUI is running.
+        """
+        action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n shutdown -h now '
+        '\"Power button pressed\"'
+
+        if self.g.is_file('/etc/acpi/powerbtn.sh'):
+            self.g.write(action, '/etc/acpi/powerbtn.sh')
+        elif self.g.is_file('/etc/acpi/actions/power.sh'):
+            self.g.write(actions, '/etc/acpi/actions/power.sh')
+        else:
+            print "Warning: No acpid action file found"
+
+    def sysprep_persistent_net_rules(self):
+        """Remove udev rules that will keep network interface names persistent
+        after hardware changes and reboots. Those rules will be created again
+        the next time the image runs.
+        """
+        rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
+        if self.g.is_file(rule_file):
+            self.g.rm(rule_file)
+
+    def sysprep_persistent_devs(self):
+        """Scan fstab and grub configuration files and replace all
+        non-persistent device appearences with UUIDs.
+        """
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
 
         # convert all devices in grub1 to persistent
         self._persistent_grub1(persistent_root)
 
-    def _persistent_grub1(self, conf, new_root):
+    def _persistent_grub1(self, new_root):
         if self.g.is_file('/boot/grub/menu.lst'):
             grub1 = '/boot/grub/menu.lst'
         elif self.g.is_file('/etc/grub.conf'):
