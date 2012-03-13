@@ -37,6 +37,10 @@ class Unix(OSBase):
         self.cleanup_tmp()
         self.cleanup_log()
         self.cleanup_mail()
+        self.cleanup_cache()
+
+    def cleanup_cache(self):
+        self.foreach_file('/var/cache', self.g.rm, ftype='r')
 
     def cleanup_tmp(self):
         self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
