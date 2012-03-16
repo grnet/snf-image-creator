@@ -10,6 +10,7 @@ import uuid
 import re
 import sys
 import guestfs
+import time
 
 
 class DiskError(Exception):
@@ -78,6 +79,7 @@ class Disk(object):
         # Take a snapshot and return it to the user
         size = blockdev('--getsize', sourcedev)
         cowfd, cow = tempfile.mkstemp()
+        os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
         # Create 1G cow sparse file
         dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', 'seek=%d' % (1024 * 1024))
@@ -92,9 +94,9 @@ class Disk(object):
             self._add_cleanup(dmsetup, 'remove', snapshot)
         finally:
             os.unlink(table)
-
         new_device = DiskDevice("/dev/mapper/%s" % snapshot)
         self._devices.append(new_device)
+        new_device.enable()
         return new_device
 
     def destroy_device(self, device):
@@ -105,9 +107,9 @@ class Disk(object):
         device.destroy()
 
 
-def progress_generator(total):
+def progress_generator(label=''):
     position = 0;
-    for i in progress.bar(range(total)):
+    for i in progress.bar(range(100),''):
         if i < position:
             continue
         position = yield
@@ -121,19 +123,31 @@ class DiskDevice(object):
 
     def __init__(self, device, bootable=True):
         """Create a new DiskDevice."""
+
         self.device = device
         self.bootable = bootable
         self.progress_bar = None
 
         self.g = guestfs.GuestFS()
-        self.g.add_drive_opts(device, readonly=0)
+        self.g.add_drive_opts(self.device, readonly=0)
 
         #self.g.set_trace(1)
         #self.g.set_verbose(1)
 
+        self.guestfs_enabled = False
+    
+    def enable(self):
+        """Enable a newly created DiskDevice"""
+
+        self.progressbar = progress_generator()
+        self.progressbar.next()
         eh = self.g.set_event_callback(self.progress_callback, guestfs.EVENT_PROGRESS)
         self.g.launch()
+        self.guestfs_enabled = True
         self.g.delete_event_callback(eh)
+        if self.progressbar is not None:
+            self.progressbar.send(100)
+            self.progressbar = None
         
         roots = self.g.inspect_os()
         if len(roots) == 0:
@@ -147,20 +161,21 @@ class DiskDevice(object):
 
     def destroy(self):
         """Destroy this DiskDevice instance."""
-        self.g.umount_all()
-        self.g.sync()
-        # Close the guestfs handler
+
+        if self.guestfs_enabled:
+            self.g.umount_all()
+            self.g.sync()
+
+        # Close the guestfs handler if open
         self.g.close()
 
     def progress_callback(self, ev, eh, buf, array):
         position = array[2]
         total = array[3]
-        
-        if self.progress_bar is None:
-            self.progress_bar = progress_generator(total)
-            self.progress_bar.next()
 
-        self.progress_bar.send(position)
+        assert self.progress_bar is not None
+
+        self.progress_bar.send((position * 100)//total)
 
         if position == total:
             self.progress_bar = None
