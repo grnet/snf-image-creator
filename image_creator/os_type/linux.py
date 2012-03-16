@@ -34,9 +34,9 @@ class Linux(Unix):
         '\"Power button pressed\"'
 
         if self.g.is_file('/etc/acpi/powerbtn.sh'):
-            self.g.write(action, '/etc/acpi/powerbtn.sh')
+            self.g.write('/etc/acpi/powerbtn.sh', action)
         elif self.g.is_file('/etc/acpi/actions/power.sh'):
-            self.g.write(actions, '/etc/acpi/actions/power.sh')
+            self.g.write('/etc/acpi/actions/power.sh', action)
         else:
             print "Warning: No acpid action file found"
 
