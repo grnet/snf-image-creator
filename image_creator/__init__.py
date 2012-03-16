@@ -50,5 +50,7 @@ def get_os_class(distro, osfamily):
 
     return getattr(module, classname)
 
+class FatalError(Exception):
+    pass
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

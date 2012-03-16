@@ -33,6 +33,7 @@
 
 from image_creator import get_os_class
 from image_creator import __version__ as version
+from image_creator import FatalError
 from image_creator.disk import Disk
 from image_creator.util import get_command
 
@@ -43,24 +44,21 @@ import optparse
 dd = get_command('dd')
 
 
-class FatalError(Exception):
-    pass
-
-
 def check_writable_dir(option, opt_str, value, parser):
-    if not os.path.isdir(value):
-        raise OptionValueError("%s is not a valid directory name" % value)
+    dirname = os.path.dirname(value)
+    name = os.path.basename(value)
+    if dirname and not os.path.isdir(dirname):
+        parser.error("`%s' is not an existing directory" % dirname)
+
+    if not name:
+        parser.error("`%s' is not a valid file name" % dirname)
+
     setattr(parser.values, option.dest, value)
 
 
 def parse_options(input_args):
-    usage = "Usage: %prog [options] <input_media> <name>"
+    usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
-
-    parser.add_option("-o", "--outdir", type="string", dest="outdir",
-        default=".", action="callback", callback=check_writable_dir,
-        help="Output files to DIR [default: working dir]",
-        metavar="DIR")
 
     parser.add_option("-f", "--force", dest="force", default=False,
         action="store_true", help="Overwrite output files if they exist")
@@ -77,6 +75,11 @@ def parse_options(input_args):
         help="Don't shrink any partition before extracting the image",
         action="store_false")
 
+    parser.add_option("-o", "--outfile", type="string", dest="outfile",
+        default=None, action="callback", callback=check_writable_dir,
+        help="Output image file",
+        metavar="FILE")
+
     parser.add_option("-u", "--upload", dest="upload", default=False,
         help="Upload image to a pithos repository using kamaki",
         action="store_true")
@@ -86,21 +89,22 @@ def parse_options(input_args):
 
     options, args = parser.parse_args(input_args)
 
-    if len(args) != 2:
-        parser.error('input media or name are missing')
+    if len(args) != 1:
+        parser.error('Wrong number of arguments')
     options.source = args[0]
-    options.name = args[1]
-
     if not os.path.exists(options.source):
-        parser.error('Input media is not accessible')
+        parser.error('input media is not accessible')
 
     if options.register:
         options.upload = True
 
+    if options.outfile is None and not options.upload:
+        parser.error('either outfile (-o) or upload (-u) must be set.')
+
     return options
 
 
-def main():
+def image_creator():
 
     options = parse_options(sys.argv[1:])
 
@@ -109,8 +113,8 @@ def main():
                         % os.path.basename(sys.argv[0]))
 
     if not options.force:
-        for extension in ('diskdump', 'meta'):
-            filename = "%s/%s.%s" % (options.outdir, options.name, extension)
+        for extension in ('', '.meta'):
+            filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
                 raise FatalError("Output file %s exists "
                     "(use --force to overwrite it)." % filename)
@@ -133,32 +137,48 @@ def main():
 
         size = options.shrink and dev.shrink() or dev.size()
         metadata['size'] = str(size // 2 ** 20)
+        
+        outfile = ""
+        if options.outfile is not None:
+            outfile = options.outfile
+            f = open('%s.%s' % (options.outfile, 'meta'), 'w')
+            try:
+                for key in metadata.keys():
+                    f.write("%s=%s\n" % (key, metadata[key]))
+            finally:
+                f.close()
+        else:
+            outfd, outfile = tmpfile.mkstemp()
+            os.close(outfd)
+
         dd('if=%s' % dev.device,
-            'of=%s/%s.%s' % (options.outdir, options.name, 'diskdump'),
+            'of=%s' % outfile,
             'bs=4M', 'count=%d' % ((size + 1) // 2 ** 22))
 
-        f = open('%s/%s.%s' % (options.outdir, options.name, 'meta'), 'w')
-        for key in metadata.keys():
-            f.write("%s=%s\n" % (key, metadata[key]))
-        f.close()
     finally:
         disk.cleanup()
 
     #The image is ready, lets call kamaki if necessary
     if options.upload:
-       pass 
+       pass
+
+    if options.outfile is None:
+        os.unlink(outfile)
 
     return 0
 
 COLOR_BLACK = "\033[00m"
 COLOR_RED = "\033[1;31m"
 
-if __name__ == '__main__':
+def main():
     try:
-        ret = main()
+        ret = image_creator()
         sys.exit(ret)
     except FatalError as e:
         print >> sys.stderr, "\n%sError: %s%s\n" % (COLOR_RED, e, COLOR_BLACK)
         sys.exit(1)
 
+
+if __name__ == '__main__':
+    main()
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

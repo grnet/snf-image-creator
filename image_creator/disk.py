@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from image_creator.util import get_command
+from image_creator import FatalError
 from clint.textui import progress
 
 import stat
@@ -109,7 +110,7 @@ class Disk(object):
 
 def progress_generator(label=''):
     position = 0;
-    for i in progress.bar(range(100),''):
+    for i in progress.bar(range(100),label):
         if i < position:
             continue
         position = yield
@@ -139,7 +140,7 @@ class DiskDevice(object):
     def enable(self):
         """Enable a newly created DiskDevice"""
 
-        self.progressbar = progress_generator()
+        self.progressbar = progress_generator("VM lauch: ")
         self.progressbar.next()
         eh = self.g.set_event_callback(self.progress_callback, guestfs.EVENT_PROGRESS)
         self.g.launch()
@@ -151,9 +152,9 @@ class DiskDevice(object):
         
         roots = self.g.inspect_os()
         if len(roots) == 0:
-            raise DiskError("No operating system found")
+            raise FatalError("No operating system found")
         if len(roots) > 1:
-            raise DiskError("Multiple operating systems found")
+            raise FatalError("Multiple operating systems found")
 
         self.root = roots[0]
         self.ostype = self.g.inspect_get_type(self.root)
@@ -174,7 +175,7 @@ class DiskDevice(object):
         total = array[3]
 
         assert self.progress_bar is not None
-
+        print 'posisition/total: %s/%s' % (position, total)
         self.progress_bar.send((position * 100)//total)
 
         if position == total:
@@ -214,13 +215,13 @@ class DiskDevice(object):
         dev = self.g.part_to_dev(self.root)
         parttype = self.g.part_get_parttype(dev)
         if parttype != 'msdos':
-            raise DiskError("You have a %s partition table. "
+            raise FatalError("You have a %s partition table. "
                 "Only msdos partitions are supported" % parttype)
 
         last_partition = self.g.part_list(dev)[-1]
 
         if last_partition['part_num'] > 4:
-            raise DiskError("This disk contains logical partitions. "
+            raise FatalError("This disk contains logical partitions. "
                 "Only primary partitions are supported.")
 
         part_dev = "%s%d" % (dev, last_partition['part_num'])
