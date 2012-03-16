@@ -174,12 +174,10 @@ class DiskDevice(object):
         position = array[2]
         total = array[3]
 
-        assert self.progress_bar is not None
-        print 'posisition/total: %s/%s' % (position, total)
-        self.progress_bar.send((position * 100)//total)
+        self.progressbar.send((position * 100)//total)
 
         if position == total:
-            self.progress_bar = None
+            self.progressbar = None
 
     def mount(self):
         """Mount all disk partitions in a correct order."""
