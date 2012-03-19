@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Copyright 2011 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -129,7 +131,7 @@ def image_creator():
 
         if options.sysprep:
             image_os.sysprep()
-        
+
         if options.cleanup:
             image_os.data_cleanup()
 
@@ -137,7 +139,7 @@ def image_creator():
 
         size = options.shrink and dev.shrink() or dev.size()
         metadata['size'] = str(size // 2 ** 20)
-        
+
         outfile = ""
         if options.outfile is not None:
             outfile = options.outfile
@@ -160,7 +162,7 @@ def image_creator():
 
     #The image is ready, lets call kamaki if necessary
     if options.upload:
-       pass
+        pass
 
     if options.outfile is None:
         os.unlink(outfile)
@@ -169,6 +171,7 @@ def image_creator():
 
 COLOR_BLACK = "\033[00m"
 COLOR_RED = "\033[1;31m"
+
 
 def main():
     try:
@@ -181,4 +184,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

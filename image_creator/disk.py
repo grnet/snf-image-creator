@@ -1,4 +1,35 @@
-#!/usr/bin/env python
+# Copyright 2012 GRNET S.A. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or
+# without modification, are permitted provided that the following
+# conditions are met:
+#
+#   1. Redistributions of source code must retain the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer.
+#
+#   2. Redistributions in binary form must reproduce the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer in the documentation and/or other materials
+#      provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# The views and conclusions contained in the software and
+# documentation are those of the authors and should not be
+# interpreted as representing official policies, either expressed
+# or implied, of GRNET S.A.
 
 from image_creator.util import get_command
 from image_creator import FatalError
@@ -43,7 +74,7 @@ class Disk(object):
 
     def _losetup(self, fname):
         loop = losetup('-f', '--show', fname)
-        loop = loop.strip() # remove the new-line char
+        loop = loop.strip()  # remove the new-line char
         self._add_cleanup(losetup, '-d', loop)
         return loop
 
@@ -109,12 +140,12 @@ class Disk(object):
 
 
 def progress_generator(label=''):
-    position = 0;
-    for i in progress.bar(range(100),label):
+    position = 0
+    for i in progress.bar(range(100), label):
         if i < position:
             continue
         position = yield
-    yield #suppress the StopIteration exception
+    yield  # suppress the StopIteration exception
 
 
 class DiskDevice(object):
@@ -136,20 +167,21 @@ class DiskDevice(object):
         #self.g.set_verbose(1)
 
         self.guestfs_enabled = False
-    
+
     def enable(self):
         """Enable a newly created DiskDevice"""
 
         self.progressbar = progress_generator("VM lauch: ")
         self.progressbar.next()
-        eh = self.g.set_event_callback(self.progress_callback, guestfs.EVENT_PROGRESS)
+        eh = self.g.set_event_callback(self.progress_callback,
+                                                        guestfs.EVENT_PROGRESS)
         self.g.launch()
         self.guestfs_enabled = True
         self.g.delete_event_callback(eh)
         if self.progressbar is not None:
             self.progressbar.send(100)
             self.progressbar = None
-        
+
         roots = self.g.inspect_os()
         if len(roots) == 0:
             raise FatalError("No operating system found")
@@ -174,7 +206,7 @@ class DiskDevice(object):
         position = array[2]
         total = array[3]
 
-        self.progressbar.send((position * 100)//total)
+        self.progressbar.send((position * 100) // total)
 
         if position == total:
             self.progressbar = None
