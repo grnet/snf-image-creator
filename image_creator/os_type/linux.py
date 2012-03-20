@@ -32,6 +32,10 @@
 # or implied, of GRNET S.A.
 
 from image_creator.os_type.unix import Unix
+from image_creator.util import warn
+
+from clint.textui import puts, indent
+
 import re
 
 
@@ -53,16 +57,13 @@ class Linux(Unix):
                 self._uuid[dev] = attr[1]
                 return attr[1]
 
-    def sysprep(self):
-        """Prepere system for image creation."""
-        self.sysprep_acpid()
-        self.sysprep_persistent_net_rules()
-        self.sysprep_persistent_devs()
-
     def sysprep_acpid(self):
         """Replace acpid powerdown action scripts to automatically shutdown
         the system without checking if a GUI is running.
         """
+
+        puts('* Fixing acpid powerdown action')
+
         action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n shutdown -h now '
         '\"Power button pressed\"'
 
@@ -71,13 +72,17 @@ class Linux(Unix):
         elif self.g.is_file('/etc/acpi/actions/power.sh'):
             self.g.write('/etc/acpi/actions/power.sh', action)
         else:
-            print "Warning: No acpid action file found"
+            with indent(2):
+                warn("No acpid action file found")
 
     def sysprep_persistent_net_rules(self):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
         """
+
+        puts('* Removing persistent network interface names')
+
         rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
         if self.g.is_file(rule_file):
             self.g.rm(rule_file)
@@ -86,6 +91,9 @@ class Linux(Unix):
         """Scan fstab and grub configuration files and replace all
         non-persistent device appearences with UUIDs.
         """
+
+        puts('* Replacing fstab & grub non-persistent device appearences')
+
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
 
@@ -146,7 +154,7 @@ class Linux(Unix):
 
         entry = line.split()
         if len(entry) != 6:
-            print "Warning: detected abnorman entry in fstab"
+            warn("Detected abnormal entry in fstab")
             return orig, "", ""
 
         dev = entry[0]

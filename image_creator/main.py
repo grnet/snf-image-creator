@@ -37,7 +37,9 @@ from image_creator import get_os_class
 from image_creator import __version__ as version
 from image_creator import FatalError
 from image_creator.disk import Disk
-from image_creator.util import get_command
+from image_creator.util import get_command, error, progress_generator, success
+from clint.textui import puts, indent
+from sendfile import sendfile
 
 import sys
 import os
@@ -106,8 +108,35 @@ def parse_options(input_args):
     return options
 
 
-def image_creator():
+def extract_image(device, outfile, size):
+    blocksize = 4194304  # 4MB
+    progress_size = (size + 1048575) // 1048576  # in MB
+    progressbar = progress_generator("Dumping image file: ",
+                                                    progress_size)
+    source = open(device, "r")
+    try:
+        dest = open(outfile, "w")
+        try:
+            left = size
+            offset = 0
+            progressbar.next()
+            while left > 0:
+                length = min(left, blocksize)
+                sent = sendfile(dest.fileno(), source.fileno(), offset, length)
+                offset += sent
+                left -= sent
+                for i in range(4):
+                    progressbar.next()
+        finally:
+            dest.close()
+    finally:
+        source.close()
 
+    success('Image file %s was successfully created' % outfile)
+
+
+def image_creator():
+    puts('snf-image-creator %s\n' % version)
     options = parse_options(sys.argv[1:])
 
     if os.geteuid() != 0:
@@ -125,6 +154,7 @@ def image_creator():
     try:
         dev = disk.get_device()
         dev.mount()
+
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
@@ -140,37 +170,21 @@ def image_creator():
         size = options.shrink and dev.shrink() or dev.size()
         metadata['size'] = str(size // 2 ** 20)
 
-        outfile = ""
         if options.outfile is not None:
-            outfile = options.outfile
             f = open('%s.%s' % (options.outfile, 'meta'), 'w')
             try:
                 for key in metadata.keys():
                     f.write("%s=%s\n" % (key, metadata[key]))
             finally:
                 f.close()
-        else:
-            outfd, outfile = tmpfile.mkstemp()
-            os.close(outfd)
 
-        dd('if=%s' % dev.device,
-            'of=%s' % outfile,
-            'bs=4M', 'count=%d' % ((size + 1) // 2 ** 22))
+            extract_image(dev.device, options.outfile, size)
 
     finally:
+        puts('cleaning up...')
         disk.cleanup()
 
-    #The image is ready, lets call kamaki if necessary
-    if options.upload:
-        pass
-
-    if options.outfile is None:
-        os.unlink(outfile)
-
     return 0
-
-COLOR_BLACK = "\033[00m"
-COLOR_RED = "\033[1;31m"
 
 
 def main():
@@ -178,7 +192,7 @@ def main():
         ret = image_creator()
         sys.exit(ret)
     except FatalError as e:
-        print >> sys.stderr, "\n%sError: %s%s\n" % (COLOR_RED, e, COLOR_BLACK)
+        error(e)
         sys.exit(1)
 
 

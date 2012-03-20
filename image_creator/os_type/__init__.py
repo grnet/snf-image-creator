@@ -32,6 +32,7 @@
 # or implied, of GRNET S.A.
 
 import re
+from clint.textui import indent, puts
 
 
 def add_prefix(target):
@@ -111,10 +112,24 @@ class OSBase(object):
 
     def data_cleanup(self):
         """Cleanup sensitive data out of the OS image."""
-        raise NotImplementedError
+
+        puts('Cleaning up sensitive data out of the OS image:')
+        with indent(4):
+            for name in dir(self):
+                attr = getattr(self, name)
+                if name.startswith('data_cleanup_') and callable(attr):
+                    attr()
+        puts()
 
     def sysprep(self):
         """Prepere system for image creation."""
-        raise NotImplementedError
+
+        puts('Preparing system for image creation:')
+        with indent(4):
+            for name in dir(self):
+                attr = getattr(self, name)
+                if name.startswith('sysprep_') and callable(attr):
+                    attr()
+        puts()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

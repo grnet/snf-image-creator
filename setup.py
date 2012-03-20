@@ -47,7 +47,7 @@ setup(
     license='BSD',
     packages=['image_creator'],
     include_package_data=True,
-    install_requires=['pbs', 'clint'],
+    install_requires=['pbs', 'clint', 'pysendfile'],
     entry_points={
         'console_scripts': ['snf-image-creator = image_creator.main:main']
     }

@@ -32,6 +32,7 @@
 # or implied, of GRNET S.A.
 
 import pbs
+from clint.textui import puts, puts_err, colored, progress
 
 
 def get_command(command):
@@ -46,3 +47,27 @@ def get_command(command):
         return pbs.__getattr__(command)
     except pbs.CommadNotFount as e:
         return find_sbin_command(command, e)
+
+
+def error(msg):
+    puts_err(colored.red("Error: %s\n" % msg))
+
+
+def warn(msg):
+    puts_err(colored.yellow("Warning: %s" % msg))
+
+
+def success(msg):
+    puts(colored.green(msg))
+
+
+def progress_generator(label='', n=100):
+    position = 0
+    for i in progress.bar(range(n), label):
+        if i < position:
+            continue
+        position = yield
+    yield  # suppress the StopIteration exception
+
+
+# vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
