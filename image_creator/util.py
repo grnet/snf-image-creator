@@ -49,16 +49,16 @@ def get_command(command):
         return find_sbin_command(command, e)
 
 
-def error(msg):
-    puts_err(colored.red("Error: %s\n" % msg))
+def error(msg, new_line=True):
+    puts_err(colored.red("Error: %s\n" % msg), new_line)
 
 
-def warn(msg):
-    puts_err(colored.yellow("Warning: %s" % msg))
+def warn(msg, new_line=True):
+    puts_err(colored.yellow("Warning: %s" % msg), new_line)
 
 
-def success(msg):
-    puts(colored.green(msg))
+def success(msg, new_line=True):
+    puts(colored.green(msg), new_line)
 
 
 def progress_generator(label='', n=100):
