@@ -114,22 +114,32 @@ class OSBase(object):
         """Cleanup sensitive data out of the OS image."""
 
         puts('Cleaning up sensitive data out of the OS image:')
-        with indent(4):
-            for name in dir(self):
-                attr = getattr(self, name)
-                if name.startswith('data_cleanup_') and callable(attr):
-                    attr()
+
+        is_cleanup = lambda x: x.startswith('data_cleanup_') and \
+                                                    callable(getattr(self, x))
+        tasks = [getattr(self, x) for x in dir(self) if is_cleanup(x)]
+        size = len(tasks)
+        cnt = 0
+        for task in tasks:
+            cnt += 1
+            puts(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            task()
         puts()
 
     def sysprep(self):
         """Prepere system for image creation."""
 
         puts('Preparing system for image creation:')
-        with indent(4):
-            for name in dir(self):
-                attr = getattr(self, name)
-                if name.startswith('sysprep_') and callable(attr):
-                    attr()
+
+        is_sysprep = lambda x: x.startswith('sysprep_') and \
+                                                    callable(getattr(self, x))
+        tasks = [getattr(self, x) for x in dir(self) if is_sysprep(x)]
+        size = len(tasks)
+        cnt = 0
+        for task in tasks:
+            cnt += 1
+            puts(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            task()
         puts()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

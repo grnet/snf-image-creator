@@ -159,6 +159,8 @@ def image_creator():
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
 
+        puts()
+
         if options.sysprep:
             image_os.sysprep()
 
@@ -179,7 +181,6 @@ def image_creator():
                 f.close()
 
             extract_image(dev.device, options.outfile, size)
-
     finally:
         puts('cleaning up...')
         disk.cleanup()

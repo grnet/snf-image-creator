@@ -71,43 +71,49 @@ class Unix(OSBase):
 
         return users
 
-    def data_cleanup_cache(self):
+    def data_cleanup_cache(self, print_header=True):
         """Remove all regular files under /var/cache"""
 
-        puts('* Removing files under /var/cache')
+        if print_header:
+            puts('Removing files under /var/cache')
 
         self.foreach_file('/var/cache', self.g.rm, ftype='r')
 
-    def data_cleanup_tmp(self):
+    def data_cleanup_tmp(self, print_header=True):
         """Remove all files under /tmp and /var/tmp"""
 
-        puts('* Removing files under /tmp and /var/tmp')
+        if print_header:
+            puts('Removing files under /tmp and /var/tmp')
 
         self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
 
-    def data_cleanup_log(self):
+    def data_cleanup_log(self, print_header=True):
         """Empty all files under /var/log"""
 
-        puts('* Emptying all files under /var/log')
+        if print_header:
+            puts('Emptying all files under /var/log')
 
         self.foreach_file('/var/log', self.g.truncate, ftype='r')
 
-    def data_cleanup_mail(self):
+    def data_cleanup_mail(self, print_header=True):
         """Remove all files under /var/mail and /var/spool/mail"""
 
-        puts('* Removing files under /var/mail and /var/spool/mail')
+        if print_header:
+            puts('Removing files under /var/mail and /var/spool/mail')
 
         self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
-    def data_cleanup_userdata(self):
+    def data_cleanup_userdata(self, print_header=True):
         """Delete sensitive userdata"""
 
         homedirs = ['/root'] + self.ls('/home/')
 
+        if print_header:
+            puts('Removing sensitive user data under %s' % " ".join(homedirs))
+
         for homedir in homedirs:
-            puts('* Removing sensitive user data under %s' % homedir)
             for data in self.sensitive_userdata:
                 fname = "%s/%s" % (homedir, data)
                 if self.g.is_file(fname):

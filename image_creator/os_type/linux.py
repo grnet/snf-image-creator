@@ -37,6 +37,7 @@ from image_creator.util import warn
 from clint.textui import puts, indent
 
 import re
+import time
 
 
 class Linux(Unix):
@@ -57,42 +58,80 @@ class Linux(Unix):
                 self._uuid[dev] = attr[1]
                 return attr[1]
 
-    def sysprep_acpid(self):
+    def sysprep_acpid(self, print_header=True):
         """Replace acpid powerdown action scripts to automatically shutdown
         the system without checking if a GUI is running.
         """
 
-        puts('* Fixing acpid powerdown action')
+        if print_header:
+            print 'Fixing acpid powerdown action'
 
-        action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n shutdown -h now '
-        '\"Power button pressed\"'
+        powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
+                                'shutdown -h now \"Power button pressed\"'
 
-        if self.g.is_file('/etc/acpi/powerbtn.sh'):
-            self.g.write('/etc/acpi/powerbtn.sh', action)
-        elif self.g.is_file('/etc/acpi/actions/power.sh'):
-            self.g.write('/etc/acpi/actions/power.sh', action)
-        else:
-            with indent(2):
-                warn("No acpid action file found")
+        events_dir = '/etc/acpi/events'
+        if not self.g.is_dir(events_dir):
+            warn("No acpid event directory found")
+            return
 
-    def sysprep_persistent_net_rules(self):
+        event_exp = re.compile('event=(.+)', re.I)
+        action_exp = re.compile('action=(.+)', re.I)
+        for f in self.g.readdir(events_dir):
+            if f['ftyp'] != 'r':
+                continue
+
+            fullpath = "%s/%s" % (events_dir, f['name'])
+            event = ""
+            action = ""
+            for line in self.g.cat(fullpath).splitlines():
+                m = event_exp.match(line)
+                if m:
+                    event = m.group(1)
+                    continue
+                m = action_exp.match(line)
+                if m:
+                    action = m.group(1)
+                    continue
+
+            if event.strip() == "button[ /]power":
+                if action:
+                    if not self.g.is_file(action):
+                        warn("Acpid action file: %s does not exist" % action)
+                        return
+                    self.g.copy_file_to_file(fullpath, \
+                      "%s.orig.snf-image-creator-%d" % (fullpath, time.time()))
+                    self.g.write(fullpath, powerbtn_action)
+                    return
+                else:
+                    warn("Acpid event file %s does not contain and action")
+                    return
+            elif event.strip() == ".*":
+                warn("Found action `.*'. Don't know how to handle this." \
+                    " Please edit \%s' image file manually to make the "
+                    "system immediatelly shutdown when an power button acpi " \
+                    "event occures")
+                return
+
+    def sysprep_persistent_net_rules(self, print_header=True):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
         """
 
-        puts('* Removing persistent network interface names')
+        if print_header:
+            puts('Removing persistent network interface names')
 
         rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
         if self.g.is_file(rule_file):
             self.g.rm(rule_file)
 
-    def sysprep_persistent_devs(self):
+    def sysprep_persistent_devs(self, print_header=True):
         """Scan fstab and grub configuration files and replace all
         non-persistent device appearences with UUIDs.
         """
 
-        puts('* Replacing fstab & grub non-persistent device appearences')
+        if print_header:
+            puts('Replacing fstab & grub non-persistent device appearences')
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()

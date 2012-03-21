@@ -100,51 +100,47 @@ class Disk(object):
         the Disk instance.
         """
 
-        puts("Examining source media `%s'" % self.source)
-        with indent(4):
-            sourcedev = self.source
-            mode = os.stat(self.source).st_mode
-            if stat.S_ISDIR(mode):
-                puts(colored.green('Looks like a directory'))
-                return self._losetup(self._dir_to_disk())
-            elif stat.S_ISREG(mode):
-                puts(colored.green('Looks like an image file'))
-                sourcedev = self._losetup(self.source)
-            elif not stat.S_ISBLK(mode):
-                raise ValueError("Invalid media source. Only block devices, "
-                                "regular files and directories are supported.")
-            else:
-                puts(colored.green('Looks like a block device'))
-            #puts()
+        puts("Examining source media `%s'..." % self.source, False)
+        sourcedev = self.source
+        mode = os.stat(self.source).st_mode
+        if stat.S_ISDIR(mode):
+            puts(colored.green('looks like a directory'))
+            return self._losetup(self._dir_to_disk())
+        elif stat.S_ISREG(mode):
+            puts(colored.green('looks like an image file'))
+            sourcedev = self._losetup(self.source)
+        elif not stat.S_ISBLK(mode):
+            raise ValueError("Invalid media source. Only block devices, "
+                            "regular files and directories are supported.")
+        else:
+            puts(colored.green('looks like a block device'))
 
         # Take a snapshot and return it to the user
-        puts("Snapshotting media source")
-        with indent(4):
-            size = blockdev('--getsize', sourcedev)
-            cowfd, cow = tempfile.mkstemp()
-            os.close(cowfd)
-            self._add_cleanup(os.unlink, cow)
-            # Create 1G cow sparse file
-            dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', \
-                                            'seek=%d' % (1024 * 1024))
-            cowdev = self._losetup(cow)
-    
-            snapshot = uuid.uuid4().hex
-            tablefd, table = tempfile.mkstemp()
-            try:
-                os.write(tablefd, "0 %d snapshot %s %s n 8" % \
-                                            (int(size), sourcedev, cowdev))
-                dmsetup('create', snapshot, table)
-                self._add_cleanup(dmsetup, 'remove', snapshot)
-                # Sometimes dmsetup remove fails with Device or resource busy,
-                # although everything is cleaned up and the snapshot is not
-                # used by anyone. Add a 2 seconds delay to be on the safe side.
-                self._add_cleanup(time.sleep, 2)
+        puts("Snapshotting media source...", False)
+        size = blockdev('--getsize', sourcedev)
+        cowfd, cow = tempfile.mkstemp()
+        os.close(cowfd)
+        self._add_cleanup(os.unlink, cow)
+        # Create 1G cow sparse file
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', \
+                                        'seek=%d' % (1024 * 1024))
+        cowdev = self._losetup(cow)
 
-            finally:
-                os.unlink(table)
-            puts(colored.green('Done'))
-        # puts()
+        snapshot = uuid.uuid4().hex
+        tablefd, table = tempfile.mkstemp()
+        try:
+            os.write(tablefd, "0 %d snapshot %s %s n 8" % \
+                                        (int(size), sourcedev, cowdev))
+            dmsetup('create', snapshot, table)
+            self._add_cleanup(dmsetup, 'remove', snapshot)
+            # Sometimes dmsetup remove fails with Device or resource busy,
+            # although everything is cleaned up and the snapshot is not
+            # used by anyone. Add a 2 seconds delay to be on the safe side.
+            self._add_cleanup(time.sleep, 2)
+
+        finally:
+            os.unlink(table)
+        puts(colored.green('done'))
         new_device = DiskDevice("/dev/mapper/%s" % snapshot)
         self._devices.append(new_device)
         new_device.enable()
@@ -181,31 +177,27 @@ class DiskDevice(object):
     def enable(self):
         """Enable a newly created DiskDevice"""
         self.progressbar = progress_generator("Launching helper VM: ")
-        with indent(4):
-            self.progressbar.next()
-            eh = self.g.set_event_callback(self.progress_callback,
-                                                        guestfs.EVENT_PROGRESS)
-            self.g.launch()
-            self.guestfs_enabled = True
-            self.g.delete_event_callback(eh)
-            if self.progressbar is not None:
-                self.progressbar.send(100)
-                self.progressbar = None
-            puts(colored.green('Done'))
+        self.progressbar.next()
+        eh = self.g.set_event_callback(self.progress_callback,
+                                                    guestfs.EVENT_PROGRESS)
+        self.g.launch()
+        self.guestfs_enabled = True
+        self.g.delete_event_callback(eh)
+        if self.progressbar is not None:
+            self.progressbar.send(100)
+            self.progressbar = None
 
-        puts('Inspecting Operating System')
-        with indent(4):
-            roots = self.g.inspect_os()
-            if len(roots) == 0:
-                raise FatalError("No operating system found")
-            if len(roots) > 1:
-                raise FatalError("Multiple operating systems found."
-                                "We only support images with one filesystem.")
-            self.root = roots[0]
-            self.ostype = self.g.inspect_get_type(self.root)
-            self.distro = self.g.inspect_get_distro(self.root)
-            puts(colored.green('Found a %s system' % self.distro))
-        puts()
+        puts('Inspecting Operating System...', False)
+        roots = self.g.inspect_os()
+        if len(roots) == 0:
+            raise FatalError("No operating system found")
+        if len(roots) > 1:
+            raise FatalError("Multiple operating systems found."
+                            "We only support images with one filesystem.")
+        self.root = roots[0]
+        self.ostype = self.g.inspect_get_type(self.root)
+        self.distro = self.g.inspect_get_distro(self.root)
+        puts(colored.green('found a %s system' % self.distro))
 
     def destroy(self):
         """Destroy this DiskDevice instance."""
@@ -257,8 +249,8 @@ class DiskDevice(object):
         disk and then updating the partition table. The new disk size
         (in bytes) is returned.
         """
-        puts("Shrinking image (this may take a while)")
-        
+        puts("Shrinking image (this may take a while)...", False)
+
         dev = self.g.part_to_dev(self.root)
         parttype = self.g.part_get_parttype(dev)
         if parttype != 'msdos':
@@ -277,26 +269,26 @@ class DiskDevice(object):
             warn("Don't know how to resize %s partitions." % vfs_type)
             return
 
-        with indent(4):
-            self.g.e2fsck_f(part_dev)
-            self.g.resize2fs_M(part_dev)
+        self.g.e2fsck_f(part_dev)
+        self.g.resize2fs_M(part_dev)
 
-            output = self.g.tune2fs_l(part_dev)
-            block_size = int(
-                filter(lambda x: x[0] == 'Block size', output)[0][1])
-            block_cnt = int(
-                filter(lambda x: x[0] == 'Block count', output)[0][1])
+        output = self.g.tune2fs_l(part_dev)
+        block_size = int(
+            filter(lambda x: x[0] == 'Block size', output)[0][1])
+        block_cnt = int(
+            filter(lambda x: x[0] == 'Block count', output)[0][1])
 
-            sector_size = self.g.blockdev_getss(dev)
+        sector_size = self.g.blockdev_getss(dev)
 
-            start = last_partition['part_start'] / sector_size
-            end = start + (block_size * block_cnt) / sector_size - 1
+        start = last_partition['part_start'] / sector_size
+        end = start + (block_size * block_cnt) / sector_size - 1
 
-            self.g.part_del(dev, last_partition['part_num'])
-            self.g.part_add(dev, 'p', start, end)
+        self.g.part_del(dev, last_partition['part_num'])
+        self.g.part_add(dev, 'p', start, end)
 
-            new_size = (end + 1) * sector_size
-            puts("  New image size is %dMB\n" % (new_size // 2 ** 20))
+        new_size = (end + 1) * sector_size
+        puts(colored.green("new image size is %dMB\n" % (new_size // 2 ** 20)))
+
         return new_size
 
     def size(self):
