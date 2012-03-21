@@ -300,6 +300,6 @@ class DiskDevice(object):
         dev = self.g.part_to_dev(self.root)
         last = self.g.part_list(dev)[-1]
 
-        return last['part_end']
+        return last['part_end'] + 1
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
