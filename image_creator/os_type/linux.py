@@ -59,8 +59,8 @@ class Linux(Unix):
                 return attr[1]
 
     def sysprep_acpid(self, print_header=True):
-        """Replace acpid powerdown action scripts to automatically shutdown
-        the system without checking if a GUI is running.
+        """Replace acpid powerdown action scripts to immediately shutdown the
+        system without checking if a GUI is running.
         """
 
         if print_header:
@@ -98,18 +98,18 @@ class Linux(Unix):
                     if not self.g.is_file(action):
                         warn("Acpid action file: %s does not exist" % action)
                         return
-                    self.g.copy_file_to_file(fullpath, \
-                      "%s.orig.snf-image-creator-%d" % (fullpath, time.time()))
-                    self.g.write(fullpath, powerbtn_action)
+                    self.g.copy_file_to_file(action, \
+                      "%s.orig.snf-image-creator-%d" % (action, time.time()))
+                    self.g.write(action, powerbtn_action)
                     return
                 else:
                     warn("Acpid event file %s does not contain and action")
                     return
             elif event.strip() == ".*":
                 warn("Found action `.*'. Don't know how to handle this." \
-                    " Please edit \%s' image file manually to make the "
+                    " Please edit \%s' image file manually to make the " \
                     "system immediatelly shutdown when an power button acpi " \
-                    "event occures")
+                    "event occures" % action)
                 return
 
     def sysprep_persistent_net_rules(self, print_header=True):
