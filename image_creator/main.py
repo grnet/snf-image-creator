@@ -38,8 +38,7 @@ from image_creator import __version__ as version
 from image_creator import FatalError
 from image_creator.disk import Disk
 from image_creator.util import get_command, error, progress_generator, success
-from clint.textui import puts, indent
-from sendfile import sendfile
+from clint.textui import puts
 
 import sys
 import os
@@ -108,33 +107,6 @@ def parse_options(input_args):
     return options
 
 
-def extract_image(device, outfile, size):
-    blocksize = 4194304  # 4MB
-    progress_size = (size + 1048575) // 1048576  # in MB
-    progressbar = progress_generator("Dumping image file: ",
-                                                    progress_size)
-    source = open(device, "r")
-    try:
-        dest = open(outfile, "w")
-        try:
-            left = size
-            offset = 0
-            progressbar.next()
-            while left > 0:
-                length = min(left, blocksize)
-                sent = sendfile(dest.fileno(), source.fileno(), offset, length)
-                offset += sent
-                left -= sent
-                for i in range(4):
-                    progressbar.next()
-        finally:
-            dest.close()
-    finally:
-        source.close()
-
-    success('Image file %s was successfully created' % outfile)
-
-
 def image_creator():
     puts('snf-image-creator %s\n' % version)
     options = parse_options(sys.argv[1:])
@@ -180,7 +152,7 @@ def image_creator():
             finally:
                 f.close()
 
-            extract_image(dev.device, options.outfile, size)
+            dev.dump(options.outfile)
     finally:
         puts('cleaning up...')
         disk.cleanup()

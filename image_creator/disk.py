@@ -31,9 +31,9 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import get_command, warn, progress_generator
+from image_creator.util import get_command, warn, progress_generator, success
 from image_creator import FatalError
-from clint.textui import indent, puts, colored
+from clint.textui import puts
 
 import stat
 import os
@@ -43,6 +43,7 @@ import re
 import sys
 import guestfs
 import time
+from sendfile import sendfile
 
 
 class DiskError(Exception):
@@ -104,16 +105,16 @@ class Disk(object):
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
-            puts(colored.green('looks like a directory'))
+            success('looks like a directory')
             return self._losetup(self._dir_to_disk())
         elif stat.S_ISREG(mode):
-            puts(colored.green('looks like an image file'))
+            success('looks like an image file')
             sourcedev = self._losetup(self.source)
         elif not stat.S_ISBLK(mode):
             raise ValueError("Invalid media source. Only block devices, "
                             "regular files and directories are supported.")
         else:
-            puts(colored.green('looks like a block device'))
+            success('looks like a block device')
 
         # Take a snapshot and return it to the user
         puts("Snapshotting media source...", False)
@@ -140,7 +141,7 @@ class Disk(object):
 
         finally:
             os.unlink(table)
-        puts(colored.green('done'))
+        success('done')
         new_device = DiskDevice("/dev/mapper/%s" % snapshot)
         self._devices.append(new_device)
         new_device.enable()
@@ -197,7 +198,7 @@ class DiskDevice(object):
         self.root = roots[0]
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
-        puts(colored.green('found a %s system' % self.distro))
+        success('found a %s system' % self.distro)
 
     def destroy(self):
         """Destroy this DiskDevice instance."""
@@ -250,6 +251,7 @@ class DiskDevice(object):
         (in bytes) is returned.
         """
         puts("Shrinking image (this may take a while)...", False)
+        sys.stdout.flush()
 
         dev = self.g.part_to_dev(self.root)
         parttype = self.g.part_get_parttype(dev)
@@ -287,8 +289,8 @@ class DiskDevice(object):
         self.g.part_add(dev, 'p', start, end)
 
         new_size = (end + 1) * sector_size
-        puts(colored.green("new image size is %dMB\n" % (new_size // 2 ** 20)))
-
+        success("new image size is %dMB" %
+                            ((new_size + 2 ** 20 - 1) // 2 ** 20))
         return new_size
 
     def size(self):
@@ -301,5 +303,38 @@ class DiskDevice(object):
         last = self.g.part_list(dev)[-1]
 
         return last['part_end'] + 1
+
+    def dump(self, outfile):
+        """Dumps the content of device into a file.
+
+        This method will only dump the actual payload, found by reading the
+        partition table. Empty space in the end of the device will be ignored.
+        """
+        blocksize = 2 ** 22  # 4MB
+        size = self.size()
+        progress_size = (size + 2 ** 20 - 1) // 2 ** 20  # in MB
+        progressbar = progress_generator("Dumping image file: ", progress_size)
+
+        source = open(self.device, "r")
+        try:
+            dest = open(outfile, "w")
+            try:
+                left = size
+                offset = 0
+                progressbar.next()
+                while left > 0:
+                    length = min(left, blocksize)
+                    sent = sendfile(dest.fileno(), source.fileno(), offset,
+                                                                        length)
+                    offset += sent
+                    left -= sent
+                    for i in range((length + 2 ** 20 - 1) // 2 ** 20):
+                        progressbar.next()
+            finally:
+                dest.close()
+        finally:
+            source.close()
+
+        success('Image file %s was successfully created' % outfile)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

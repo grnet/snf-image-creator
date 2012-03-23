@@ -69,5 +69,4 @@ def progress_generator(label='', n=100):
         position = yield
     yield  # suppress the StopIteration exception
 
-
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
