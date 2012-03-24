@@ -37,9 +37,8 @@ from image_creator import get_os_class
 from image_creator import __version__ as version
 from image_creator import FatalError
 from image_creator.disk import Disk
-from image_creator.util import get_command, error, progress_generator, success
-from clint.textui import puts
-
+from image_creator.util import get_command, error, success, output
+from image_creator import util
 import sys
 import os
 import optparse
@@ -67,25 +66,23 @@ def parse_options(input_args):
         action="store_true", help="overwrite output files if they exist")
 
     parser.add_option("--no-cleanup", dest="cleanup", default=True,
-        help="don't cleanup sensitive data",
-        action="store_false")
+        help="don't cleanup sensitive data", action="store_false")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
-        help="don't perform system preperation",
-        action="store_false")
+        help="don't perform system preperation", action="store_false")
 
     parser.add_option("--no-shrink", dest="shrink", default=True,
-        help="don't shrink any partition",
-        action="store_false")
+        help="don't shrink any partition", action="store_false")
 
     parser.add_option("-o", "--outfile", type="string", dest="outfile",
         default=None, action="callback", callback=check_writable_dir,
-        help="dump image to FILE",
-        metavar="FILE")
+        help="dump image to FILE", metavar="FILE")
+
+    parser.add_option("-s", "--silent", dest="silent", default=False,
+        help="silent mode, only output error", action="store_true")
 
     parser.add_option("-u", "--upload", dest="upload", default=False,
-        help="upload the image to pithos",
-        action="store_true")
+        help="upload the image to pithos", action="store_true")
 
     parser.add_option("-r", "--register", dest="register", default=False,
         help="register the image to ~okeanos", action="store_true")
@@ -108,8 +105,12 @@ def parse_options(input_args):
 
 
 def image_creator():
-    puts('snf-image-creator %s\n' % version)
     options = parse_options(sys.argv[1:])
+
+    if options.silent:
+        util.silent = True
+
+    output('snf-image-creator %s\n' % version)
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root" \
@@ -131,7 +132,7 @@ def image_creator():
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
 
-        puts()
+        output()
 
         if options.sysprep:
             image_os.sysprep()
@@ -154,7 +155,7 @@ def image_creator():
 
             dev.dump(options.outfile)
     finally:
-        puts('cleaning up...')
+        output('cleaning up...')
         disk.cleanup()
 
     return 0

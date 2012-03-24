@@ -32,9 +32,7 @@
 # or implied, of GRNET S.A.
 
 from image_creator.os_type.unix import Unix
-from image_creator.util import warn
-
-from clint.textui import puts, indent
+from image_creator.util import warn, output
 
 import re
 import time
@@ -64,7 +62,7 @@ class Linux(Unix):
         """
 
         if print_header:
-            print 'Fixing acpid powerdown action'
+            output('Fixing acpid powerdown action')
 
         powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
                                 'shutdown -h now \"Power button pressed\"\n'
@@ -119,7 +117,7 @@ class Linux(Unix):
         """
 
         if print_header:
-            puts('Removing persistent network interface names')
+            output('Removing persistent network interface names')
 
         rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
         if self.g.is_file(rule_file):
@@ -131,7 +129,7 @@ class Linux(Unix):
         """
 
         if print_header:
-            puts('Replacing fstab & grub non-persistent device appearences')
+            output('Replacing fstab & grub non-persistent device appearences')
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()

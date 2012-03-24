@@ -35,8 +35,7 @@ import re
 import sys
 
 from image_creator.os_type import OSBase
-from image_creator.util import warn
-from clint.textui import puts
+from image_creator.util import warn, output
 
 
 class Unix(OSBase):
@@ -75,7 +74,7 @@ class Unix(OSBase):
         """Remove all regular files under /var/cache"""
 
         if print_header:
-            puts('Removing files under /var/cache')
+            output('Removing files under /var/cache')
 
         self.foreach_file('/var/cache', self.g.rm, ftype='r')
 
@@ -83,7 +82,7 @@ class Unix(OSBase):
         """Remove all files under /tmp and /var/tmp"""
 
         if print_header:
-            puts('Removing files under /tmp and /var/tmp')
+            output('Removing files under /tmp and /var/tmp')
 
         self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
@@ -92,7 +91,7 @@ class Unix(OSBase):
         """Empty all files under /var/log"""
 
         if print_header:
-            puts('Emptying all files under /var/log')
+            output('Emptying all files under /var/log')
 
         self.foreach_file('/var/log', self.g.truncate, ftype='r')
 
@@ -100,7 +99,7 @@ class Unix(OSBase):
         """Remove all files under /var/mail and /var/spool/mail"""
 
         if print_header:
-            puts('Removing files under /var/mail and /var/spool/mail')
+            output('Removing files under /var/mail and /var/spool/mail')
 
         self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
@@ -111,7 +110,8 @@ class Unix(OSBase):
         homedirs = ['/root'] + self.ls('/home/')
 
         if print_header:
-            puts('Removing sensitive user data under %s' % " ".join(homedirs))
+            output('Removing sensitive user data under %s' % " ".
+                                                        join(homedirs))
 
         for homedir in homedirs:
             for data in self.sensitive_userdata:

@@ -31,9 +31,9 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import get_command, warn, progress_generator, success
+from image_creator.util import get_command
+from image_creator.util import warn, progress, success, output
 from image_creator import FatalError
-from clint.textui import puts
 
 import stat
 import os
@@ -101,7 +101,7 @@ class Disk(object):
         the Disk instance.
         """
 
-        puts("Examining source media `%s'..." % self.source, False)
+        output("Examining source media `%s'..." % self.source, False)
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
@@ -117,7 +117,7 @@ class Disk(object):
             success('looks like a block device')
 
         # Take a snapshot and return it to the user
-        puts("Snapshotting media source...", False)
+        output("Snapshotting media source...", False)
         size = blockdev('--getsize', sourcedev)
         cowfd, cow = tempfile.mkstemp()
         os.close(cowfd)
@@ -177,7 +177,7 @@ class DiskDevice(object):
 
     def enable(self):
         """Enable a newly created DiskDevice"""
-        self.progressbar = progress_generator("Launching helper VM: ")
+        self.progressbar = progress("Launching helper VM: ")
         self.progressbar.next()
         eh = self.g.set_event_callback(self.progress_callback,
                                                     guestfs.EVENT_PROGRESS)
@@ -188,7 +188,7 @@ class DiskDevice(object):
             self.progressbar.send(100)
             self.progressbar = None
 
-        puts('Inspecting Operating System...', False)
+        output('Inspecting Operating System...', False)
         roots = self.g.inspect_os()
         if len(roots) == 0:
             raise FatalError("No operating system found")
@@ -221,6 +221,8 @@ class DiskDevice(object):
 
     def mount(self):
         """Mount all disk partitions in a correct order."""
+
+        output("Mounting image...", False)
         mps = self.g.inspect_get_mountpoints(self.root)
 
         # Sort the keys to mount the fs in a correct order.
@@ -237,7 +239,8 @@ class DiskDevice(object):
             try:
                 self.g.mount(dev, mp)
             except RuntimeError as msg:
-                print "%s (ignored)" % msg
+                warn("%s (ignored)" % msg)
+        success("done")
 
     def umount(self):
         """Umount all mounted filesystems."""
@@ -250,8 +253,7 @@ class DiskDevice(object):
         disk and then updating the partition table. The new disk size
         (in bytes) is returned.
         """
-        puts("Shrinking image (this may take a while)...", False)
-        sys.stdout.flush()
+        output("Shrinking image (this may take a while)...", False)
 
         dev = self.g.part_to_dev(self.root)
         parttype = self.g.part_get_parttype(dev)
@@ -313,7 +315,7 @@ class DiskDevice(object):
         blocksize = 2 ** 22  # 4MB
         size = self.size()
         progress_size = (size + 2 ** 20 - 1) // 2 ** 20  # in MB
-        progressbar = progress_generator("Dumping image file: ", progress_size)
+        progressbar = progress("Dumping image file: ", progress_size)
 
         source = open(self.device, "r")
         try:

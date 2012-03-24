@@ -31,8 +31,11 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+import sys
 import pbs
-from clint.textui import puts, puts_err, colored, progress
+from clint.textui import colored, progress as uiprogress
+
+silent = False
 
 
 def get_command(command):
@@ -50,23 +53,45 @@ def get_command(command):
 
 
 def error(msg, new_line=True):
-    puts_err(colored.red("Error: %s\n" % msg), new_line)
+    nl = "\n" if new_line else ''
+    sys.stderr.write('Error: %s' % msg + nl)
 
 
 def warn(msg, new_line=True):
-    puts_err(colored.yellow("Warning: %s" % msg), new_line)
+    if not silent:
+        nl = "\n" if new_line else ''
+        sys.stderr.write(colored.yellow("Warning: %s" % msg) + nl)
 
 
 def success(msg, new_line=True):
-    puts(colored.green(msg), new_line)
+    if not silent:
+        nl = "\n" if new_line else ''
+        sys.stdout.write(colored.green(msg) + nl)
+        if not nl:
+            sys.stdout.flush()
 
 
-def progress_generator(label='', n=100):
-    position = 0
-    for i in progress.bar(range(n), label):
-        if i < position:
-            continue
-        position = yield
-    yield  # suppress the StopIteration exception
+def output(msg="", new_line=True):
+    if not silent:
+        nl = "\n" if new_line else ''
+        sys.stdout.write(msg + nl)
+        if not nl:
+            sys.stdout.flush()
+
+
+def progress(label='', n=100):
+
+    PROGRESS_LENGTH = 32
+    MESSAGE_LENGTH = 32
+
+    def progress_generator(label, n):
+        position = 0
+        for i in uiprogress.bar(range(n), label.ljust(MESSAGE_LENGTH), \
+                                                    PROGRESS_LENGTH, silent):
+            if i < position:
+                continue
+            position = yield
+        yield  # suppress the StopIteration exception
+    return progress_generator(label, n)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -31,8 +31,9 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+from image_creator.util import output
+
 import re
-from clint.textui import indent, puts
 
 
 def add_prefix(target):
@@ -113,7 +114,7 @@ class OSBase(object):
     def data_cleanup(self):
         """Cleanup sensitive data out of the OS image."""
 
-        puts('Cleaning up sensitive data out of the OS image:')
+        output('Cleaning up sensitive data out of the OS image:')
 
         is_cleanup = lambda x: x.startswith('data_cleanup_') and \
                                                     callable(getattr(self, x))
@@ -122,14 +123,14 @@ class OSBase(object):
         cnt = 0
         for task in tasks:
             cnt += 1
-            puts(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
-        puts()
+        output()
 
     def sysprep(self):
         """Prepere system for image creation."""
 
-        puts('Preparing system for image creation:')
+        output('Preparing system for image creation:')
 
         is_sysprep = lambda x: x.startswith('sysprep_') and \
                                                     callable(getattr(self, x))
@@ -138,8 +139,8 @@ class OSBase(object):
         cnt = 0
         for task in tasks:
             cnt += 1
-            puts(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
-        puts()
+        output()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
