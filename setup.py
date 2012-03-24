@@ -45,7 +45,7 @@ setup(
 #    long_description=open('README.rst').read(),
     url='https://code.grnet.gr/projects/snf-image-creator',
     license='BSD',
-    packages=['image_creator'],
+    packages=['image_creator', 'image_creator.os_type'],
     include_package_data=True,
     install_requires=['pbs', 'clint', 'pysendfile'],
     entry_points={
