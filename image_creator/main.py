@@ -64,31 +64,31 @@ def parse_options(input_args):
     parser = optparse.OptionParser(version=version, usage=usage)
 
     parser.add_option("-f", "--force", dest="force", default=False,
-        action="store_true", help="Overwrite output files if they exist")
+        action="store_true", help="overwrite output files if they exist")
 
     parser.add_option("--no-cleanup", dest="cleanup", default=True,
-        help="Don't cleanup sensitive data before extracting the image",
+        help="don't cleanup sensitive data",
         action="store_false")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
-        help="Don't perform system preperation before extracting the image",
+        help="don't perform system preperation",
         action="store_false")
 
     parser.add_option("--no-shrink", dest="shrink", default=True,
-        help="Don't shrink any partition before extracting the image",
+        help="don't shrink any partition",
         action="store_false")
 
     parser.add_option("-o", "--outfile", type="string", dest="outfile",
         default=None, action="callback", callback=check_writable_dir,
-        help="Output image file",
+        help="dump image to FILE",
         metavar="FILE")
 
     parser.add_option("-u", "--upload", dest="upload", default=False,
-        help="Upload image to a pithos repository using kamaki",
+        help="upload the image to pithos",
         action="store_true")
 
     parser.add_option("-r", "--register", dest="register", default=False,
-        help="Register image to okeanos using kamaki", action="store_true")
+        help="register the image to ~okeanos", action="store_true")
 
     options, args = parser.parse_args(input_args)
 
@@ -115,7 +115,7 @@ def image_creator():
         raise FatalError("You must run %s as root" \
                         % os.path.basename(sys.argv[0]))
 
-    if not options.force:
+    if not options.force and options.outfile is not None:
         for extension in ('', '.meta'):
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
