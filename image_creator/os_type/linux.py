@@ -67,7 +67,7 @@ class Linux(Unix):
             print 'Fixing acpid powerdown action'
 
         powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
-                                'shutdown -h now \"Power button pressed\"'
+                                'shutdown -h now \"Power button pressed\"\n'
 
         events_dir = '/etc/acpi/events'
         if not self.g.is_dir(events_dir):
