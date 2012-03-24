@@ -41,8 +41,8 @@ class Ubuntu(Linux):
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':
                 meta['OS'] = 'kubuntu'
-                meta['description'] = \
-                            meta['description'].replace('Ubuntu', 'Kubuntu')
+                meta['DESCRIPTION'] = \
+                            meta['DESCRIPTION'].replace('Ubuntu', 'Kubuntu')
                 break
         return meta
 

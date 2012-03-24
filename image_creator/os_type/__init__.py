@@ -106,7 +106,7 @@ class OSBase(object):
         meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
         meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
         meta['OS'] = self.g.inspect_get_distro(self.root)
-        meta['description'] = self.g.inspect_get_product_name(self.root)
+        meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
 
         return meta
 

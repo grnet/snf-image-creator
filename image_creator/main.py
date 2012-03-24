@@ -142,7 +142,7 @@ def image_creator():
         dev.umount()
 
         size = options.shrink and dev.shrink() or dev.size()
-        metadata['size'] = str(size // 2 ** 20)
+        metadata['SIZE'] = str(size // 2 ** 20)
 
         if options.outfile is not None:
             f = open('%s.%s' % (options.outfile, 'meta'), 'w')
