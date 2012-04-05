@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.linux import Linux
+from image_creator.os_type.linux import Linux, exclude_task
 
 
 class Slackware(Linux):

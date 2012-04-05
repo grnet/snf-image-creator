@@ -34,7 +34,7 @@
 import re
 import sys
 
-from image_creator.os_type import OSBase
+from image_creator.os_type import OSBase, exclude_task
 from image_creator.util import warn, output
 
 
@@ -95,6 +95,7 @@ class Unix(OSBase):
 
         self.foreach_file('/var/log', self.g.truncate, ftype='r')
 
+    @exclude_task
     def data_cleanup_mail(self, print_header=True):
         """Remove all files under /var/mail and /var/spool/mail"""
 

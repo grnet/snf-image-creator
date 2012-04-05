@@ -42,6 +42,9 @@ def add_prefix(target):
         return map(lambda x: prefix + x, target(self, *args))
     return wrapper
 
+def exclude_task(func):
+    func.excluded = True
+    return func
 
 class OSBase(object):
     """Basic operating system class"""
@@ -116,9 +119,7 @@ class OSBase(object):
 
         output('Cleaning up sensitive data out of the OS image:')
 
-        is_cleanup = lambda x: x.startswith('data_cleanup_') and \
-                                                    callable(getattr(self, x))
-        tasks = [getattr(self, x) for x in dir(self) if is_cleanup(x)]
+        tasks, _ = self.list_data_cleanup()
         size = len(tasks)
         cnt = 0
         for task in tasks:
@@ -132,9 +133,7 @@ class OSBase(object):
 
         output('Preparing system for image creation:')
 
-        is_sysprep = lambda x: x.startswith('sysprep_') and \
-                                                    callable(getattr(self, x))
-        tasks = [getattr(self, x) for x in dir(self) if is_sysprep(x)]
+        tasks, _ = self.list_sysprep()
         size = len(tasks)
         cnt = 0
         for task in tasks:
@@ -142,5 +141,29 @@ class OSBase(object):
             output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
         output()
+
+    def list_sysprep(self):
+        """List all sysprep actions"""
+
+        is_sysprep = lambda x: x.startswith('sysprep_') and \
+                                                    callable(getattr(self, x))
+        tasks = [getattr(self, x) for x in dir(self) if is_sysprep(x)]
+
+        included = [t for t in tasks if not getattr(t, "excluded", False)]
+        excluded = [t for t in tasks if getattr(t, "excluded", False)]
+
+        return included, excluded
+
+    def list_data_cleanup(self):
+        """List all data_cleanup actions"""
+
+        is_cleanup = lambda x: x.startswith('data_cleanup_') and \
+                                                    callable(getattr(self, x))
+        tasks = [getattr(self, x) for x in dir(self) if is_cleanup(x)]
+
+        included = [t for t in tasks if not getattr(t, "excluded", False)]
+        excluded = [t for t in tasks if getattr(t, "excluded", False)]
+
+        return included, excluded
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

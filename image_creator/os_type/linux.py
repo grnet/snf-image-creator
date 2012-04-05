@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.unix import Unix
+from image_creator.os_type.unix import Unix, exclude_task
 from image_creator.util import warn, output
 
 import re
@@ -56,7 +56,7 @@ class Linux(Unix):
                 self._uuid[dev] = attr[1]
                 return attr[1]
 
-    def sysprep_acpid(self, print_header=True):
+    def sysprep_fix_acpid(self, print_header=True):
         """Replace acpid powerdown action scripts to immediately shutdown the
         system without checking if a GUI is running.
         """
