@@ -42,9 +42,11 @@ def add_prefix(target):
         return map(lambda x: prefix + x, target(self, *args))
     return wrapper
 
+
 def exclude_task(func):
     func.excluded = True
     return func
+
 
 class OSBase(object):
     """Basic operating system class"""

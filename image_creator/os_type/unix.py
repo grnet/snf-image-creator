@@ -70,6 +70,23 @@ class Unix(OSBase):
 
         return users
 
+    def data_cleanup_passwords(self, print_header=True):
+        """Remove all passwords and lock all user accounts"""
+
+        if print_header:
+            output('Cleaning up passwords & locking all user accounts')
+
+        shadow = []
+
+        for line in self.g.cat('/etc/shadow').splitlines():
+            fields = line.split(':')
+            if fields[1] not in ('*', '!'):
+                fields[1] = '!'
+
+            shadow.append(":".join(fields))
+
+        self.g.write('/etc/shadow', "\n".join(shadow))
+
     def data_cleanup_cache(self, print_header=True):
         """Remove all regular files under /var/cache"""
 
