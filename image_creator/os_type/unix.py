@@ -70,6 +70,49 @@ class Unix(OSBase):
 
         return users
 
+    @exclude_task
+    def data_cleanup_user_accounts(self, print_header=True):
+        """Remove all user account with id more than 1000"""
+
+        if print_header:
+            output('Removing all user accounts with id greater than 1000')
+
+        # Remove users from /etc/passwd
+        passwd = []
+        removed_users = {}
+        for line in self.g.cat('/etc/passwd').splitlines():
+            fields = line.split(':')
+            if int(fields[2]) > 1000:
+                removed_users[fields[0]] = fields
+            else:
+                passwd.append(':'.join(fields))
+
+        self.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
+
+        # Remove the corresponding /etc/shadow entries
+        shadow = []
+        for line in self.g.cat('/etc/shadow').splitlines():
+            fields = line.split(':')
+            if fields[0] not in removed_users:
+                shadow.append(':'.join(fields))
+
+        self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
+
+        # Remove the corresponding /etc/group entries
+        group = []
+        for line in self.g.cat('/etc/group').splitlines():
+            fields = line.split(':')
+            # Remove groups tha have the same name as the removed users
+            if fields[0] not in removed_users:
+                group.append(':'.join(fields))
+
+        self.g.write('/etc/group', '\n'.join(group) + '\n')
+        
+        # Remove home directories
+        for home in [field[5] for field in removed_users.values()]:
+            if self.g.is_dir(home) and home.startswith('/home/'):
+                self.g.rm_rf(home)
+
     def data_cleanup_passwords(self, print_header=True):
         """Remove all passwords and lock all user accounts"""
 
@@ -85,7 +128,7 @@ class Unix(OSBase):
 
             shadow.append(":".join(fields))
 
-        self.g.write('/etc/shadow', "\n".join(shadow))
+        self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
     def data_cleanup_cache(self, print_header=True):
         """Remove all regular files under /var/cache"""
