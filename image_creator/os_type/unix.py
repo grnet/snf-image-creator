@@ -107,7 +107,7 @@ class Unix(OSBase):
                 group.append(':'.join(fields))
 
         self.g.write('/etc/group', '\n'.join(group) + '\n')
-        
+
         # Remove home directories
         for home in [field[5] for field in removed_users.values()]:
             if self.g.is_dir(home) and home.startswith('/home/'):
