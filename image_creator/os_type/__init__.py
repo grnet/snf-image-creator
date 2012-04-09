@@ -54,6 +54,23 @@ class OSBase(object):
         self.root = rootdev
         self.g = ghandler
 
+        self.sysprep_regexp = re.compile('^sysprep_')
+        self.data_cleanup_regexp = re.compile('^data_cleanup_')
+
+    def _print_task(self, task):
+        name = task.__name__
+
+        if self.sysprep_regexp.match(name):
+            name = self.sysprep_regexp.sub("", name)
+        elif self.data_cleanup_regexp.match(name):
+            name = self.data_cleanup_regexp.sub("", name)
+        else:
+            raise FatalError("%s is not a task" % name)
+
+        name = name.replace('_', '-')
+
+        output("  %s:\n    %s" % (name, task.__doc__))
+
     @add_prefix
     def ls(self, directory):
         """List the name of all files under a directory"""
@@ -116,6 +133,30 @@ class OSBase(object):
 
         return meta
 
+    def list_sysprep(self):
+        """List all sysprep actions"""
+
+        is_sysprep = lambda x: x.startswith('sysprep_') and \
+                                                    callable(getattr(self, x))
+        tasks = [getattr(self, x) for x in dir(self) if is_sysprep(x)]
+
+        included = [t for t in tasks if not getattr(t, "excluded", False)]
+        excluded = [t for t in tasks if getattr(t, "excluded", False)]
+
+        return included, excluded
+
+    def list_data_cleanup(self):
+        """List all data_cleanup actions"""
+
+        is_cleanup = lambda x: x.startswith('data_cleanup_') and \
+                                                    callable(getattr(self, x))
+        tasks = [getattr(self, x) for x in dir(self) if is_cleanup(x)]
+
+        included = [t for t in tasks if not getattr(t, "excluded", False)]
+        excluded = [t for t in tasks if getattr(t, "excluded", False)]
+
+        return included, excluded
+
     def data_cleanup(self):
         """Cleanup sensitive data out of the OS image."""
 
@@ -144,28 +185,50 @@ class OSBase(object):
             task()
         output()
 
-    def list_sysprep(self):
-        """List all sysprep actions"""
+    def print_task(self, task):
+        name = task.__name__
 
-        is_sysprep = lambda x: x.startswith('sysprep_') and \
-                                                    callable(getattr(self, x))
-        tasks = [getattr(self, x) for x in dir(self) if is_sysprep(x)]
+        if self.sysprep_regexp.match(name):
+            name = self.sysprep_regexp.sub("", name)
+        elif self.data_cleanup_regexp.match(name):
+            name = self.data_cleanup_regexp.sub("", name)
+        else:
+            raise FatalError("%s is not a task" % name)
 
-        included = [t for t in tasks if not getattr(t, "excluded", False)]
-        excluded = [t for t in tasks if getattr(t, "excluded", False)]
+        name = name.replace('_', '-')
 
-        return included, excluded
+        output("  %s:\n    %s" % (name, task.__doc__))
 
-    def list_data_cleanup(self):
-        """List all data_cleanup actions"""
+    def print_data_cleanup(self):
+        included, excluded = self.list_data_cleanup()
 
-        is_cleanup = lambda x: x.startswith('data_cleanup_') and \
-                                                    callable(getattr(self, x))
-        tasks = [getattr(self, x) for x in dir(self) if is_cleanup(x)]
+        output("Included data cleanup operations:")
+        if len(included) == 0:
+            ouput("(none)")
+        else:
+            for task in included:
+                self._print_task(task)
+        output("Ommited data cleanup operations:")
+        if len(excluded) == 0:
+            ouput("(none)")
+        else:
+            for task in excluded:
+                self._print_task(task)
 
-        included = [t for t in tasks if not getattr(t, "excluded", False)]
-        excluded = [t for t in tasks if getattr(t, "excluded", False)]
+    def print_sysprep(self):
+        included, excluded = self.list_sysprep()
 
-        return included, excluded
+        output("Included sysprep operations:")
+        if len(included) == 0:
+            ouput("(none)")
+        else:
+            for task in included:
+                self._print_task(task)
+        output("Ommited sysprep operations:")
+        if len(excluded) == 0:
+            output("(none)")
+        else:
+            for task in excluded:
+                self._print_task(task)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

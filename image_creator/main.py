@@ -78,6 +78,14 @@ def parse_options(input_args):
         default=None, action="callback", callback=check_writable_dir,
         help="dump image to FILE", metavar="FILE")
 
+    parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
+        help="Print the enabled and disable sysprep actions for this image",
+        action="store_true")
+
+    parser.add_option("--print-data-cleanup", dest="print_data_cleanup",
+        default=False, help="Print the enabled and disable data cleanup "
+        "operations actions for this source", action="store_true")
+
     parser.add_option("-s", "--silent", dest="silent", default=False,
         help="silent mode, only output error", action="store_true")
 
@@ -98,9 +106,6 @@ def parse_options(input_args):
     if options.register:
         options.upload = True
 
-    if options.outfile is None and not options.upload:
-        parser.error('either outfile (-o) or upload (-u) must be set.')
-
     return options
 
 
@@ -109,6 +114,11 @@ def image_creator():
 
     if options.silent:
         util.silent = True
+
+    if options.outfile is None and not options.upload \
+        and not options.print_sysprep and not options.print_data_cleanup:
+        FatalError("At least one of the following: `-o', `-u', "
+        "`--print-sysprep' `--print-data-cleanup' must be set")
 
     output('snf-image-creator %s\n' % version)
 
@@ -133,6 +143,17 @@ def image_creator():
         metadata = image_os.get_metadata()
 
         output()
+
+        if options.print_sysprep:
+            image_os.print_sysprep()
+            output()
+
+        if options.print_data_cleanup:
+            image_os.print_data_cleanup()
+            output()
+
+        if options.outfile is None and not options.upload:
+            return 0
 
         if options.sysprep:
             image_os.sysprep()
