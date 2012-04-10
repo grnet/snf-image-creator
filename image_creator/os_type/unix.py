@@ -34,7 +34,7 @@
 import re
 import sys
 
-from image_creator.os_type import OSBase, exclude_task
+from image_creator.os_type import OSBase, sysprep
 from image_creator.util import warn, output
 
 
@@ -70,8 +70,8 @@ class Unix(OSBase):
 
         return users
 
-    @exclude_task
-    def data_cleanup_user_accounts(self, print_header=True):
+    @sysprep(enabled=False)
+    def remove_user_accounts(self, print_header=True):
         """Remove all user account with id more than 1000"""
 
         if print_header:
@@ -113,7 +113,8 @@ class Unix(OSBase):
             if self.g.is_dir(home) and home.startswith('/home/'):
                 self.g.rm_rf(home)
 
-    def data_cleanup_passwords(self, print_header=True):
+    @sysprep()
+    def cleanup_passwords(self, print_header=True):
         """Remove all passwords and lock all user accounts"""
 
         if print_header:
@@ -130,7 +131,8 @@ class Unix(OSBase):
 
         self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
-    def data_cleanup_cache(self, print_header=True):
+    @sysprep()
+    def cleanup_cache(self, print_header=True):
         """Remove all regular files under /var/cache"""
 
         if print_header:
@@ -138,7 +140,8 @@ class Unix(OSBase):
 
         self.foreach_file('/var/cache', self.g.rm, ftype='r')
 
-    def data_cleanup_tmp(self, print_header=True):
+    @sysprep()
+    def cleanup_tmp(self, print_header=True):
         """Remove all files under /tmp and /var/tmp"""
 
         if print_header:
@@ -147,7 +150,8 @@ class Unix(OSBase):
         self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
 
-    def data_cleanup_log(self, print_header=True):
+    @sysprep()
+    def cleanup_log(self, print_header=True):
         """Empty all files under /var/log"""
 
         if print_header:
@@ -155,8 +159,8 @@ class Unix(OSBase):
 
         self.foreach_file('/var/log', self.g.truncate, ftype='r')
 
-    @exclude_task
-    def data_cleanup_mail(self, print_header=True):
+    @sysprep(enabled=False)
+    def cleanup_mail(self, print_header=True):
         """Remove all files under /var/mail and /var/spool/mail"""
 
         if print_header:
@@ -165,7 +169,8 @@ class Unix(OSBase):
         self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
         self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
-    def data_cleanup_userdata(self, print_header=True):
+    @sysprep()
+    def cleanup_userdata(self, print_header=True):
         """Delete sensitive userdata"""
 
         homedirs = ['/root'] + self.ls('/home/')

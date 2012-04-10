@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.unix import Unix, exclude_task
+from image_creator.os_type.unix import Unix, sysprep
 from image_creator.util import warn, output
 
 import re
@@ -56,7 +56,8 @@ class Linux(Unix):
                 self._uuid[dev] = attr[1]
                 return attr[1]
 
-    def sysprep_fix_acpid(self, print_header=True):
+    @sysprep()
+    def fix_acpid(self, print_header=True):
         """Replace acpid powerdown action scripts to immediately shutdown the
         system without checking if a GUI is running.
         """
@@ -110,7 +111,8 @@ class Linux(Unix):
                     "event occures" % action)
                 return
 
-    def sysprep_persistent_net_rules(self, print_header=True):
+    @sysprep()
+    def persistent_net_rules(self, print_header=True):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
@@ -123,9 +125,10 @@ class Linux(Unix):
         if self.g.is_file(rule_file):
             self.g.rm(rule_file)
 
-    def sysprep_persistent_devs(self, print_header=True):
-        """Scan fstab and grub configuration files and replace all
-        non-persistent device appearences with UUIDs.
+    @sysprep()
+    def persistent_devs(self, print_header=True):
+        """Scan fstab & grub configuration files and replace all non-persistent
+        device appearences with UUIDs.
         """
 
         if print_header:

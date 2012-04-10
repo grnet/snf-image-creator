@@ -35,9 +35,8 @@
 
 from image_creator import get_os_class
 from image_creator import __version__ as version
-from image_creator import FatalError
 from image_creator.disk import Disk
-from image_creator.util import get_command, error, success, output
+from image_creator.util import get_command, error, success, output, FatalError
 from image_creator import util
 import sys
 import os
@@ -65,9 +64,6 @@ def parse_options(input_args):
     parser.add_option("-f", "--force", dest="force", default=False,
         action="store_true", help="overwrite output files if they exist")
 
-    parser.add_option("--no-cleanup", dest="cleanup", default=True,
-        help="don't cleanup sensitive data", action="store_false")
-
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
         help="don't perform system preperation", action="store_false")
 
@@ -78,16 +74,20 @@ def parse_options(input_args):
         default=None, action="callback", callback=check_writable_dir,
         help="dump image to FILE", metavar="FILE")
 
-    parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
-        help="Print the enabled and disable sysprep actions for this image",
-        action="store_true")
+    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
+        help="Run SYSPREP operation on the input media",
+        action="append", metavar="SYSPREP")
 
-    parser.add_option("--print-data-cleanup", dest="print_data_cleanup",
-        default=False, help="Print the enabled and disable data cleanup "
-        "operations actions for this source", action="store_true")
+    parser.add_option("--disable-sysprep", dest="disabled_syspreps",
+        help="Prevent SYSPREP operation from running on the input media",
+        default=[], action="append", metavar="SYSPREP")
+
+    parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
+        help="Print the enabled and disabled sysprep operations for this "
+        "input media", action="store_true")
 
     parser.add_option("-s", "--silent", dest="silent", default=False,
-        help="silent mode, only output error", action="store_true")
+        help="silent mode, only output errors", action="store_true")
 
     parser.add_option("-u", "--upload", dest="upload", default=False,
         help="upload the image to pithos", action="store_true")
@@ -116,9 +116,9 @@ def image_creator():
         util.silent = True
 
     if options.outfile is None and not options.upload \
-        and not options.print_sysprep and not options.print_data_cleanup:
-        FatalError("At least one of the following: `-o', `-u', "
-        "`--print-sysprep' `--print-data-cleanup' must be set")
+                                            and not options.print_sysprep:
+        raise FatalError("At least one of `-o', `-u' or" \
+                            "`--print-sysprep' must be set")
 
     output('snf-image-creator %s\n' % version)
 
@@ -144,22 +144,21 @@ def image_creator():
 
         output()
 
-        if options.print_sysprep:
-            image_os.print_sysprep()
-            output()
+        for sysprep in options.disabled_syspreps:
+            image_os.disable_sysprep(sysprep)
 
-        if options.print_data_cleanup:
-            image_os.print_data_cleanup()
+        for sysprep in options.enabled_syspreps:
+            image_os.enable_sysprep(sysprep)
+
+        if options.print_sysprep:
+            image_os.print_syspreps()
             output()
 
         if options.outfile is None and not options.upload:
             return 0
 
         if options.sysprep:
-            image_os.sysprep()
-
-        if options.cleanup:
-            image_os.data_cleanup()
+            image_os.do_sysprep()
 
         dev.umount()
 

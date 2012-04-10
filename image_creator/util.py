@@ -35,6 +35,11 @@ import sys
 import pbs
 from clint.textui import colored, progress as uiprogress
 
+
+class FatalError(Exception):
+    pass
+
+
 silent = False
 
 
@@ -54,7 +59,7 @@ def get_command(command):
 
 def error(msg, new_line=True):
     nl = "\n" if new_line else ''
-    sys.stderr.write('Error: %s' % msg + nl)
+    sys.stderr.write(colored.red('Error: %s' % msg) + nl)
 
 
 def warn(msg, new_line=True):

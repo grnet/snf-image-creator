@@ -31,8 +31,9 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import output
+from image_creator.util import output, FatalError
 
+import textwrap
 import re
 
 
@@ -43,33 +44,85 @@ def add_prefix(target):
     return wrapper
 
 
-def exclude_task(func):
-    func.excluded = True
-    return func
+def sysprep(enabled=True):
+    def wrapper(func):
+        func.sysprep = True
+        func.enabled = enabled
+        return func
+    return wrapper
 
 
 class OSBase(object):
     """Basic operating system class"""
+
     def __init__(self, rootdev, ghandler):
         self.root = rootdev
         self.g = ghandler
 
-        self.sysprep_regexp = re.compile('^sysprep_')
-        self.data_cleanup_regexp = re.compile('^data_cleanup_')
+    def _is_sysprep(self, obj):
+        return getattr(obj, 'sysprep', False) and callable(obj)
 
-    def _print_task(self, task):
-        name = task.__name__
+    def list_syspreps(self):
 
-        if self.sysprep_regexp.match(name):
-            name = self.sysprep_regexp.sub("", name)
-        elif self.data_cleanup_regexp.match(name):
-            name = self.data_cleanup_regexp.sub("", name)
+        objs = [getattr(self, name) for name in dir(self) \
+            if not name.startswith('_')]
+
+        enabled = [x for x in objs if self._is_sysprep(x) and x.enabled]
+        disabled = [x for x in objs if self._is_sysprep(x) and not x.enabled]
+
+        return enabled, disabled
+
+    def _sysprep_change_status(self, name, status):
+
+        error_msg = "Syprep operation %s does not exist for %s" % \
+                (name, self.__class__.__name__)
+
+        method_name = name.replace('-', '_')
+        method = None
+        try:
+            method = getattr(self, method_name)
+        except AttributeError:
+            raise FatalError(error_msg)
+
+        if not self._is_sysprep(method):
+            raise FatalError(error_msg)
+
+        setattr(method.im_func, 'enabled', status)
+
+    def enable_sysprep(self, name):
+        """Enable a system preperation operation"""
+        self._sysprep_change_status(name, True)
+
+    def disable_sysprep(self, name):
+        """Disable a system preperation operation"""
+        self._sysprep_change_status(name, False)
+
+    def print_syspreps(self):
+        """Print enabled and disabled system preperation operations."""
+
+        enabled, disabled = self.list_syspreps()
+
+        wrapper = textwrap.TextWrapper()
+        wrapper.subsequent_indent = '\t'
+        wrapper.initial_indent = '\t'
+
+        output("Enabled system preperation operations:")
+        if len(enabled) == 0:
+            output("(none)")
         else:
-            raise FatalError("%s is not a task" % name)
+            for sysprep in enabled:
+                name = sysprep.__name__.replace('_', '-')
+                descr = wrapper.fill(sysprep.__doc__)
+                output('    %s:\n%s\n' % (name, descr))
 
-        name = name.replace('_', '-')
-
-        output("  %s:\n    %s" % (name, task.__doc__))
+        output("Disabled system preperation operations:")
+        if len(disabled) == 0:
+            output("(none)")
+        else:
+            for sysprep in disabled:
+                name = sysprep.__name__.replace('_', '-')
+                descr = wrapper.fill(sysprep.__doc__)
+                output('    %s:\n%s\n' % (name, descr))
 
     @add_prefix
     def ls(self, directory):
@@ -133,45 +186,7 @@ class OSBase(object):
 
         return meta
 
-    def list_sysprep(self):
-        """List all sysprep actions"""
-
-        is_sysprep = lambda x: x.startswith('sysprep_') and \
-                                                    callable(getattr(self, x))
-        tasks = [getattr(self, x) for x in dir(self) if is_sysprep(x)]
-
-        included = [t for t in tasks if not getattr(t, "excluded", False)]
-        excluded = [t for t in tasks if getattr(t, "excluded", False)]
-
-        return included, excluded
-
-    def list_data_cleanup(self):
-        """List all data_cleanup actions"""
-
-        is_cleanup = lambda x: x.startswith('data_cleanup_') and \
-                                                    callable(getattr(self, x))
-        tasks = [getattr(self, x) for x in dir(self) if is_cleanup(x)]
-
-        included = [t for t in tasks if not getattr(t, "excluded", False)]
-        excluded = [t for t in tasks if getattr(t, "excluded", False)]
-
-        return included, excluded
-
-    def data_cleanup(self):
-        """Cleanup sensitive data out of the OS image."""
-
-        output('Cleaning up sensitive data out of the OS image:')
-
-        tasks, _ = self.list_data_cleanup()
-        size = len(tasks)
-        cnt = 0
-        for task in tasks:
-            cnt += 1
-            output(('(%d/%d)' % (cnt, size)).ljust(7), False)
-            task()
-        output()
-
-    def sysprep(self):
+    def do_sysprep(self):
         """Prepere system for image creation."""
 
         output('Preparing system for image creation:')
@@ -184,51 +199,5 @@ class OSBase(object):
             output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
         output()
-
-    def print_task(self, task):
-        name = task.__name__
-
-        if self.sysprep_regexp.match(name):
-            name = self.sysprep_regexp.sub("", name)
-        elif self.data_cleanup_regexp.match(name):
-            name = self.data_cleanup_regexp.sub("", name)
-        else:
-            raise FatalError("%s is not a task" % name)
-
-        name = name.replace('_', '-')
-
-        output("  %s:\n    %s" % (name, task.__doc__))
-
-    def print_data_cleanup(self):
-        included, excluded = self.list_data_cleanup()
-
-        output("Included data cleanup operations:")
-        if len(included) == 0:
-            ouput("(none)")
-        else:
-            for task in included:
-                self._print_task(task)
-        output("Ommited data cleanup operations:")
-        if len(excluded) == 0:
-            ouput("(none)")
-        else:
-            for task in excluded:
-                self._print_task(task)
-
-    def print_sysprep(self):
-        included, excluded = self.list_sysprep()
-
-        output("Included sysprep operations:")
-        if len(included) == 0:
-            ouput("(none)")
-        else:
-            for task in included:
-                self._print_task(task)
-        output("Ommited sysprep operations:")
-        if len(excluded) == 0:
-            output("(none)")
-        else:
-            for task in excluded:
-                self._print_task(task)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

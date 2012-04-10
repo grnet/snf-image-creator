@@ -32,8 +32,7 @@
 # or implied, of GRNET S.A.
 
 from image_creator.util import get_command
-from image_creator.util import warn, progress, success, output
-from image_creator import FatalError
+from image_creator.util import warn, progress, success, output, FatalError
 
 import stat
 import os

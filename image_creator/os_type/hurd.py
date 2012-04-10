@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.unix import Unix, exclude_task
+from image_creator.os_type.unix import Unix, sysprep
 
 
 class Hard(Unix):
