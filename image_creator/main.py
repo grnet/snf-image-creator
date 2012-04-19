@@ -49,10 +49,10 @@ def check_writable_dir(option, opt_str, value, parser):
     dirname = os.path.dirname(value)
     name = os.path.basename(value)
     if dirname and not os.path.isdir(dirname):
-        parser.error("`%s' is not an existing directory" % dirname)
+        raise FatalError("`%s' is not an existing directory" % dirname)
 
     if not name:
-        parser.error("`%s' is not a valid file name" % dirname)
+        raise FatalError("`%s' is not a valid file name" % dirname)
 
     setattr(parser.values, option.dest, value)
 
@@ -75,25 +75,27 @@ def parse_options(input_args):
         help="dump image to FILE", metavar="FILE")
 
     parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
-        help="Run SYSPREP operation on the input media",
+        help="run SYSPREP operation on the input media",
         action="append", metavar="SYSPREP")
 
     parser.add_option("--disable-sysprep", dest="disabled_syspreps",
-        help="Prevent SYSPREP operation from running on the input media",
+        help="prevent SYSPREP operation from running on the input media",
         default=[], action="append", metavar="SYSPREP")
 
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
-        help="Print the enabled and disabled sysprep operations for this "
+        help="print the enabled and disabled sysprep operations for this "
         "input media", action="store_true")
 
     parser.add_option("-s", "--silent", dest="silent", default=False,
         help="silent mode, only output errors", action="store_true")
 
-    parser.add_option("-u", "--upload", dest="upload", default=False,
-        help="upload the image to pithos", action="store_true")
+    parser.add_option("-u", "--upload", dest="upload", type="string",
+        default=False, help="upload the image to pithos with name FILENAME",
+        metavar="FILENAME")
 
-    parser.add_option("-r", "--register", dest="register", default=False,
-        help="register the image to ~okeanos", action="store_true")
+    parser.add_option("-r", "--register", dest="register", type="string",
+        default=False, help="register the image to ~okeanos as IMAGENAME",
+        metavar="IMAGENAME")
 
     options, args = parser.parse_args(input_args)
 
@@ -101,10 +103,10 @@ def parse_options(input_args):
         parser.error('Wrong number of arguments')
     options.source = args[0]
     if not os.path.exists(options.source):
-        parser.error('input media is not accessible')
+        raise FatalError("Input media `%s' is not accessible" % options.source)
 
-    if options.register:
-        options.upload = True
+    if options.register and options.upload == False: 
+        raise FatalError("You also need to set -u when -r option is set")
 
     return options
 
