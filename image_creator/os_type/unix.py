@@ -72,7 +72,7 @@ class Unix(OSBase):
 
     @sysprep(enabled=False)
     def remove_user_accounts(self, print_header=True):
-        """Remove all user account with id more than 1000"""
+        """Remove all user accounts with id greater than 1000"""
 
         if print_header:
             output('Removing all user accounts with id greater than 1000')
