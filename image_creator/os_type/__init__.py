@@ -191,7 +191,7 @@ class OSBase(object):
 
         output('Preparing system for image creation:')
 
-        tasks, _ = self.list_sysprep()
+        tasks, _ = self.list_syspreps()
         size = len(tasks)
         cnt = 0
         for task in tasks:

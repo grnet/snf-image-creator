@@ -275,11 +275,11 @@ class DiskDevice(object):
         self.g.e2fsck_f(part_dev)
         self.g.resize2fs_M(part_dev)
 
-        output = self.g.tune2fs_l(part_dev)
+        out = self.g.tune2fs_l(part_dev)
         block_size = int(
-            filter(lambda x: x[0] == 'Block size', output)[0][1])
+            filter(lambda x: x[0] == 'Block size', out)[0][1])
         block_cnt = int(
-            filter(lambda x: x[0] == 'Block count', output)[0][1])
+            filter(lambda x: x[0] == 'Block count', out)[0][1])
 
         sector_size = self.g.blockdev_getss(dev)
 
