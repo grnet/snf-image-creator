@@ -34,7 +34,9 @@
 from os.path import basename
 
 from kamaki.config import Config
+from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
+from kamaki.clients.pithos import PithosClient
 
 from image_creator.util import FatalError
 
@@ -42,14 +44,13 @@ CONTAINER = "images"
 
 
 class Kamaki:
-    __init__(self, account, token):
-        self.username = username
+    def __init__(self, account, token):
+        self.account = account
         self.token = token
 
         config = Config()
 
         pithos_url = config.get('storage', 'url')
-        self.account = config.get('storage', 'account')
         self.container = CONTAINER
         self.pithos_client = PithosClient(pithos_url, token, self.account,
                                                                 self.container)
@@ -59,21 +60,27 @@ class Kamaki:
 
         self.uploaded_object = None
 
-    set_container(self, container):
-        self.pithos_client.container = container
-
-    upload(self, filename, size=None, remote_path=None):
+    def upload(self, filename, size=None, remote_path=None):
 
         if remote_path is None:
             remote_path = basename(filename)
 
         with open(filename) as f:
-            # TODO: create container if necessary
-            self.pithos_client.create_object(remote_path, f, size)
-            self.uploaded_object = "pithos://%s/%s/%s" % \
-                                    (self.account, self.container, remote_path)
+            try:
+                self.pithos_client.create_container(self.container)
+            except ClientError as e:
+                if e.status != 202:  # Ignore container already exists errors
+                    raise FatalError("Pithos client: %d %s" % \
+                                                        (e.status, e.message))
+            try:
+                self.pithos_client.create_object(remote_path, f, size)
+                self.uploaded_object = "pithos://%s/%s/%s" % \
+                                (self.account, self.container, remote_path)
+            except ClientError as e:
+                raise FatalError("Pithos client: %d %s" % \
+                                                        (e.status, e.message))
 
-    register(self, metadata):
+    def register(self, metadata):
         pass
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai

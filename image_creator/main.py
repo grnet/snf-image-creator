@@ -35,9 +35,10 @@
 
 from image_creator import get_os_class
 from image_creator import __version__ as version
+from image_creator import util
 from image_creator.disk import Disk
 from image_creator.util import get_command, error, success, output, FatalError
-from image_creator import util
+from image_creator.kamaki_wrapper import Kamaki
 import sys
 import os
 import optparse
@@ -61,30 +62,17 @@ def parse_options(input_args):
     usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
 
-    parser.add_option("-f", "--force", dest="force", default=False,
-        action="store_true", help="overwrite output files if they exist")
-
-    parser.add_option("--no-sysprep", dest="sysprep", default=True,
-        help="don't perform system preperation", action="store_false")
-
-    parser.add_option("--no-shrink", dest="shrink", default=True,
-        help="don't shrink any partition", action="store_false")
+    account = os.environ["OKEANOS_USER"] if "OKEANOS_USER" in os.environ \
+        else None
+    token = os.environ["OKEANOS_TOKEN"] if "OKEANOS_TOKEN" in os.environ \
+        else None
 
     parser.add_option("-o", "--outfile", type="string", dest="outfile",
         default=None, action="callback", callback=check_writable_dir,
         help="dump image to FILE", metavar="FILE")
 
-    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
-        help="run SYSPREP operation on the input media",
-        action="append", metavar="SYSPREP")
-
-    parser.add_option("--disable-sysprep", dest="disabled_syspreps",
-        help="prevent SYSPREP operation from running on the input media",
-        default=[], action="append", metavar="SYSPREP")
-
-    parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
-        help="print the enabled and disabled sysprep operations for this "
-        "input media", action="store_true")
+    parser.add_option("-f", "--force", dest="force", default=False,
+        action="store_true", help="overwrite output files if they exist")
 
     parser.add_option("-s", "--silent", dest="silent", default=False,
         help="silent mode, only output errors", action="store_true")
@@ -97,6 +85,34 @@ def parse_options(input_args):
         default=False, help="register the image to ~okeanos as IMAGENAME",
         metavar="IMAGENAME")
 
+    parser.add_option("-a", "--account", dest="account", type="string",
+        default=account,
+        help="Use this ACCOUNT when uploading/registring images [Default: %s]"\
+        % account)
+
+    parser.add_option("-t", "--token", dest="token", type="string",
+        default=token,
+        help="Use this token when uploading/registring images [Default: %s]"\
+        % token)
+
+    parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
+        help="print the enabled and disabled system preparation operations "
+        "for this input media", action="store_true")
+
+    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
+        help="run SYSPREP operation on the input media",
+        action="append", metavar="SYSPREP")
+
+    parser.add_option("--disable-sysprep", dest="disabled_syspreps",
+        help="prevent SYSPREP operation from running on the input media",
+        default=[], action="append", metavar="SYSPREP")
+
+    parser.add_option("--no-sysprep", dest="sysprep", default=True,
+        help="don't perform system preperation", action="store_false")
+
+    parser.add_option("--no-shrink", dest="shrink", default=True,
+        help="don't shrink any partition", action="store_false")
+
     options, args = parser.parse_args(input_args)
 
     if len(args) != 1:
@@ -105,8 +121,16 @@ def parse_options(input_args):
     if not os.path.exists(options.source):
         raise FatalError("Input media `%s' is not accessible" % options.source)
 
-    if options.register and options.upload == False: 
+    if options.register and options.upload == False:
         raise FatalError("You also need to set -u when -r option is set")
+
+    if options.upload and options.account is None:
+        raise FatalError("Image uploading cannot be performed. No ~okeanos "
+        "account name is specified. Use -a to set an account name.")
+
+    if options.upload and options.token is None:
+        raise FatalError("Image uploading cannot be performed. No ~okeanos "
+        "token is specified. User -t to set a token.")
 
     return options
 
@@ -176,6 +200,13 @@ def image_creator():
                 f.close()
 
             dev.dump(options.outfile)
+
+        if options.upload:
+            output("Uploading image to pithos...", False)
+            kamaki = Kamaki(options.account, options.token)
+            kamaki.upload(dev.device, size, options.upload)
+            output("done")
+
     finally:
         output('cleaning up...')
         disk.cleanup()
