@@ -93,11 +93,9 @@ class Disk(object):
             job, args = self._cleanup_jobs.pop()
             job(*args)
 
-    def get_device(self):
-        """Returns a newly created DiskDevice instance.
-
-        This instance is a snapshot of the original source media of
-        the Disk instance.
+    def snapshot(self):
+        """Creates a snapshot of the original source media of the Disk
+        instance.
         """
 
         output("Examining source media `%s'..." % self.source, False)
@@ -141,7 +139,12 @@ class Disk(object):
         finally:
             os.unlink(table)
         success('done')
-        new_device = DiskDevice("/dev/mapper/%s" % snapshot)
+        return "/dev/mapper/%s" % snapshot
+
+    def get_device(self, media):
+        """Returns a newly created DiskDevice instance."""
+
+        new_device = DiskDevice(media)
         self._devices.append(new_device)
         new_device.enable()
         return new_device

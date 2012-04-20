@@ -161,7 +161,9 @@ def image_creator():
 
     disk = Disk(options.source)
     try:
-        dev = disk.get_device()
+        snapshot = disk.snapshot()
+
+        dev = disk.get_device(snapshot)
         dev.mount()
 
         osclass = get_os_class(dev.distro, dev.ostype)
@@ -201,10 +203,13 @@ def image_creator():
 
             dev.dump(options.outfile)
 
+        # Destroy the device. We only need the snapshot from now on
+        disk.destroy_device(dev)
+
         if options.upload:
             output("Uploading image to pithos...", False)
             kamaki = Kamaki(options.account, options.token)
-            kamaki.upload(dev.device, size, options.upload)
+            kamaki.upload(snapshot, size, options.upload)
             output("done")
 
     finally:
