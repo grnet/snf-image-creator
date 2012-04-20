@@ -73,10 +73,10 @@ class Kamaki:
                     raise FatalError("Pithos client: %d %s" % \
                                                         (e.status, e.message))
             try:
-		hash_progress = progress("(1/2)  Calculating block hashes:")
-		upload_progress = progress("(2/2)  Uploading missing blocks:")
+                hash_progress = progress("(1/2)  Calculating block hashes:")
+                upload_progress = progress("(2/2)  Uploading missing blocks:")
                 self.pithos_client.create_object(remote_path, f, size,
-						hash_progress, upload_progress)
+                                                hash_progress, upload_progress)
                 self.uploaded_object = "pithos://%s/%s/%s" % \
                                 (self.account, self.container, remote_path)
             except ClientError as e:
@@ -86,4 +86,4 @@ class Kamaki:
     def register(self, metadata):
         pass
 
-# vim: set sta sts=4 shiftwidth=4 sw=4 et ai
+# vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

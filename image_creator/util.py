@@ -100,9 +100,10 @@ def progress(message=''):
         yield  # suppress the StopIteration exception
     return progress_generator
 
-def md5(filename, size, progress = None):
 
-    BLOCKSIZE = 2^22  # 4MB
+def md5(filename, size, progress=None):
+
+    BLOCKSIZE = 2 ^ 22  # 4MB
 
     md5 = hashlib.md5()
     with open(filename, "r") as src:
