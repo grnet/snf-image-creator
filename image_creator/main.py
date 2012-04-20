@@ -37,7 +37,8 @@ from image_creator import get_os_class
 from image_creator import __version__ as version
 from image_creator import util
 from image_creator.disk import Disk
-from image_creator.util import get_command, error, success, output, FatalError
+from image_creator.util import get_command, error, success, output, \
+                                                    FatalError, progress, md5
 from image_creator.kamaki_wrapper import Kamaki
 import sys
 import os
@@ -153,7 +154,7 @@ def image_creator():
                         % os.path.basename(sys.argv[0]))
 
     if not options.force and options.outfile is not None:
-        for extension in ('', '.meta'):
+        for extension in ('', '.meta', '.md5sum'):
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
                 raise FatalError("Output file %s exists "
@@ -193,6 +194,12 @@ def image_creator():
         size = options.shrink and dev.shrink() or dev.size()
         metadata['SIZE'] = str(size // 2 ** 20)
 
+        #Calculating MD5sum
+        output("Calculating md5sum...", False)
+        checksum = md5(snapshot, size)
+        success(checksum)
+        output()
+
         if options.outfile is not None:
             f = open('%s.%s' % (options.outfile, 'meta'), 'w')
             try:
@@ -207,10 +214,9 @@ def image_creator():
         disk.destroy_device(dev)
 
         if options.upload:
-            output("Uploading image to pithos...", False)
+            output("Uploading image to pithos:")
             kamaki = Kamaki(options.account, options.token)
             kamaki.upload(snapshot, size, options.upload)
-            output("done")
 
     finally:
         output('cleaning up...')

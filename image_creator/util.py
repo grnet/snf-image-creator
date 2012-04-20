@@ -33,6 +33,7 @@
 
 import sys
 import pbs
+import hashlib
 from clint.textui import colored, progress as uiprogress
 
 
@@ -84,19 +85,34 @@ def output(msg="", new_line=True):
             sys.stdout.flush()
 
 
-def progress(label='', n=100):
+def progress(message=''):
 
     PROGRESS_LENGTH = 32
     MESSAGE_LENGTH = 32
 
-    def progress_generator(label, n):
+    def progress_generator(n=100):
         position = 0
-        for i in uiprogress.bar(range(n), label.ljust(MESSAGE_LENGTH), \
-                                                    PROGRESS_LENGTH, silent):
+        msg = message.ljust(MESSAGE_LENGTH)
+        for i in uiprogress.bar(range(n), msg, PROGRESS_LENGTH, silent):
             if i < position:
                 continue
             position = yield
         yield  # suppress the StopIteration exception
-    return progress_generator(label, n)
+    return progress_generator
+
+def md5(filename, size, progress = None):
+
+    BLOCKSIZE = 2^22  # 4MB
+
+    md5 = hashlib.md5()
+    with open(filename, "r") as src:
+        left = size
+        while left > 0:
+            length = min(left, BLOCKSIZE)
+            data = src.read(length)
+            md5.update(data)
+            left -= length
+
+    return md5.hexdigest()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

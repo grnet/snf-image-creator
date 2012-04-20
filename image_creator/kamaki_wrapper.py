@@ -38,7 +38,7 @@ from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
 
-from image_creator.util import FatalError
+from image_creator.util import FatalError, progress
 
 CONTAINER = "images"
 
@@ -73,7 +73,10 @@ class Kamaki:
                     raise FatalError("Pithos client: %d %s" % \
                                                         (e.status, e.message))
             try:
-                self.pithos_client.create_object(remote_path, f, size)
+		hash_progress = progress("(1/2)  Calculating block hashes:")
+		upload_progress = progress("(2/2)  Uploading missing blocks:")
+                self.pithos_client.create_object(remote_path, f, size,
+						hash_progress, upload_progress)
                 self.uploaded_object = "pithos://%s/%s/%s" % \
                                 (self.account, self.container, remote_path)
             except ClientError as e:
