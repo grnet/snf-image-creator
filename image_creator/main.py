@@ -43,6 +43,7 @@ from image_creator.kamaki_wrapper import Kamaki
 import sys
 import os
 import optparse
+import StringIO
 
 dd = get_command('dd')
 
@@ -194,33 +195,60 @@ def image_creator():
         size = options.shrink and dev.shrink() or dev.size()
         metadata['SIZE'] = str(size // 2 ** 20)
 
-        #Calculating MD5sum
-        output("Calculating md5sum...", False)
         checksum = md5(snapshot, size)
-        success(checksum)
-        output()
+
+        metastring = "\n".join(
+            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
 
         if options.outfile is not None:
-            f = open('%s.%s' % (options.outfile, 'meta'), 'w')
-            try:
-                for key in metadata.keys():
-                    f.write("%s=%s\n" % (key, metadata[key]))
-            finally:
-                f.close()
-
             dev.dump(options.outfile)
+
+            output('Dumping metadata file...', False)
+            with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
+                    f.write(metastring)
+            success('done')
+
+            output('Dumping md5sum file...', False)
+            with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
+                f.write('%s %s'% (checksum, os.path.basename(options.outfile)))
+            success('done')
 
         # Destroy the device. We only need the snapshot from now on
         disk.destroy_device(dev)
 
+        output()
+
+        uploaded_obj = ""
         if options.upload:
             output("Uploading image to pithos:")
             kamaki = Kamaki(options.account, options.token)
-            kamaki.upload(snapshot, size, options.upload)
+            with open(snapshot) as f:
+                uploaded_obj = kamaki.upload(f, size, options.upload,
+                                "(1/4)  Calculating block hashes",
+                                "(2/4)  Uploading missing blocks")
+
+            output("(3/4)  Uploading metadata file...", False)
+            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
+                                remote_path="%s.%s" % (options.upload, 'meta'))
+            success('done')
+            output("(4/4)  Uploading md5sum file...", False)
+            md5sumstr = '%s %s' % (checksum, os.path.basename(options.upload))
+            kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
+                            remote_path="%s.%s" % (options.upload, 'md5sum'))
+            success('done')
+            output()
+
+        if options.register:
+            output('Registing image to ~okeanos...')
+            kamaki.register(options.register, uploaded_obj, metadata)
+            output('done')
+            output()
 
     finally:
         output('cleaning up...')
         disk.cleanup()
+
+    success("snf-image-creator exited without errors")
 
     return 0
 

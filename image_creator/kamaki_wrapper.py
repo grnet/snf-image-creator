@@ -37,11 +37,29 @@ from kamaki.config import Config
 from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
+from progress.bar import Bar
 
-from image_creator.util import FatalError, progress
+from image_creator.util import FatalError, output, success
 
 CONTAINER = "images"
 
+
+def progress(message):
+
+    MSG_LENGTH = 30
+
+    def progress_gen(n):
+        msg = "%s:" % message
+
+        progressbar = Bar(msg.ljust(MSG_LENGTH))
+        progressbar.max = n
+        for _ in range(n):
+            yield
+            progressbar.next()
+        output("\r%s...\033[K" % message, False)
+        success("done")
+        yield
+    return progress_gen
 
 class Kamaki:
     def __init__(self, account, token):
@@ -60,30 +78,32 @@ class Kamaki:
 
         self.uploaded_object = None
 
-    def upload(self, filename, size=None, remote_path=None):
+    def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
 
         if remote_path is None:
             remote_path = basename(filename)
 
-        with open(filename) as f:
-            try:
-                self.pithos_client.create_container(self.container)
-            except ClientError as e:
-                if e.status != 202:  # Ignore container already exists errors
-                    raise FatalError("Pithos client: %d %s" % \
-                                                        (e.status, e.message))
-            try:
-                hash_progress = progress("(1/2)  Calculating block hashes:")
-                upload_progress = progress("(2/2)  Uploading missing blocks:")
-                self.pithos_client.create_object(remote_path, f, size,
-                                                hash_progress, upload_progress)
-                self.uploaded_object = "pithos://%s/%s/%s" % \
-                                (self.account, self.container, remote_path)
-            except ClientError as e:
+        try:
+            self.pithos_client.create_container(self.container)
+        except ClientError as e:
+            if e.status != 202:  # Ignore container already exists errors
                 raise FatalError("Pithos client: %d %s" % \
-                                                        (e.status, e.message))
+                                                    (e.status, e.message))
+        try:
+            hash_cb = progress(hp) if hp is not None else None
+            upload_cb = progress(up) if up is not None else None
+            self.pithos_client.create_object(remote_path, file_obj, size,
+                                                            hash_cb, upload_cb)
+            return "pithos://%s/%s/%s" % \
+                            (self.account, self.container, remote_path)
+        except ClientError as e:
+            raise FatalError("Pithos client: %d %s" % (e.status, e.message))
 
-    def register(self, metadata):
-        pass
+    def register(self, name, location, metadata):
+        params = {'is_public':'true', 'disk_format':'diskdump'}
+        try:
+            self.image_client.register(name, location, params, metadata)
+        except ClientError as e:
+            raise FatalError("Image client: %d %s" % (e.status, e.message))
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

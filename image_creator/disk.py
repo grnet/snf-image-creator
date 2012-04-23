@@ -179,16 +179,17 @@ class DiskDevice(object):
 
     def enable(self):
         """Enable a newly created DiskDevice"""
-        new_progress = progress("Launching helper VM: ")
-        self.progressbar = new_progress()
-        self.progressbar.next()
+        self.progressbar = progress("Launching helper VM: ", "percent")
+        self.progressbar.max = 100
+        self.progressbar.goto(1)
         eh = self.g.set_event_callback(self.progress_callback,
                                                     guestfs.EVENT_PROGRESS)
         self.g.launch()
         self.guestfs_enabled = True
         self.g.delete_event_callback(eh)
         if self.progressbar is not None:
-            self.progressbar.send(100)
+            output("\rLaunching helper VM...\033[K", False)
+            success("done")
             self.progressbar = None
 
         output('Inspecting Operating System...', False)
@@ -217,10 +218,7 @@ class DiskDevice(object):
         position = array[2]
         total = array[3]
 
-        self.progressbar.send((position * 100) // total)
-
-        if position == total:
-            self.progressbar = None
+        self.progressbar.goto((position * 100) // total)
 
     def mount(self):
         """Mount all disk partitions in a correct order."""
@@ -318,8 +316,8 @@ class DiskDevice(object):
         blocksize = 2 ** 22  # 4MB
         size = self.size()
         progress_size = (size + 2 ** 20 - 1) // 2 ** 20  # in MB
-        new_progress = progress("Dumping image file: ")
-        progressbar = new_progress(progress_size)
+        progressbar = progress("Dumping image file: ", 'mb')
+        progressbar.max = progress_size
         source = open(self.device, "r")
         try:
             dest = open(outfile, "w")
@@ -333,13 +331,13 @@ class DiskDevice(object):
                                                                         length)
                     offset += sent
                     left -= sent
-                    for i in range((length + 2 ** 20 - 1) // 2 ** 20):
-                        progressbar.next()
+                    progressbar.goto((size - left) // 2 ** 20)
             finally:
                 dest.close()
         finally:
             source.close()
-
-        success('Image file %s was successfully created' % outfile)
+        
+        output("\rDumping image file...\033[K", False)
+        success('image file %s was successfully created' % outfile)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

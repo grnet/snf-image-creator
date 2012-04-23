@@ -34,7 +34,8 @@
 import sys
 import pbs
 import hashlib
-from clint.textui import colored, progress as uiprogress
+from clint.textui import colored
+from progress.bar import Bar
 
 
 class FatalError(Exception):
@@ -85,26 +86,25 @@ def output(msg="", new_line=True):
             sys.stdout.flush()
 
 
-def progress(message=''):
+def progress(message='', bar_type="default"):
 
-    PROGRESS_LENGTH = 32
-    MESSAGE_LENGTH = 32
+    MESSAGE_LENGTH = 30
+    
+    suffix={'default':'%(index)d/%(max)d',
+        'percent':'%(percent)d%%',
+        'b':'%(index)d/%(max)d B',
+        'kb':'%(index)d/%(max)d KB',
+        'mb':'%(index)d/%(max)d MB'}
 
-    def progress_generator(n=100):
-        position = 0
-        msg = message.ljust(MESSAGE_LENGTH)
-        for i in uiprogress.bar(range(n), msg, PROGRESS_LENGTH, silent):
-            if i < position:
-                continue
-            position = yield
-        yield  # suppress the StopIteration exception
-    return progress_generator
+    return Bar(message=message.ljust(MESSAGE_LENGTH), fill='#', \
+                                                    suffix=suffix[bar_type])
 
+def md5(filename, size):
 
-def md5(filename, size, progress=None):
+    BLOCKSIZE = 2 ** 22  # 4MB
 
-    BLOCKSIZE = 2 ^ 22  # 4MB
-
+    progressbar = progress("Calculating md5sum:", 'mb')
+    progressbar.max = (size // (2 ** 20))
     md5 = hashlib.md5()
     with open(filename, "r") as src:
         left = size
@@ -113,7 +113,12 @@ def md5(filename, size, progress=None):
             data = src.read(length)
             md5.update(data)
             left -= length
+            progressbar.goto((size - left) // (2 ** 20))
+    
+    checksum = md5.hexdigest()
+    output("\rCalculating md5sum...\033[K", False)
+    success(checksum)
 
-    return md5.hexdigest()
+    return checksum
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
