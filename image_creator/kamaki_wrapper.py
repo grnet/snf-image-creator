@@ -80,7 +80,7 @@ class Kamaki:
         self.uploaded_object = None
 
     def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
-
+        """Upload a file to pithos"""
         if remote_path is None:
             remote_path = basename(filename)
 
@@ -101,7 +101,7 @@ class Kamaki:
             raise FatalError("Pithos client: %d %s" % (e.status, e.message))
 
     def register(self, name, location, metadata):
-
+        """Register an image to ~okeanos"""
         params = {'is_public': 'true', 'disk_format': 'diskdump'}
         try:
             self.image_client.register(name, location, params, metadata)

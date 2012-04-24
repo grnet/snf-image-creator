@@ -202,7 +202,7 @@ class DiskDevice(object):
         self.root = roots[0]
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
-        success('found a %s system' % self.distro)
+        success('found a(n) %s system' % self.distro)
 
     def destroy(self):
         """Destroy this DiskDevice instance."""

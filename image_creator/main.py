@@ -240,7 +240,7 @@ def image_creator():
             output()
 
         if options.register:
-            output('Registing image to ~okeanos...', False)
+            output('Registring image to ~okeanos...', False)
             kamaki.register(options.register, uploaded_obj, metadata)
             success('done')
             output()
