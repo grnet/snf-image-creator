@@ -210,7 +210,8 @@ def image_creator():
 
             output('Dumping md5sum file...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
-                f.write('%s %s'% (checksum, os.path.basename(options.outfile)))
+                f.write('%s %s' % (
+                                checksum, os.path.basename(options.outfile)))
             success('done')
 
         # Destroy the device. We only need the snapshot from now on
@@ -239,9 +240,9 @@ def image_creator():
             output()
 
         if options.register:
-            output('Registing image to ~okeanos...')
+            output('Registing image to ~okeanos...', False)
             kamaki.register(options.register, uploaded_obj, metadata)
-            output('done')
+            success('done')
             output()
 
     finally:

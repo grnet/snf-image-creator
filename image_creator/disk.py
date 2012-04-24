@@ -336,7 +336,6 @@ class DiskDevice(object):
                 dest.close()
         finally:
             source.close()
-        
         output("\rDumping image file...\033[K", False)
         success('image file %s was successfully created' % outfile)
 

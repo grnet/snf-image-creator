@@ -61,6 +61,7 @@ def progress(message):
         yield
     return progress_gen
 
+
 class Kamaki:
     def __init__(self, account, token):
         self.account = account
@@ -100,7 +101,8 @@ class Kamaki:
             raise FatalError("Pithos client: %d %s" % (e.status, e.message))
 
     def register(self, name, location, metadata):
-        params = {'is_public':'true', 'disk_format':'diskdump'}
+
+        params = {'is_public': 'true', 'disk_format': 'diskdump'}
         try:
             self.image_client.register(name, location, params, metadata)
         except ClientError as e:
