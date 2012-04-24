@@ -53,6 +53,10 @@ def progress(message):
 
         progressbar = Bar(msg.ljust(MSG_LENGTH))
         progressbar.max = n
+        progressbar.fill = '#'
+        progressbar.bar_prefix = ' ['
+        progressbar.bar_suffix = '] '
+
         for _ in range(n):
             yield
             progressbar.next()
