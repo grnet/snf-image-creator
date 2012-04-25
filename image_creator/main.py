@@ -197,8 +197,9 @@ def image_creator():
 
         checksum = md5(snapshot, size)
 
-        metastring = "\n".join(
+        metastring = '\n'.join(
             ['%s=%s' % (key, value) for (key, value) in metadata.items()])
+        metastring += '\n'
 
         if options.outfile is not None:
             dev.dump(options.outfile)
@@ -210,7 +211,7 @@ def image_creator():
 
             output('Dumping md5sum file...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
-                f.write('%s %s' % (
+                f.write('%s %s\n' % (
                                 checksum, os.path.basename(options.outfile)))
             success('done')
 
@@ -233,7 +234,8 @@ def image_creator():
                                 remote_path="%s.%s" % (options.upload, 'meta'))
             success('done')
             output("(4/4)  Uploading md5sum file...", False)
-            md5sumstr = '%s %s' % (checksum, os.path.basename(options.upload))
+            md5sumstr = '%s %s\n' % (
+                checksum, os.path.basename(options.upload))
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                             remote_path="%s.%s" % (options.upload, 'md5sum'))
             success('done')
