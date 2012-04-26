@@ -33,7 +33,7 @@
 
 from image_creator.util import get_command
 from image_creator.util import warn, progress, success, output, FatalError
-
+from image_creator.gpt import GPTPartitionTable
 import stat
 import os
 import tempfile
@@ -200,6 +200,9 @@ class DiskDevice(object):
             raise FatalError("Multiple operating systems found."
                             "We only support images with one filesystem.")
         self.root = roots[0]
+        self.gdev = self.g.part_to_dev(self.root)
+        self.parttype = self.g.part_get_parttype(self.gdev)
+
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
         success('found a(n) %s system' % self.distro)
@@ -256,23 +259,21 @@ class DiskDevice(object):
         """
         output("Shrinking image (this may take a while)...", False)
 
-        dev = self.g.part_to_dev(self.root)
-        parttype = self.g.part_get_parttype(dev)
-        if parttype != 'msdos':
+        if self.parttype not in 'msdos' 'gpt':
             raise FatalError("You have a %s partition table. "
-                "Only msdos partitions are supported" % parttype)
+                "Only msdos and gpt partitions are supported" % self.parttype)
 
-        last_partition = self.g.part_list(dev)[-1]
+        last_partition = self.g.part_list(self.gdev)[-1]
 
         if last_partition['part_num'] > 4:
             raise FatalError("This disk contains logical partitions. "
                 "Only primary partitions are supported.")
 
-        part_dev = "%s%d" % (dev, last_partition['part_num'])
+        part_dev = "%s%d" % (self.gdev, last_partition['part_num'])
         fs_type = self.g.vfs_type(part_dev)
         if not re.match("ext[234]", fs_type):
             warn("Don't know how to resize %s partitions." % vfs_type)
-            return
+            return self.size()
 
         self.g.e2fsck_f(part_dev)
         self.g.resize2fs_M(part_dev)
@@ -283,17 +284,22 @@ class DiskDevice(object):
         block_cnt = int(
             filter(lambda x: x[0] == 'Block count', out)[0][1])
 
-        sector_size = self.g.blockdev_getss(dev)
+        sector_size = self.g.blockdev_getss(self.gdev)
 
         start = last_partition['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
-        self.g.part_del(dev, last_partition['part_num'])
-        self.g.part_add(dev, 'p', start, end)
+        self.g.part_del(self.gdev, last_partition['part_num'])
+        self.g.part_add(self.gdev, 'p', start, end)
 
         new_size = (end + 1) * sector_size
         success("new image size is %dMB" %
                             ((new_size + 2 ** 20 - 1) // 2 ** 20))
+
+        if self.parttype == 'gpt':
+            ptable = GPTPartitionTable(self.device)
+            return ptable.shrink(new_size)
+
         return new_size
 
     def size(self):
@@ -302,10 +308,16 @@ class DiskDevice(object):
         The size returned by this method is the size of the space occupied by
         the partitions (including the space before the first partition).
         """
-        dev = self.g.part_to_dev(self.root)
-        last = self.g.part_list(dev)[-1]
 
-        return last['part_end'] + 1
+        if self.parttype == 'msdos':
+            dev = self.g.part_to_dev(self.root)
+            last = self.g.part_list(dev)[-1]
+            return last['part_end'] + 1
+        elif self.parttype == 'gpt':
+            ptable = GPTPartitionTable(self.device)
+            return ptable.size()
+        else:
+            raise FatalError("Unsupported partition table type: %s" % parttype)
 
     def dump(self, outfile):
         """Dumps the content of device into a file.

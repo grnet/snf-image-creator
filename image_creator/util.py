@@ -113,7 +113,7 @@ def md5(filename, size):
     BLOCKSIZE = 2 ** 22  # 4MB
 
     progressbar = progress("Calculating md5sum:", 'mb')
-    progressbar.max = (size // (2 ** 20))
+    progressbar.max = ((size + 2 ** 20 - 1) // (2 ** 20))
     md5 = hashlib.md5()
     with open(filename, "r") as src:
         left = size
