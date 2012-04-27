@@ -165,12 +165,15 @@ class DiskDevice(object):
     def __init__(self, device, bootable=True):
         """Create a new DiskDevice."""
 
-        self.device = device
+        self.real_device = device
         self.bootable = bootable
         self.progress_bar = None
+        self.guestfs_device = None
+        self.size = None
+        self.parttype = None
 
         self.g = guestfs.GuestFS()
-        self.g.add_drive_opts(self.device, readonly=0)
+        self.g.add_drive_opts(self.real_device, readonly=0)
 
         #self.g.set_trace(1)
         #self.g.set_verbose(1)
@@ -200,8 +203,9 @@ class DiskDevice(object):
             raise FatalError("Multiple operating systems found."
                             "We only support images with one filesystem.")
         self.root = roots[0]
-        self.gdev = self.g.part_to_dev(self.root)
-        self.parttype = self.g.part_get_parttype(self.gdev)
+        self.guestfs_device = self.g.part_to_dev(self.root)
+        self.size = self.g.blockdev_getsize64(self.guestfs_device)
+        self.parttype = self.g.part_get_parttype(self.guestfs_device)
 
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
@@ -256,6 +260,8 @@ class DiskDevice(object):
         This is accomplished by shrinking the last filesystem in the
         disk and then updating the partition table. The new disk size
         (in bytes) is returned.
+
+        ATTENTION: make sure unmount is called before shrink
         """
         output("Shrinking image (this may take a while)...", False)
 
@@ -263,13 +269,13 @@ class DiskDevice(object):
             raise FatalError("You have a %s partition table. "
                 "Only msdos and gpt partitions are supported" % self.parttype)
 
-        last_partition = self.g.part_list(self.gdev)[-1]
+        last_partition = self.g.part_list(self.guestfs_device)[-1]
 
         if last_partition['part_num'] > 4:
             raise FatalError("This disk contains logical partitions. "
                 "Only primary partitions are supported.")
 
-        part_dev = "%s%d" % (self.gdev, last_partition['part_num'])
+        part_dev = "%s%d" % (self.guestfs_device, last_partition['part_num'])
         fs_type = self.g.vfs_type(part_dev)
         if not re.match("ext[234]", fs_type):
             warn("Don't know how to resize %s partitions." % vfs_type)
@@ -284,40 +290,23 @@ class DiskDevice(object):
         block_cnt = int(
             filter(lambda x: x[0] == 'Block count', out)[0][1])
 
-        sector_size = self.g.blockdev_getss(self.gdev)
+        sector_size = self.g.blockdev_getss(self.guestfs_device)
 
         start = last_partition['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
-        self.g.part_del(self.gdev, last_partition['part_num'])
-        self.g.part_add(self.gdev, 'p', start, end)
+        self.g.part_del(self.guestfs_device, last_partition['part_num'])
+        self.g.part_add(self.guestfs_device, 'p', start, end)
 
-        new_size = (end + 1) * sector_size
+        self.size = (end + 1) * sector_size
         success("new image size is %dMB" %
-                            ((new_size + 2 ** 20 - 1) // 2 ** 20))
+                            ((self.size + 2 ** 20 - 1) // 2 ** 20))
 
         if self.parttype == 'gpt':
-            ptable = GPTPartitionTable(self.device)
-            return ptable.shrink(new_size)
+            ptable = GPTPartitionTable(self.real_device)
+            self.size = ptable.shrink(self.size)
 
-        return new_size
-
-    def size(self):
-        """Returns the "payload" size of the device.
-
-        The size returned by this method is the size of the space occupied by
-        the partitions (including the space before the first partition).
-        """
-
-        if self.parttype == 'msdos':
-            dev = self.g.part_to_dev(self.root)
-            last = self.g.part_list(dev)[-1]
-            return last['part_end'] + 1
-        elif self.parttype == 'gpt':
-            ptable = GPTPartitionTable(self.device)
-            return ptable.size()
-        else:
-            raise FatalError("Unsupported partition table type: %s" % parttype)
+        return self.size
 
     def dump(self, outfile):
         """Dumps the content of device into a file.
@@ -326,15 +315,12 @@ class DiskDevice(object):
         partition table. Empty space in the end of the device will be ignored.
         """
         blocksize = 2 ** 22  # 4MB
-        size = self.size()
-        progress_size = (size + 2 ** 20 - 1) // 2 ** 20  # in MB
+        progress_size = (self.size + 2 ** 20 - 1) // 2 ** 20  # in MB
         progressbar = progress("Dumping image file: ", 'mb')
         progressbar.max = progress_size
-        source = open(self.device, "r")
-        try:
-            dest = open(outfile, "w")
-            try:
-                left = size
+        with open(self.real_device, 'r') as source:
+            with open(outfile, "w") as dest:
+                left = self.size
                 offset = 0
                 progressbar.next()
                 while left > 0:
@@ -343,11 +329,7 @@ class DiskDevice(object):
                                                                         length)
                     offset += sent
                     left -= sent
-                    progressbar.goto((size - left) // 2 ** 20)
-            finally:
-                dest.close()
-        finally:
-            source.close()
+                    progressbar.goto((self.size - left) // 2 ** 20)
         output("\rDumping image file...\033[K", False)
         success('image file %s was successfully created' % outfile)
 

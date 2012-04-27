@@ -148,7 +148,9 @@ def image_creator():
         raise FatalError("At least one of `-o', `-u' or" \
                             "`--print-sysprep' must be set")
 
-    output('snf-image-creator %s\n' % version)
+    title = 'snf-image-creator %s' % version
+    output(title)
+    output('=' * len(title))
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root" \
@@ -171,7 +173,6 @@ def image_creator():
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
         metadata = image_os.get_metadata()
-
         output()
 
         for sysprep in options.disabled_syspreps:
@@ -192,7 +193,7 @@ def image_creator():
 
         dev.umount()
 
-        size = options.shrink and dev.shrink() or dev.size()
+        size = options.shrink and dev.shrink() or dev.size
         metadata['SIZE'] = str(size // 2 ** 20)
 
         checksum = md5(snapshot, size)
