@@ -271,15 +271,15 @@ class DiskDevice(object):
 
         last_partition = self.g.part_list(self.guestfs_device)[-1]
 
-        if last_partition['part_num'] > 4:
+        if self.parttype == 'msdos' and last_partition['part_num'] > 4:
             raise FatalError("This disk contains logical partitions. "
                 "Only primary partitions are supported.")
 
         part_dev = "%s%d" % (self.guestfs_device, last_partition['part_num'])
         fs_type = self.g.vfs_type(part_dev)
         if not re.match("ext[234]", fs_type):
-            warn("Don't know how to resize %s partitions." % vfs_type)
-            return self.size()
+            warn("Don't know how to resize %s partitions." % fs_type)
+            return self.size
 
         self.g.e2fsck_f(part_dev)
         self.g.resize2fs_M(part_dev)
