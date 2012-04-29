@@ -33,19 +33,17 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator import get_os_class
 from image_creator import __version__ as version
 from image_creator import util
 from image_creator.disk import Disk
 from image_creator.util import get_command, error, success, output, \
                                                     FatalError, progress, md5
+from image_creator.os_type import get_os_class
 from image_creator.kamaki_wrapper import Kamaki
 import sys
 import os
 import optparse
 import StringIO
-
-dd = get_command('dd')
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -145,8 +143,8 @@ def image_creator():
 
     if options.outfile is None and not options.upload \
                                             and not options.print_sysprep:
-        raise FatalError("At least one of `-o', `-u' or" \
-                            "`--print-sysprep' must be set")
+        raise FatalError("At least one of `-o', `-u' or `--print-sysprep' " \
+                                                                "must be set")
 
     title = 'snf-image-creator %s' % version
     output(title)
@@ -199,7 +197,7 @@ def image_creator():
         checksum = md5(snapshot, size)
 
         metastring = '\n'.join(
-            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
+                ['%s=%s' % (key, value) for (key, value) in metadata.items()])
         metastring += '\n'
 
         if options.outfile is not None:
@@ -207,13 +205,13 @@ def image_creator():
 
             output('Dumping metadata file...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
-                    f.write(metastring)
+                f.write(metastring)
             success('done')
 
             output('Dumping md5sum file...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
-                f.write('%s %s\n' % (
-                                checksum, os.path.basename(options.outfile)))
+                f.write('%s %s\n' % (checksum, \
+                                            os.path.basename(options.outfile)))
             success('done')
 
         # Destroy the device. We only need the snapshot from now on

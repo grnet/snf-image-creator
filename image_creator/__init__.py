@@ -33,24 +33,4 @@
 
 __version__ = '0.1'
 
-
-import image_creator.os_type
-
-
-def get_os_class(distro, osfamily):
-    module = None
-    classname = None
-    try:
-        module = __import__("image_creator.os_type.%s"
-            % distro, fromlist=['image_creator.os_type'])
-        classname = distro.capitalize()
-    except ImportError:
-        module = __import__("image_creator.os_type.%s"
-            % osfamily, fromlist=['image_creator.os_type'])
-        classname = osfamily.capitalize()
-
-    return getattr(module, classname)
-
-
-
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

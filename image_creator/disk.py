@@ -120,8 +120,7 @@ class Disk(object):
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
         # Create 1G cow sparse file
-        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', \
-                                        'seek=%d' % (1024 * 1024))
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', 'seek=%d' % (1024 * 1024))
         cowdev = self._losetup(cow)
 
         snapshot = uuid.uuid4().hex
@@ -273,7 +272,7 @@ class DiskDevice(object):
 
         if self.parttype == 'msdos' and last_partition['part_num'] > 4:
             raise FatalError("This disk contains logical partitions. "
-                "Only primary partitions are supported.")
+                                    "Only primary partitions are supported.")
 
         part_dev = "%s%d" % (self.guestfs_device, last_partition['part_num'])
         fs_type = self.g.vfs_type(part_dev)
@@ -299,8 +298,7 @@ class DiskDevice(object):
         self.g.part_add(self.guestfs_device, 'p', start, end)
 
         self.size = (end + 1) * sector_size
-        success("new image size is %dMB" %
-                            ((self.size + 2 ** 20 - 1) // 2 ** 20))
+        success("new size is %dMB" % ((self.size + 2 ** 20 - 1) // 2 ** 20))
 
         if self.parttype == 'gpt':
             ptable = GPTPartitionTable(self.real_device)
@@ -318,15 +316,15 @@ class DiskDevice(object):
         progress_size = (self.size + 2 ** 20 - 1) // 2 ** 20  # in MB
         progressbar = progress("Dumping image file: ", 'mb')
         progressbar.max = progress_size
-        with open(self.real_device, 'r') as source:
-            with open(outfile, "w") as dest:
+
+        with open(self.real_device, 'r') as src:
+            with open(outfile, "w") as dst:
                 left = self.size
                 offset = 0
                 progressbar.next()
                 while left > 0:
                     length = min(left, blocksize)
-                    sent = sendfile(dest.fileno(), source.fileno(), offset,
-                                                                        length)
+                    sent = sendfile(dst.fileno(), src.fileno(), offset, length)
                     offset += sent
                     left -= sent
                     progressbar.goto((self.size - left) // 2 ** 20)

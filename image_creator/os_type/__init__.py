@@ -37,6 +37,21 @@ import textwrap
 import re
 
 
+def get_os_class(distro, osfamily):
+    module = None
+    classname = None
+    try:
+        module = __import__("image_creator.os_type.%s"
+            % distro, fromlist=['image_creator.os_type'])
+        classname = distro.capitalize()
+    except ImportError:
+        module = __import__("image_creator.os_type.%s"
+            % osfamily, fromlist=['image_creator.os_type'])
+        classname = osfamily.capitalize()
+
+    return getattr(module, classname)
+
+
 def add_prefix(target):
     def wrapper(self, *args):
         prefix = args[0]

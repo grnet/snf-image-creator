@@ -232,7 +232,7 @@ class GPTPartitionTable(object):
     def __init__(self, disk):
         self.disk = disk
         with open(disk, "rb") as d:
-            #MBR (Logical block address 0)
+            # MBR (Logical block address 0)
             lba0 = d.read(BLOCKSIZE)
             self.mbr = MBR(lba0)
 
