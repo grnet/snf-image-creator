@@ -168,8 +168,7 @@ class DiskDevice(object):
         self.bootable = bootable
         self.progress_bar = None
         self.guestfs_device = None
-        self.size = None
-        self.parttype = None
+        self.meta = {}
 
         self.g = guestfs.GuestFS()
         self.g.add_drive_opts(self.real_device, readonly=0)
@@ -203,8 +202,9 @@ class DiskDevice(object):
                             "We only support images with one filesystem.")
         self.root = roots[0]
         self.guestfs_device = self.g.part_to_dev(self.root)
-        self.size = self.g.blockdev_getsize64(self.guestfs_device)
-        self.parttype = self.g.part_get_parttype(self.guestfs_device)
+        self.meta['SIZE'] = self.g.blockdev_getsize64(self.guestfs_device)
+        self.meta['PARTITION_TABLE'] = \
+                                self.g.part_get_parttype(self.guestfs_device)
 
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
@@ -253,6 +253,31 @@ class DiskDevice(object):
         """Umount all mounted filesystems."""
         self.g.umount_all()
 
+    def _last_partition(self):
+        if self.meta['PARTITION_TABLE'] not in 'msdos' 'gpt':
+            msg = "Unsupported partition table: %s. Only msdos and gpt " \
+            "partition tables are supported" % self.meta['PARTITION_TABLE']
+            raise FatalError(msg)
+
+        is_extended = lambda p: self.g.part_get_mbr_id(
+                                    self.guestfs_device, p['part_num']) == 5
+        is_logical = lambda p: self.meta['PARTITION_TABLE'] != 'msdos' and \
+                                                            p['part_num'] > 4
+
+        partitions = self.g.part_list(self.guestfs_device)
+        last_partition = partitions[-1]
+
+        if is_logical(last_partition):
+            # The disk contains extended and logical partitions....
+            extended = [p for p in partitions if is_extended(p)][0]
+            last_primary = [p for p in partitions if p['part_num'] <= 4][-1]
+
+            # check if extended is the last primary partition
+            if last_primary['part_num'] > extended['part_num']:
+                last_partition = last_primary
+
+        return last_partition
+
     def shrink(self):
         """Shrink the disk.
 
@@ -262,24 +287,52 @@ class DiskDevice(object):
 
         ATTENTION: make sure unmount is called before shrink
         """
+        get_fstype = lambda p: self.g.vfs_type("%s%d" % \
+                                        (self.guestfs_device, p['part_num']))
+        is_logical = lambda p: self.meta['PARTITION_TABLE'] == 'msdos' and \
+                                                            p['part_num'] > 4
+        is_extended = lambda p: self.meta['PARTITION_TABLE'] == 'msdos' and \
+                self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+
+        part_add = lambda ptype, start, stop: \
+                    self.g.part_add(self.guestfs_device, ptype, start, stop)
+        part_del = lambda p: self.g.part_del(self.guestfs_device, p)
+        part_get_id = lambda p: self.g.part_get_mbr_id(self.guestfs_device, p)
+        part_set_id = lambda p, id: self.g.part_set_mbr_id(
+                                                    self.guestfs_device, p, id)
+        part_get_bootable = lambda p: self.g.part_get_bootable(
+                                                        self.guestfs_device, p)
+        part_set_bootable = lambda p, bootable: self.g.part_set_bootable(
+                                            self.guestfs_device, p, bootable)
+
+        MB = 2 ** 20
+
         output("Shrinking image (this may take a while)...", False)
 
-        if self.parttype not in 'msdos' 'gpt':
-            raise FatalError("You have a %s partition table. "
-                "Only msdos and gpt partitions are supported" % self.parttype)
+        last_part = None
+        fstype = None
+        while True:
+            last_part = self._last_partition()
+            fstype = get_fstype(last_part)
 
-        last_partition = self.g.part_list(self.guestfs_device)[-1]
+            if fstype == 'swap':
+                self.meta['SWAP'] = "%d:%s" % \
+                        (last_part['part_num'],
+                        (last_part['part_size'] + MB - 1) // MB)
+                part_del(last_part['part_num'])
+                continue
+            elif is_extended(last_part):
+                part_del(last_part['part_num'])
+                continue
 
-        if self.parttype == 'msdos' and last_partition['part_num'] > 4:
-            raise FatalError("This disk contains logical partitions. "
-                                    "Only primary partitions are supported.")
+            self.meta['SIZE'] = last_part['part_end'] + 1
+            break
 
-        part_dev = "%s%d" % (self.guestfs_device, last_partition['part_num'])
-        fs_type = self.g.vfs_type(part_dev)
-        if not re.match("ext[234]", fs_type):
-            warn("Don't know how to resize %s partitions." % fs_type)
-            return self.size
+        if not re.match("ext[234]", fstype):
+            warn("Don't know how to resize %s partitions." % fstype)
+            return self.meta['SIZE']
 
+        part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
         self.g.e2fsck_f(part_dev)
         self.g.resize2fs_M(part_dev)
 
@@ -290,21 +343,59 @@ class DiskDevice(object):
             filter(lambda x: x[0] == 'Block count', out)[0][1])
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
-
-        start = last_partition['part_start'] / sector_size
+        start = last_part['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
-        self.g.part_del(self.guestfs_device, last_partition['part_num'])
-        self.g.part_add(self.guestfs_device, 'p', start, end)
+        if is_logical(last_part):
+            partitions = self.g.part_list(self.guestfs_device)
 
-        self.size = (end + 1) * sector_size
-        success("new size is %dMB" % ((self.size + 2 ** 20 - 1) // 2 ** 20))
+            logical = []  # logical partitions
+            for partition in partitions:
+                if partition['part_num'] < 4:
+                    continue
+                logical.append({
+                    'num': partition['part_num'],
+                    'start': partition['part_start'] / sector_size,
+                    'end': partition['part_end'] / sector_size,
+                    'id': part_get_(partition['part_num']),
+                    'bootable': part_get_bootable(partition['part_num'])
+                })
 
-        if self.parttype == 'gpt':
+            logical[-1]['end'] = end  # new end after resize
+
+            # Recreate the extended partition
+            extended = [p for p in partitions if self._is_extended(p)][0]
+            part_del(extended['part_num'])
+            part_add('e', extended['part_start'], end)
+
+            # Create all the logical partitions back
+            for l in logical:
+                part_add('l', l['start'], l['end'])
+                part_set_id(l['num'], l['id'])
+                part_set_bootable(l['num'], l['bootable'])
+        else:
+            # Recreate the last partition
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                last_part['id'] = part_get_id(last_part['part_num'])
+
+            last_part['bootable'] = part_get_bootable(last_part['part_num'])
+            part_del(last_part['part_num'])
+            part_add('p', start, end)
+            part_set_bootable(last_part['part_num'], last_part['bootable'])
+
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                part_set_id(last_part['part_num'], last_part['id'])
+
+        new_size = (end + 1) * sector_size
+        success("new size is %dMB" % ((new_size + MB - 1) // MB))
+
+        if self.meta['PARTITION_TABLE'] == 'gpt':
             ptable = GPTPartitionTable(self.real_device)
-            self.size = ptable.shrink(self.size)
+            self.meta['SIZE'] = ptable.shrink(new_size)
+        else:
+            self.meta['SIZE'] = new_size
 
-        return self.size
+        return self.meta['SIZE']
 
     def dump(self, outfile):
         """Dumps the content of device into a file.
@@ -312,14 +403,16 @@ class DiskDevice(object):
         This method will only dump the actual payload, found by reading the
         partition table. Empty space in the end of the device will be ignored.
         """
-        blocksize = 2 ** 22  # 4MB
-        progress_size = (self.size + 2 ** 20 - 1) // 2 ** 20  # in MB
+        MB = 2 ** 20
+        blocksize = 4 * MB  # 4MB
+        size = self.meta['SIZE']
+        progress_size = (size + MB - 1) // MB  # in MB
         progressbar = progress("Dumping image file: ", 'mb')
         progressbar.max = progress_size
 
         with open(self.real_device, 'r') as src:
             with open(outfile, "w") as dst:
-                left = self.size
+                left = size
                 offset = 0
                 progressbar.next()
                 while left > 0:
@@ -327,7 +420,7 @@ class DiskDevice(object):
                     sent = sendfile(dst.fileno(), src.fileno(), offset, length)
                     offset += sent
                     left -= sent
-                    progressbar.goto((self.size - left) // 2 ** 20)
+                    progressbar.goto((size - left) // MB)
         output("\rDumping image file...\033[K", False)
         success('image file %s was successfully created' % outfile)
 

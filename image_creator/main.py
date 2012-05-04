@@ -192,7 +192,7 @@ def image_creator():
         dev.umount()
 
         size = options.shrink and dev.shrink() or dev.size
-        metadata['SIZE'] = str(size // 2 ** 20)
+        metadata.update(dev.meta)
 
         checksum = md5(snapshot, size)
 
