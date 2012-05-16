@@ -120,6 +120,7 @@ class OSBase(object):
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = '\t'
         wrapper.initial_indent = '\t'
+        wrapper.width = 72
 
         output("Enabled system preperation operations:")
         if len(enabled) == 0:
@@ -127,7 +128,7 @@ class OSBase(object):
         else:
             for sysprep in enabled:
                 name = sysprep.__name__.replace('_', '-')
-                descr = wrapper.fill(sysprep.__doc__)
+                descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 output('    %s:\n%s\n' % (name, descr))
 
         output("Disabled system preperation operations:")
@@ -136,7 +137,7 @@ class OSBase(object):
         else:
             for sysprep in disabled:
                 name = sysprep.__name__.replace('_', '-')
-                descr = wrapper.fill(sysprep.__doc__)
+                descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 output('    %s:\n%s\n' % (name, descr))
 
     @add_prefix

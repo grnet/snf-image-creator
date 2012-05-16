@@ -126,6 +126,29 @@ class Linux(Unix):
             self.g.rm(rule_file)
 
     @sysprep()
+    def remove_swap_entry(self, print_header=True):
+        """Remove swap entry from /etc/fstab. If swap is the last partition
+        then the partition will be removed when shrinking is performed. If the
+        swap partition is not the last partition in the disk or if you are not
+        going to shrink the image you should probably disable this.
+        """
+
+        if print_header:
+            output('Removing swap entry from fstab')
+
+        new_fstab = ""
+        fstab = self.g.cat('/etc/fstab')
+        for line in fstab.splitlines():
+
+            entry = line.split('#')[0].strip().split()
+            if len(entry) == 6 and entry[2] == 'swap':
+                continue
+
+            new_fstab += "%s\n" % line
+
+        self.g.write('/etc/fstab', new_fstab)
+
+    @sysprep()
     def persistent_devs(self, print_header=True):
         """Scan fstab & grub configuration files and replace all non-persistent
         device appearences with UUIDs.
