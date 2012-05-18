@@ -90,6 +90,10 @@ def parse_options(input_args):
         help="Use this ACCOUNT when uploading/registring images [Default: %s]"\
         % account)
 
+    parser.add_option("-m", "--metadata", dest="metadata", default=[],
+        help="Add custom KEY=VALUE metadata to the image", action="append",
+        metavar="KEY=VALUE")
+
     parser.add_option("-t", "--token", dest="token", type="string",
         default=token,
         help="Use this token when uploading/registring images [Default: %s]"\
@@ -117,6 +121,7 @@ def parse_options(input_args):
 
     if len(args) != 1:
         parser.error('Wrong number of arguments')
+
     options.source = args[0]
     if not os.path.exists(options.source):
         raise FatalError("Input media `%s' is not accessible" % options.source)
@@ -131,6 +136,16 @@ def parse_options(input_args):
     if options.upload and options.token is None:
         raise FatalError("Image uploading cannot be performed. No ~okeanos "
         "token is specified. User -t to set a token.")
+
+    meta = {}
+    for m in options.metadata:
+        try:
+            key, value = m.split('=', 1)
+        except ValueError:
+            raise FatalError("Metadata option: `%s' is not in "\
+                                                    "KEY=VALUE format." % m)
+        meta[key] = value
+    options.metadata = meta
 
     return options
 
@@ -193,6 +208,9 @@ def image_creator():
 
         size = options.shrink and dev.shrink() or dev.size
         metadata.update(dev.meta)
+
+        # Add command line metadata to the collected ones...
+        metadata.update(options.metadata)
 
         checksum = md5(snapshot, size)
 
