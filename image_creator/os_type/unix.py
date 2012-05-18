@@ -48,12 +48,12 @@ class Unix(OSBase):
         '.thunderbird'
     ]
 
-    def get_metadata(self):
-        meta = super(Unix, self).get_metadata()
-        meta["USERS"] = " ".join(self.get_passworded_users())
-        return meta
+    def __init__(self, rootdev, ghandler):
+        super(Unix, self).__init__(rootdev, ghandler)
 
-    def get_passworded_users(self):
+        self.meta["USERS"] = " ".join(self._get_passworded_users())
+
+    def _get_passworded_users(self):
         users = []
         regexp = re.compile('(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
 
@@ -80,13 +80,18 @@ class Unix(OSBase):
         # Remove users from /etc/passwd
         passwd = []
         removed_users = {}
+        metadata_users = self.meta['USERS'].split()
         for line in self.g.cat('/etc/passwd').splitlines():
             fields = line.split(':')
             if int(fields[2]) > 1000:
                 removed_users[fields[0]] = fields
+                # remove it from the USERS metadata too
+                if fields[0] in metadata_users:
+                    metadata_users.remove(fields[0])
             else:
                 passwd.append(':'.join(fields))
 
+        self.meta['USERS'] = " ".join(metadata_users)
         self.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
 
         # Remove the corresponding /etc/shadow entries

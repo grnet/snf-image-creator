@@ -74,6 +74,13 @@ class OSBase(object):
         self.root = rootdev
         self.g = ghandler
 
+        # Collect metadata about the OS
+        self.meta = {}
+        self.meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
+        self.meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
+        self.meta['OS'] = self.g.inspect_get_distro(self.root)
+        self.meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
+
     def _is_sysprep(self, obj):
         return getattr(obj, 'sysprep', False) and callable(obj)
 
@@ -191,16 +198,6 @@ class OSBase(object):
 
             if has_ftype(f, ftype):
                 action(full_path)
-
-    def get_metadata(self):
-        """Returns some descriptive metadata about the OS."""
-        meta = {}
-        meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
-        meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
-        meta['OS'] = self.g.inspect_get_distro(self.root)
-        meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
-
-        return meta
 
     def do_sysprep(self):
         """Prepere system for image creation."""

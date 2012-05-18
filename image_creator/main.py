@@ -185,7 +185,6 @@ def image_creator():
 
         osclass = get_os_class(dev.distro, dev.ostype)
         image_os = osclass(dev.root, dev.g)
-        metadata = image_os.get_metadata()
         output()
 
         for sysprep in options.disabled_syspreps:
@@ -204,6 +203,7 @@ def image_creator():
         if options.sysprep:
             image_os.do_sysprep()
 
+        metadata = image_os.meta
         dev.umount()
 
         size = options.shrink and dev.shrink() or dev.size

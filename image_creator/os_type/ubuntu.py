@@ -35,15 +35,15 @@ from image_creator.os_type.linux import Linux, sysprep
 
 
 class Ubuntu(Linux):
-    def get_metadata(self):
-        meta = super(Ubuntu, self).get_metadata()
+    def __init__(self, rootdev, ghandler):
+        super(Ubuntu, self).__init__(rootdev, ghandler)
+
         apps = self.g.inspect_list_applications(self.root)
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':
-                meta['OS'] = 'kubuntu'
-                meta['DESCRIPTION'] = \
-                            meta['DESCRIPTION'].replace('Ubuntu', 'Kubuntu')
+                self.meta['OS'] = 'kubuntu'
+                self.meta['DESCRIPTION'] = \
+                        self.meta['DESCRIPTION'].replace('Ubuntu', 'Kubuntu')
                 break
-        return meta
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
