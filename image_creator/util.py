@@ -34,15 +34,10 @@
 import sys
 import pbs
 import hashlib
-from colors import red, green, yellow
-from progress.bar import Bar
 
 
 class FatalError(Exception):
     pass
-
-
-silent = False
 
 
 def get_command(command):
@@ -59,75 +54,29 @@ def get_command(command):
         return find_sbin_command(command, e)
 
 
-def error(msg, new_line=True):
-    nl = "\n" if new_line else ''
-    sys.stderr.write(red('Error: %s' % msg) + nl)
+class MD5:
+    def __init__(self, output):
+        self.out = output
 
+    def compute(self, filename, size):
 
-def warn(msg, new_line=True):
-    if not silent:
-        nl = "\n" if new_line else ''
-        sys.stderr.write(yellow("Warning: %s" % msg) + nl)
+        BLOCKSIZE = 2 ** 22  # 4MB
 
+        progressbar = self.out.Progress("Calculating md5sum:", 'mb')
+        progressbar.max = ((size + 2 ** 20 - 1) // (2 ** 20))
+        md5 = hashlib.md5()
+        with open(filename, "r") as src:
+            left = size
+            while left > 0:
+                length = min(left, BLOCKSIZE)
+                data = src.read(length)
+                md5.update(data)
+                left -= length
+                progressbar.goto((size - left) // (2 ** 20))
 
-def success(msg, new_line=True):
-    if not silent:
-        nl = "\n" if new_line else ''
-        sys.stdout.write(green(msg) + nl)
-        if not nl:
-            sys.stdout.flush()
+        checksum = md5.hexdigest()
+        progressbar.success(checksum)
 
-
-def output(msg="", new_line=True):
-    if not silent:
-        nl = "\n" if new_line else ''
-        sys.stdout.write(msg + nl)
-        if not nl:
-            sys.stdout.flush()
-
-
-def progress(message='', bar_type="default"):
-
-    MESSAGE_LENGTH = 30
-
-    suffix = {
-        'default': '%(index)d/%(max)d',
-        'percent': '%(percent)d%%',
-        'b': '%(index)d/%(max)d B',
-        'kb': '%(index)d/%(max)d KB',
-        'mb': '%(index)d/%(max)d MB'
-    }
-
-    bar = Bar()
-    bar.message = message.ljust(MESSAGE_LENGTH)
-    bar.fill = '#'
-    bar.suffix = suffix[bar_type]
-    bar.bar_prefix = ' ['
-    bar.bar_suffix = '] '
-
-    return bar
-
-
-def md5(filename, size):
-
-    BLOCKSIZE = 2 ** 22  # 4MB
-
-    progressbar = progress("Calculating md5sum:", 'mb')
-    progressbar.max = ((size + 2 ** 20 - 1) // (2 ** 20))
-    md5 = hashlib.md5()
-    with open(filename, "r") as src:
-        left = size
-        while left > 0:
-            length = min(left, BLOCKSIZE)
-            data = src.read(length)
-            md5.update(data)
-            left -= length
-            progressbar.goto((size - left) // (2 ** 20))
-
-    checksum = md5.hexdigest()
-    output("\rCalculating md5sum...\033[K", False)
-    success(checksum)
-
-    return checksum
+        return checksum
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

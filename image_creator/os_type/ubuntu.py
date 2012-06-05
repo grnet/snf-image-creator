@@ -35,8 +35,8 @@ from image_creator.os_type.linux import Linux, sysprep
 
 
 class Ubuntu(Linux):
-    def __init__(self, rootdev, ghandler):
-        super(Ubuntu, self).__init__(rootdev, ghandler)
+    def __init__(self, rootdev, ghandler, output):
+        super(Ubuntu, self).__init__(rootdev, ghandler, output)
 
         apps = self.g.inspect_list_applications(self.root)
         for app in apps:

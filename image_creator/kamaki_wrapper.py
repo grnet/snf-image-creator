@@ -39,37 +39,17 @@ from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
 from progress.bar import Bar
 
-from image_creator.util import FatalError, output, success
+from image_creator.util import FatalError
+from image_creator.output import output, warn
 
 CONTAINER = "images"
 
 
-def progress(message):
-
-    MSG_LENGTH = 30
-
-    def progress_gen(n):
-        msg = "%s:" % message
-
-        progressbar = Bar(msg.ljust(MSG_LENGTH))
-        progressbar.max = n
-        progressbar.fill = '#'
-        progressbar.bar_prefix = ' ['
-        progressbar.bar_suffix = '] '
-
-        for _ in range(n):
-            yield
-            progressbar.next()
-        output("\r%s...\033[K" % message, False)
-        success("done")
-        yield
-    return progress_gen
-
-
-class Kamaki:
-    def __init__(self, account, token):
+class Kamaki(object):
+    def __init__(self, account, token, output):
         self.account = account
         self.token = token
+        self.out = output
 
         config = Config()
 
@@ -95,8 +75,8 @@ class Kamaki:
                 raise FatalError("Pithos client: %d %s" % \
                                                     (e.status, e.message))
         try:
-            hash_cb = progress(hp) if hp is not None else None
-            upload_cb = progress(up) if up is not None else None
+            hash_cb = self.out.progress_gen(hp) if hp is not None else None
+            upload_cb = self.out.progress_gen(up) if up is not None else None
             self.pithos_client.create_object(remote_path, file_obj, size,
                                                             hash_cb, upload_cb)
             return "pithos://%s/%s/%s" % \

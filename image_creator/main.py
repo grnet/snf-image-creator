@@ -36,8 +36,8 @@
 from image_creator import __version__ as version
 from image_creator import util
 from image_creator.disk import Disk
-from image_creator.util import get_command, error, success, output, \
-                                                    FatalError, progress, md5
+from image_creator.util import get_command, FatalError, MD5
+from image_creator.output import Output, Output_with_progress, Silent, error
 from image_creator.os_type import get_os_class
 from image_creator.kamaki_wrapper import Kamaki
 import sys
@@ -153,17 +153,19 @@ def parse_options(input_args):
 def image_creator():
     options = parse_options(sys.argv[1:])
 
-    if options.silent:
-        util.silent = True
-
     if options.outfile is None and not options.upload \
                                             and not options.print_sysprep:
         raise FatalError("At least one of `-o', `-u' or `--print-sysprep' " \
                                                                 "must be set")
 
+    if options.silent:
+        out = Silent()
+    else:
+        out = Output_with_progress()
+
     title = 'snf-image-creator %s' % version
-    output(title)
-    output('=' * len(title))
+    out.output(title)
+    out.output('=' * len(title))
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root" \
@@ -176,7 +178,7 @@ def image_creator():
                 raise FatalError("Output file %s exists "
                     "(use --force to overwrite it)." % filename)
 
-    disk = Disk(options.source)
+    disk = Disk(options.source, out)
     try:
         snapshot = disk.snapshot()
 
@@ -184,8 +186,8 @@ def image_creator():
         dev.mount()
 
         osclass = get_os_class(dev.distro, dev.ostype)
-        image_os = osclass(dev.root, dev.g)
-        output()
+        image_os = osclass(dev.root, dev.g, out)
+        out.output()
 
         for sysprep in options.disabled_syspreps:
             image_os.disable_sysprep(sysprep)
@@ -195,7 +197,7 @@ def image_creator():
 
         if options.print_sysprep:
             image_os.print_syspreps()
-            output()
+            out.output()
 
         if options.outfile is None and not options.upload:
             return 0
@@ -206,13 +208,14 @@ def image_creator():
         metadata = image_os.meta
         dev.umount()
 
-        size = options.shrink and dev.shrink() or dev.size
+        size = options.shrink and dev.shrink() or dev.meta['SIZE']
         metadata.update(dev.meta)
 
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)
 
-        checksum = md5(snapshot, size)
+        md5 = MD5(out)
+        checksum = md5.compute(snapshot, size)
 
         metastring = '\n'.join(
                 ['%s=%s' % (key, value) for (key, value) in metadata.items()])
@@ -221,54 +224,54 @@ def image_creator():
         if options.outfile is not None:
             dev.dump(options.outfile)
 
-            output('Dumping metadata file...', False)
+            out.output('Dumping metadata file...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
                 f.write(metastring)
-            success('done')
+            out.success('done')
 
-            output('Dumping md5sum file...', False)
+            out.output('Dumping md5sum file...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
                 f.write('%s %s\n' % (checksum, \
                                             os.path.basename(options.outfile)))
-            success('done')
+            out.success('done')
 
         # Destroy the device. We only need the snapshot from now on
         disk.destroy_device(dev)
 
-        output()
+        out.output()
 
         uploaded_obj = ""
         if options.upload:
-            output("Uploading image to pithos:")
-            kamaki = Kamaki(options.account, options.token)
+            out.output("Uploading image to pithos:")
+            kamaki = Kamaki(options.account, options.token, out)
             with open(snapshot) as f:
                 uploaded_obj = kamaki.upload(f, size, options.upload,
                                 "(1/4)  Calculating block hashes",
                                 "(2/4)  Uploading missing blocks")
 
-            output("(3/4)  Uploading metadata file...", False)
+            out.output("(3/4)  Uploading metadata file...", False)
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                                 remote_path="%s.%s" % (options.upload, 'meta'))
-            success('done')
-            output("(4/4)  Uploading md5sum file...", False)
+            out.success('done')
+            out.output("(4/4)  Uploading md5sum file...", False)
             md5sumstr = '%s %s\n' % (
                 checksum, os.path.basename(options.upload))
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                             remote_path="%s.%s" % (options.upload, 'md5sum'))
-            success('done')
-            output()
+            out.success('done')
+            out.output()
 
         if options.register:
-            output('Registring image to ~okeanos...', False)
+            out.output('Registring image to ~okeanos...', False)
             kamaki.register(options.register, uploaded_obj, metadata)
-            success('done')
-            output()
+            out.success('done')
+            out.output()
 
     finally:
-        output('cleaning up...')
+        out.output('cleaning up...')
         disk.cleanup()
 
-    success("snf-image-creator exited without errors")
+    out.success("snf-image-creator exited without errors")
 
     return 0
 

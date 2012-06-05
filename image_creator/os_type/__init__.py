@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import output, FatalError
+from image_creator.util import FatalError
 
 import textwrap
 import re
@@ -70,9 +70,10 @@ def sysprep(enabled=True):
 class OSBase(object):
     """Basic operating system class"""
 
-    def __init__(self, rootdev, ghandler):
+    def __init__(self, rootdev, ghandler, output):
         self.root = rootdev
         self.g = ghandler
+        self.out = output
 
         # Collect metadata about the OS
         self.meta = {}
@@ -129,23 +130,23 @@ class OSBase(object):
         wrapper.initial_indent = '\t'
         wrapper.width = 72
 
-        output("Enabled system preperation operations:")
+        self.out.output("Enabled system preperation operations:")
         if len(enabled) == 0:
-            output("(none)")
+            self.out.output("(none)")
         else:
             for sysprep in enabled:
                 name = sysprep.__name__.replace('_', '-')
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
-                output('    %s:\n%s\n' % (name, descr))
+                self.out.output('    %s:\n%s\n' % (name, descr))
 
-        output("Disabled system preperation operations:")
+        self.out.output("Disabled system preperation operations:")
         if len(disabled) == 0:
-            output("(none)")
+            self.out.output("(none)")
         else:
             for sysprep in disabled:
                 name = sysprep.__name__.replace('_', '-')
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
-                output('    %s:\n%s\n' % (name, descr))
+                self.out.output('    %s:\n%s\n' % (name, descr))
 
     @add_prefix
     def ls(self, directory):
@@ -202,15 +203,15 @@ class OSBase(object):
     def do_sysprep(self):
         """Prepere system for image creation."""
 
-        output('Preparing system for image creation:')
+        self.out.output('Preparing system for image creation:')
 
         tasks, _ = self.list_syspreps()
         size = len(tasks)
         cnt = 0
         for task in tasks:
             cnt += 1
-            output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
-        output()
+        self.out.output()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

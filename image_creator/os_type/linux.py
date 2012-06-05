@@ -32,15 +32,14 @@
 # or implied, of GRNET S.A.
 
 from image_creator.os_type.unix import Unix, sysprep
-from image_creator.util import warn, output
 
 import re
 import time
 
 
 class Linux(Unix):
-    def __init__(self, rootdev, ghandler):
-        super(Linux, self).__init__(rootdev, ghandler)
+    def __init__(self, rootdev, ghandler, output):
+        super(Linux, self).__init__(rootdev, ghandler, output)
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
 
@@ -63,14 +62,14 @@ class Linux(Unix):
         """
 
         if print_header:
-            output('Fixing acpid powerdown action')
+            self.out.output('Fixing acpid powerdown action')
 
         powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
                                 'shutdown -h now \"Power button pressed\"\n'
 
         events_dir = '/etc/acpi/events'
         if not self.g.is_dir(events_dir):
-            warn("No acpid event directory found")
+            self.out.warn("No acpid event directory found")
             return
 
         event_exp = re.compile('event=(.+)', re.I)
@@ -95,18 +94,21 @@ class Linux(Unix):
             if event.strip() == "button[ /]power":
                 if action:
                     if not self.g.is_file(action):
-                        warn("Acpid action file: %s does not exist" % action)
+                        self.out.warn("Acpid action file: %s does not exist" %
+                                                                        action)
                         return
                     self.g.copy_file_to_file(action, \
                       "%s.orig.snf-image-creator-%d" % (action, time.time()))
                     self.g.write(action, powerbtn_action)
                     return
                 else:
-                    warn("Acpid event file %s does not contain and action")
+                    self.out.warn(
+                            "Acpid event file %s does not contain and action")
                     return
             elif event.strip() == ".*":
-                warn("Found action `.*'. Don't know how to handle this." \
-                    " Please edit \%s' image file manually to make the " \
+                self.out.warn(
+                    "Found action `.*'. Don't know how to handle this. " \
+                    "Please edit \%s' image file manually to make the " \
                     "system immediatelly shutdown when an power button acpi " \
                     "event occures" % action)
                 return
@@ -119,7 +121,7 @@ class Linux(Unix):
         """
 
         if print_header:
-            output('Removing persistent network interface names')
+            self.out.output('Removing persistent network interface names')
 
         rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
         if self.g.is_file(rule_file):
@@ -134,7 +136,7 @@ class Linux(Unix):
         """
 
         if print_header:
-            output('Removing swap entry from fstab')
+            self.out.output('Removing swap entry from fstab')
 
         new_fstab = ""
         fstab = self.g.cat('/etc/fstab')
@@ -155,7 +157,8 @@ class Linux(Unix):
         """
 
         if print_header:
-            output('Replacing fstab & grub non-persistent device appearences')
+            self.out.output(
+                    'Replacing fstab & grub non-persistent device appearences')
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
@@ -217,7 +220,7 @@ class Linux(Unix):
 
         entry = line.split()
         if len(entry) != 6:
-            warn("Detected abnormal entry in fstab")
+            self.out.warn("Detected abnormal entry in fstab")
             return orig, "", ""
 
         dev = entry[0]

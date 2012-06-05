@@ -32,7 +32,7 @@
 # or implied, of GRNET S.A.
 
 from image_creator.util import get_command
-from image_creator.util import warn, progress, success, output, FatalError
+from image_creator.util import FatalError
 from image_creator.gpt import GPTPartitionTable
 import stat
 import os
@@ -62,12 +62,13 @@ class Disk(object):
     the Linux kernel.
     """
 
-    def __init__(self, source):
+    def __init__(self, source, output):
         """Create a new Disk instance out of a source media. The source
         media can be an image file, a block device or a directory."""
         self._cleanup_jobs = []
         self._devices = []
         self.source = source
+        self.out = output
 
     def _add_cleanup(self, job, *args):
         self._cleanup_jobs.append((job, args))
@@ -98,7 +99,7 @@ class Disk(object):
         instance.
         """
 
-        output("Examining source media `%s'..." % self.source, False)
+        self.out.output("Examining source media `%s'..." % self.source, False)
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
@@ -111,10 +112,10 @@ class Disk(object):
             raise ValueError("Invalid media source. Only block devices, "
                             "regular files and directories are supported.")
         else:
-            success('looks like a block device')
+            self.out.success('looks like a block device')
 
         # Take a snapshot and return it to the user
-        output("Snapshotting media source...", False)
+        self.out.output("Snapshotting media source...", False)
         size = blockdev('--getsize', sourcedev)
         cowfd, cow = tempfile.mkstemp()
         os.close(cowfd)
@@ -137,13 +138,13 @@ class Disk(object):
 
         finally:
             os.unlink(table)
-        success('done')
+        self.out.success('done')
         return "/dev/mapper/%s" % snapshot
 
     def get_device(self, media):
         """Returns a newly created DiskDevice instance."""
 
-        new_device = DiskDevice(media)
+        new_device = DiskDevice(media, self.out)
         self._devices.append(new_device)
         new_device.enable()
         return new_device
@@ -161,10 +162,11 @@ class DiskDevice(object):
     as created by the device-mapper.
     """
 
-    def __init__(self, device, bootable=True):
+    def __init__(self, device, output, bootable=True):
         """Create a new DiskDevice."""
 
         self.real_device = device
+        self.out = output
         self.bootable = bootable
         self.progress_bar = None
         self.guestfs_device = None
@@ -180,7 +182,7 @@ class DiskDevice(object):
 
     def enable(self):
         """Enable a newly created DiskDevice"""
-        self.progressbar = progress("Launching helper VM: ", "percent")
+        self.progressbar = self.out.Progress("Launching helper VM", "percent")
         self.progressbar.max = 100
         self.progressbar.goto(1)
         eh = self.g.set_event_callback(self.progress_callback,
@@ -188,12 +190,10 @@ class DiskDevice(object):
         self.g.launch()
         self.guestfs_enabled = True
         self.g.delete_event_callback(eh)
-        if self.progressbar is not None:
-            output("\rLaunching helper VM...\033[K", False)
-            success("done")
-            self.progressbar = None
+        self.progressbar.success('done')
+        self.progressbar = None
 
-        output('Inspecting Operating System...', False)
+        self.out.output('Inspecting Operating System...', False)
         roots = self.g.inspect_os()
         if len(roots) == 0:
             raise FatalError("No operating system found")
@@ -208,7 +208,7 @@ class DiskDevice(object):
 
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
-        success('found a(n) %s system' % self.distro)
+        self.out.success('found a(n) %s system' % self.distro)
 
     def destroy(self):
         """Destroy this DiskDevice instance."""
@@ -229,7 +229,7 @@ class DiskDevice(object):
     def mount(self):
         """Mount all disk partitions in a correct order."""
 
-        output("Mounting image...", False)
+        self.out.output("Mounting image...", False)
         mps = self.g.inspect_get_mountpoints(self.root)
 
         # Sort the keys to mount the fs in a correct order.
@@ -246,8 +246,8 @@ class DiskDevice(object):
             try:
                 self.g.mount(dev, mp)
             except RuntimeError as msg:
-                warn("%s (ignored)" % msg)
-        success("done")
+                self.out.warn("%s (ignored)" % msg)
+        self.out.success("done")
 
     def umount(self):
         """Umount all mounted filesystems."""
@@ -307,7 +307,7 @@ class DiskDevice(object):
 
         MB = 2 ** 20
 
-        output("Shrinking image (this may take a while)...", False)
+        self.out.output("Shrinking image (this may take a while)...", False)
 
         last_part = None
         fstype = None
@@ -329,7 +329,7 @@ class DiskDevice(object):
             break
 
         if not re.match("ext[234]", fstype):
-            warn("Don't know how to resize %s partitions." % fstype)
+            self.out.warn("Don't know how to resize %s partitions." % fstype)
             return self.meta['SIZE']
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
@@ -387,7 +387,7 @@ class DiskDevice(object):
                 part_set_id(last_part['part_num'], last_part['id'])
 
         new_size = (end + 1) * sector_size
-        success("new size is %dMB" % ((new_size + MB - 1) // MB))
+        self.out.success("new size is %dMB" % ((new_size + MB - 1) // MB))
 
         if self.meta['PARTITION_TABLE'] == 'gpt':
             ptable = GPTPartitionTable(self.real_device)
@@ -407,7 +407,7 @@ class DiskDevice(object):
         blocksize = 4 * MB  # 4MB
         size = self.meta['SIZE']
         progress_size = (size + MB - 1) // MB  # in MB
-        progressbar = progress("Dumping image file: ", 'mb')
+        progressbar = self.out.Progress("Dumping image file", 'mb')
         progressbar.max = progress_size
 
         with open(self.real_device, 'r') as src:
@@ -421,7 +421,6 @@ class DiskDevice(object):
                     offset += sent
                     left -= sent
                     progressbar.goto((size - left) // MB)
-        output("\rDumping image file...\033[K", False)
-        success('image file %s was successfully created' % outfile)
+        progressbar.success('image file %s was successfully created' % outfile)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
