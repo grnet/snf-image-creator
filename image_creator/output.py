@@ -86,12 +86,10 @@ class Output(object):
         def success(self, result):
             sucess(result)
 
-    def progress_gen(self, message):
-        
-        progress = getattr(self, 'Progress')
-
+    def progress_generator(self, message):
         def generator(n):
-            progressbar = progress(message, 'default')
+            progressbar = self.Progress(message, 'default')
+            progressbar.max = n
 
             for _ in range(n):
                 yield

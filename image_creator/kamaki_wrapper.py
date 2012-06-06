@@ -75,8 +75,10 @@ class Kamaki(object):
                 raise FatalError("Pithos client: %d %s" % \
                                                     (e.status, e.message))
         try:
-            hash_cb = self.out.progress_gen(hp) if hp is not None else None
-            upload_cb = self.out.progress_gen(up) if up is not None else None
+            hash_cb = self.out.progress_generator(hp) \
+                                                    if hp is not None else None
+            upload_cb = self.out.progress_generator(up) \
+                                                    if up is not None else None
             self.pithos_client.create_object(remote_path, file_obj, size,
                                                             hash_cb, upload_cb)
             return "pithos://%s/%s/%s" % \
