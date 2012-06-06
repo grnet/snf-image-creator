@@ -36,19 +36,28 @@ from progress.bar import Bar
 from colors import red, green, yellow
 
 
-def error(msg, new_line=True):
+def error(msg, new_line=True, color=True):
     nl = "\n" if new_line else ''
-    sys.stderr.write(red('Error: %s' % msg) + nl)
+    if color:
+        sys.stderr.write(red('Error: %s' % msg) + nl)
+    else:
+        sys.stderr.write('Error: %s' % msg + nl)
 
 
-def warn(msg, new_line=True):
+def warn(msg, new_line=True, color=True):
     nl = "\n" if new_line else ''
-    sys.stderr.write(yellow("Warning: %s" % msg) + nl)
+    if color:
+        sys.stderr.write(yellow("Warning: %s" % msg) + nl)
+    else:
+        sys.stderr.write("Warning: %s" % msg + nl)
 
 
-def success(msg, new_line=True):
+def success(msg, new_line=True, color=True):
     nl = "\n" if new_line else ''
-    sys.stdout.write(green(msg) + nl)
+    if color:
+        sys.stdout.write(green(msg) + nl)
+    else:
+        sys.stdout.write(msg + nl)
     if not nl:
         sys.stdout.flush()
 
@@ -62,13 +71,13 @@ def output(msg='', new_line=True):
 
 class Output(object):
     def error(self, msg, new_line=True):
-        error(msg, new_line)
+        error(msg, new_line, False)
 
     def warn(self, msg, new_line=True):
-        warn(msg, new_line)
+        warn(msg, new_line, False)
 
     def success(self, msg, new_line=True):
-        success(msg, new_line)
+        success(msg, new_line, False)
 
     def output(self, msg='', new_line=True):
         output(msg, new_line)
@@ -100,7 +109,18 @@ class Output(object):
         return generator
 
 
-class Output_with_progress(Output):
+class Output_wth_colors(Output):
+    def error(self, msg, new_line=True):
+        error(msg, new_line)
+
+    def warn(self, msg, new_line=True):
+        warn(msg, new_line)
+
+    def success(self, msg, new_line=True):
+        success(msg, new_line)
+
+
+class Output_wth_progress(Output_wth_colors):
     class Progress(Bar):
         MESSAGE_LENGTH = 30
 
@@ -113,7 +133,7 @@ class Output_with_progress(Output):
         }
 
         def __init__(self, title, bar_type='default'):
-            super(Output_with_progress.Progress, self).__init__()
+            super(Output_wth_progress.Progress, self).__init__()
             self.title = title
             self.fill = '#'
             self.bar_prefix = ' ['
@@ -137,10 +157,14 @@ class Silent(Output):
         pass
 
     class Progress(Output.Progress):
-        def __init__(self, title, bar_type):
+        def __init__(self, title, bar_type='default'):
             pass
 
         def success(self, result):
             pass
+
+class Silent_wth_colors(Silent):
+    def error(self, msg, new_line=True):
+        error(msg, new_line)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
