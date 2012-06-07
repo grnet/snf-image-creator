@@ -70,6 +70,7 @@ def output(msg='', new_line=True):
 
 
 class Output(object):
+
     def error(self, msg, new_line=True):
         error(msg, new_line, False)
 
@@ -82,9 +83,16 @@ class Output(object):
     def output(self, msg='', new_line=True):
         output(msg, new_line)
 
-    class Progress(object):
+    def _get_progress(self):
+        progress = self._Progress
+        progress.output = self
+        return progress
+
+    Progress = property(_get_progress)
+
+    class _Progress(object):
         def __init__(self, title, bar_type='default'):
-            output("%s..." % title, False)
+            self.output.output("%s..." % title, False)
 
         def goto(self, dest):
             pass
@@ -93,7 +101,7 @@ class Output(object):
             pass
 
         def success(self, result):
-            sucess(result)
+            self.output.success(result)
 
     def progress_generator(self, message):
         def generator(n):
@@ -121,7 +129,7 @@ class Output_wth_colors(Output):
 
 
 class Output_wth_progress(Output_wth_colors):
-    class Progress(Bar):
+    class _Progress(Bar):
         MESSAGE_LENGTH = 30
 
         template = {
@@ -133,7 +141,7 @@ class Output_wth_progress(Output_wth_colors):
         }
 
         def __init__(self, title, bar_type='default'):
-            super(Output_wth_progress.Progress, self).__init__()
+            super(Output_wth_progress._Progress, self).__init__()
             self.title = title
             self.fill = '#'
             self.bar_prefix = ' ['
@@ -142,8 +150,8 @@ class Output_wth_progress(Output_wth_colors):
             self.suffix = self.template[bar_type]
 
         def success(self, result):
-            output("\r%s... \033[K" % self.title, False)
-            success(result)
+            self.output.output("\r%s... \033[K" % self.title, False)
+            self.output.success(result)
 
 
 class Silent(Output):
@@ -156,12 +164,6 @@ class Silent(Output):
     def output(self, msg='', new_line=True):
         pass
 
-    class Progress(Output.Progress):
-        def __init__(self, title, bar_type='default'):
-            pass
-
-        def success(self, result):
-            pass
 
 class Silent_wth_colors(Silent):
     def error(self, msg, new_line=True):
