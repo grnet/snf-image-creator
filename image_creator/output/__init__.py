@@ -31,53 +31,51 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import sys
-import pbs
-import hashlib
 
+class Output(object):
+    def error(self, msg, new_line=True):
+        pass
 
-class FatalError(Exception):
-    pass
+    def warn(self, msg, new_line=True):
+        pass
 
+    def success(self, msg, new_line=True):
+        pass
 
-def get_command(command):
-    def find_sbin_command(command, exception):
-        search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
-        for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
-            if os.path.exists(fullpath) and os.access(fullpath, os.X_OK):
-                return pbs.Command(fullpath)
-        raise exception
+    def output(self, msg='', new_line=True):
+        pass
 
-    try:
-        return pbs.__getattr__(command)
-    except pbs.CommadNotFount as e:
-        return find_sbin_command(command, e)
+    def _get_progress(self):
+        progress = self._Progress
+        progress.output = self
+        return progress
 
+    Progress = property(_get_progress)
 
-class MD5:
-    def __init__(self, output):
-        self.out = output
+    class _Progress(object):
+        def __init__(self, size, title, bar_type='default'):
+            self.size = size
+            self.output.output("%s..." % title, False)
 
-    def compute(self, filename, size):
+        def goto(self, dest):
+            pass
 
-        MB = 2 ** 20
-        BLOCKSIZE = 4 * MB  # 4MB
+        def next(self):
+            pass
 
-        prog_size = ((size + MB - 1) // MB)  # in MB
-        progressbar = self.out.Progress(prog_size, "Calculating md5sum", 'mb')
-        md5 = hashlib.md5()
-        with open(filename, "r") as src:
-            left = size
-            while left > 0:
-                length = min(left, BLOCKSIZE)
-                data = src.read(length)
-                md5.update(data)
-                left -= length
-                progressbar.goto((size - left) // MB)
+        def success(self, result):
+            self.output.success(result)
 
-        checksum = md5.hexdigest()
-        progressbar.success(checksum)
+    def progress_generator(self, message):
+        def generator(n):
+            progressbar = self.Progress(n, message)
 
-        return checksum
+            for _ in range(n):
+                yield
+                progressbar.next()
+
+            progressbar.success('done')
+            yield
+        return generator
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

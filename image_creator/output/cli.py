@@ -31,105 +31,55 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+from image_creator.output import Output
+
 import sys
-from progress.bar import Bar
 from colors import red, green, yellow
+from progress.bar import Bar
 
 
-def error(msg, new_line=True, color=True):
+def output(msg='', new_line=True, decorate=lambda x: x):
     nl = "\n" if new_line else ' '
-    if color:
-        sys.stderr.write(red('Error: %s' % msg) + nl)
-    else:
-        sys.stderr.write('Error: %s' % msg + nl)
+    sys.stderr.write(decorate(msg) + nl)
 
 
-def warn(msg, new_line=True, color=True):
-    nl = "\n" if new_line else ' '
-    if color:
-        sys.stderr.write(yellow("Warning: %s" % msg) + nl)
-    else:
-        sys.stderr.write("Warning: %s" % msg + nl)
+def error(msg, new_line=True, colored=True):
+    color = red if colored else lambda x: x
+    output("Error: %s" % msg, new_line, color)
 
 
-def success(msg, new_line=True, color=True):
-    nl = "\n" if new_line else ' '
-    if color:
-        sys.stdout.write(green(msg) + nl)
-    else:
-        sys.stdout.write(msg + nl)
-    if not nl:
-        sys.stdout.flush()
+def warn(msg, new_line=True, colored=True):
+    color = yellow if colored else lambda x: x
+    output("Warning: %s" % msg, new_line, color)
 
 
-def output(msg='', new_line=True):
-    nl = "\n" if new_line else ' '
-    sys.stdout.write(msg + nl)
-    if not nl:
-        sys.stdout.flush()
+def success(msg, new_line=True, colored=True):
+    color = green if colored else lambda x: x
+    output(msg, new_line, color)
 
 
-class Output(object):
+class SilentOutput(Output):
+    pass
+
+
+class SimpleOutput(Output):
+    def __init__(self, colored=True):
+        self.colored = colored
 
     def error(self, msg, new_line=True):
-        error(msg, new_line, False)
+        error(msg, new_line, self.colored)
 
     def warn(self, msg, new_line=True):
-        warn(msg, new_line, False)
+        warn(msg, new_line, self.colored)
 
     def success(self, msg, new_line=True):
-        success(msg, new_line, False)
+        success(msg, new_line, self.colored)
 
     def output(self, msg='', new_line=True):
         output(msg, new_line)
 
-    def _get_progress(self):
-        progress = self._Progress
-        progress.output = self
-        return progress
 
-    Progress = property(_get_progress)
-
-    class _Progress(object):
-        def __init__(self, size, title, bar_type='default'):
-            self.output.output("%s..." % title, False)
-            self.size = size
-
-        def goto(self, dest):
-            pass
-
-        def next(self):
-            pass
-
-        def success(self, result):
-            self.output.success(result)
-
-    def progress_generator(self, message):
-        def generator(n):
-            progressbar = self.Progress(message, 'default')
-            progressbar.max = n
-
-            for _ in range(n):
-                yield
-                progressbar.next()
-
-            progressbar.success('done')
-            yield
-        return generator
-
-
-class Output_wth_colors(Output):
-    def error(self, msg, new_line=True):
-        error(msg, new_line)
-
-    def warn(self, msg, new_line=True):
-        warn(msg, new_line)
-
-    def success(self, msg, new_line=True):
-        success(msg, new_line)
-
-
-class Output_wth_progress(Output_wth_colors):
+class OutputWthProgress(SimpleOutput):
     class _Progress(Bar):
         MESSAGE_LENGTH = 30
 
@@ -142,7 +92,7 @@ class Output_wth_progress(Output_wth_colors):
         }
 
         def __init__(self, size, title, bar_type='default'):
-            super(Output_wth_progress._Progress, self).__init__()
+            super(OutputWthProgress._Progress, self).__init__()
             self.title = title
             self.fill = '#'
             self.bar_prefix = ' ['
@@ -158,20 +108,5 @@ class Output_wth_progress(Output_wth_colors):
             self.output.output("\r%s...\033[K" % self.title, False)
             self.output.success(result)
 
-
-class Silent(Output):
-    def warn(self, msg, new_line=True):
-        pass
-
-    def success(self, msg, new_line=True):
-        pass
-
-    def output(self, msg='', new_line=True):
-        pass
-
-
-class Silent_wth_colors(Silent):
-    def error(self, msg, new_line=True):
-        error(msg, new_line)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

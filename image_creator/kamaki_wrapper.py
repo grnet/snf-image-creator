@@ -37,10 +37,8 @@ from kamaki.config import Config
 from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
-from progress.bar import Bar
 
 from image_creator.util import FatalError
-from image_creator.output import output, warn
 
 CONTAINER = "images"
 

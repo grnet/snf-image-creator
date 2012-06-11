@@ -37,8 +37,8 @@ from image_creator import __version__ as version
 from image_creator import util
 from image_creator.disk import Disk
 from image_creator.util import get_command, FatalError, MD5
-from image_creator.output import Output, Output_wth_progress, Silent, \
-                                                    Silent_wth_colors, error
+from image_creator.output.cli import SilentOutput, SimpleOutput, \
+                                     OutputWthProgress
 from image_creator.os_type import get_os_class
 from image_creator.kamaki_wrapper import Kamaki
 import sys
@@ -160,9 +160,10 @@ def image_creator():
                                                                 "must be set")
 
     if options.silent:
-        out = Silent_wth_colors() if sys.stdout.isatty() else Silent()
+        out = SilentOutput()
     else:
-        out = Output_wth_progress() if sys.stdout.isatty() else Output()
+        out = OutputWthProgress(True) if sys.stderr.isatty() else \
+                                                            SimpleOutput(False)
 
     title = 'snf-image-creator %s' % version
     out.output(title)
