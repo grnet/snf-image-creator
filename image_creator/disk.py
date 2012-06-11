@@ -175,6 +175,19 @@ class DiskDevice(object):
         self.g = guestfs.GuestFS()
         self.g.add_drive_opts(self.real_device, readonly=0)
 
+        # Before version 1.17.14 the recovery process, which is a fork of the
+        # original process that called libguestfs, did not close its inherited
+        # file descriptors. This can cause problems especially if the parent
+        # process has opened pipes. Since the recovery process is an optional
+        # feature of libguestfs, it's better to disable it.
+        self.g.set_recovery_proc(0)
+        version = self.g.version()
+        if version['major'] > 1 or (version['major'] == 1 and
+            (version['minor'] >= 18 or \
+            (version['minor'] == 17 and version['release'] >= 14))):
+            self.g.set_recovery_proc(1)
+            self.out.output("Enabling recovery proc")
+
         #self.g.set_trace(1)
         #self.g.set_verbose(1)
 
