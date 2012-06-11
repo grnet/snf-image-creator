@@ -37,7 +37,7 @@ from colors import red, green, yellow
 
 
 def error(msg, new_line=True, color=True):
-    nl = "\n" if new_line else ''
+    nl = "\n" if new_line else ' '
     if color:
         sys.stderr.write(red('Error: %s' % msg) + nl)
     else:
@@ -45,7 +45,7 @@ def error(msg, new_line=True, color=True):
 
 
 def warn(msg, new_line=True, color=True):
-    nl = "\n" if new_line else ''
+    nl = "\n" if new_line else ' '
     if color:
         sys.stderr.write(yellow("Warning: %s" % msg) + nl)
     else:
@@ -53,7 +53,7 @@ def warn(msg, new_line=True, color=True):
 
 
 def success(msg, new_line=True, color=True):
-    nl = "\n" if new_line else ''
+    nl = "\n" if new_line else ' '
     if color:
         sys.stdout.write(green(msg) + nl)
     else:
@@ -63,7 +63,7 @@ def success(msg, new_line=True, color=True):
 
 
 def output(msg='', new_line=True):
-    nl = "\n" if new_line else ''
+    nl = "\n" if new_line else ' '
     sys.stdout.write(msg + nl)
     if not nl:
         sys.stdout.flush()
@@ -155,7 +155,7 @@ class Output_wth_progress(Output_wth_colors):
             self.goto(1)
 
         def success(self, result):
-            self.output.output("\r%s... \033[K" % self.title, False)
+            self.output.output("\r%s...\033[K" % self.title, False)
             self.output.success(result)
 
 
