@@ -91,8 +91,9 @@ class Output(object):
     Progress = property(_get_progress)
 
     class _Progress(object):
-        def __init__(self, title, bar_type='default'):
+        def __init__(self, size, title, bar_type='default'):
             self.output.output("%s..." % title, False)
+            self.size = size
 
         def goto(self, dest):
             pass
@@ -140,7 +141,7 @@ class Output_wth_progress(Output_wth_colors):
             'mb': '%(index)d/%(max)d MB'
         }
 
-        def __init__(self, title, bar_type='default'):
+        def __init__(self, size, title, bar_type='default'):
             super(Output_wth_progress._Progress, self).__init__()
             self.title = title
             self.fill = '#'
@@ -148,6 +149,10 @@ class Output_wth_progress(Output_wth_colors):
             self.bar_suffix = '] '
             self.message = ("%s:" % self.title).ljust(self.MESSAGE_LENGTH)
             self.suffix = self.template[bar_type]
+            self.max = size
+
+            # print empty progress bar workaround
+            self.goto(1)
 
         def success(self, result):
             self.output.output("\r%s... \033[K" % self.title, False)

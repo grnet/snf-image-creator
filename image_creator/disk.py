@@ -195,9 +195,8 @@ class DiskDevice(object):
 
     def enable(self):
         """Enable a newly created DiskDevice"""
-        self.progressbar = self.out.Progress("Launching helper VM", "percent")
-        self.progressbar.max = 100
-        self.progressbar.goto(1)
+        self.progressbar = self.out.Progress(100, "Launching helper VM",
+                                             "percent")
         eh = self.g.set_event_callback(self.progress_callback,
                                                     guestfs.EVENT_PROGRESS)
         self.g.launch()
@@ -419,9 +418,8 @@ class DiskDevice(object):
         MB = 2 ** 20
         blocksize = 4 * MB  # 4MB
         size = self.meta['SIZE']
-        progress_size = (size + MB - 1) // MB  # in MB
-        progressbar = self.out.Progress("Dumping image file", 'mb')
-        progressbar.max = progress_size
+        progr_size = (size + MB - 1) // MB  # in MB
+        progressbar = self.out.Progress(progr_size, "Dumping image file", 'mb')
 
         with open(self.real_device, 'r') as src:
             with open(outfile, "w") as dst:

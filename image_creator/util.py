@@ -60,10 +60,11 @@ class MD5:
 
     def compute(self, filename, size):
 
-        BLOCKSIZE = 2 ** 22  # 4MB
+        MB = 2 ** 20
+        BLOCKSIZE = 4 * MB  # 4MB
 
-        progressbar = self.out.Progress("Calculating md5sum:", 'mb')
-        progressbar.max = ((size + 2 ** 20 - 1) // (2 ** 20))
+        prog_size = ((size + MB - 1) // MB)  # in MB
+        progressbar = self.out.Progress(prog_size, "Calculating md5sum:", 'mb')
         md5 = hashlib.md5()
         with open(filename, "r") as src:
             left = size
@@ -72,7 +73,7 @@ class MD5:
                 data = src.read(length)
                 md5.update(data)
                 left -= length
-                progressbar.goto((size - left) // (2 ** 20))
+                progressbar.goto((size - left) // MB)
 
         checksum = md5.hexdigest()
         progressbar.success(checksum)
