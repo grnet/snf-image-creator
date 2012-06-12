@@ -45,6 +45,9 @@ class Output(object):
     def output(self, msg='', new_line=True):
         pass
 
+    def cleanup(self):
+        pass
+
     def _get_progress(self):
         progress = self._Progress
         progress.output = self
