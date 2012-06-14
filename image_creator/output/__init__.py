@@ -58,6 +58,7 @@ class Output(object):
     class _Progress(object):
         def __init__(self, size, title, bar_type='default'):
             self.size = size
+            self.bar_type = bar_type
             self.output.output("%s..." % title, False)
 
         def goto(self, dest):
