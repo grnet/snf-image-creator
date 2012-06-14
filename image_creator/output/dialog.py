@@ -1,0 +1,112 @@
+# Copyright 2012 GRNET S.A. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or
+# without modification, are permitted provided that the following
+# conditions are met:
+#
+#   1. Redistributions of source code must retain the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer.
+#
+#   2. Redistributions in binary form must reproduce the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer in the documentation and/or other materials
+#      provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# The views and conclusions contained in the software and
+# documentation are those of the authors and should not be
+# interpreted as representing official policies, either expressed
+# or implied, of GRNET S.A.
+
+from image_creator.output import Output
+import time
+import fcntl
+
+
+class GaugeOutput(Output):
+    def __init__(self, dialog, title, msg=''):
+        self.d = dialog
+        self.msg = msg
+        self.percent = 0
+        self.d.gauge_start(self.msg, title=title)
+
+        # Open pipe workaround. A fork will dublicate the open file descriptor.
+        # The FD_CLOEXEC flag makes sure that the gauge internal fd will be
+        # closed if execve is executed. This is needed because libguestfs will
+        # fork/exec the kvm process. If this fd stays open in the kvm process,
+        # then doing a gauge_stop will make this process wait forever for
+        # a dialog process that is blocked waiting for input from the kvm
+        # process's open file descriptor.
+        fd = self.d._gauge_process['stdin'].fileno()
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
+        fcntl.fcntl(fd, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
+
+    def output(self, msg='', new_line=True):
+        self.msg = msg
+        self.percent = 0
+        self.d.gauge_update(self.percent, self.msg, update_text=True)
+        time.sleep(0.4)
+
+    def success(self, result, new_line=True):
+        self.percent = 100
+        self.d.gauge_update(self.percent, "%s %s" % (self.msg, result),
+                            update_text=True)
+        time.sleep(0.4)
+
+    def warn(self, msg, new_line=True):
+        self.d.gauge_update(self.index, "%s Warning: %s" % (self.msg, msg),
+                            update_text=True)
+        time.sleep(0.4)
+
+    def cleanup(self):
+        self.d.gauge_stop()
+
+    class _Progress(Output._Progress):
+        template = {
+            'default': '%(index)d/%(size)d',
+            'percent': '',
+            'b': "%(index)d/%(size)d B",
+            'kb': "%(index)d/%(size)d KB",
+            'mb': "%(index)d/%(size)d MB"
+        }
+
+        def __init__(self, size, title, bar_type='default'):
+            self.output.size = size
+            self.bar_type = bar_type
+            self.output.msg = "%s..." % title
+            self.goto(0)
+
+        def _postfix(self):
+            return self.template[self.bar_type] % self.output.__dict__
+
+        def goto(self, dest):
+            self.output.index = dest
+            self.output.percent = self.output.index * 100 // self.output.size
+            msg = "%s %s" % (self.output.msg, self._postfix())
+            self.output.d.gauge_update(self.output.percent, msg,
+                                       update_text=True)
+
+        def next(self):
+            self.goto(self.output.index + 1)
+
+
+class InitializationOutput(GaugeOutput):
+    def __init__(self, dialog):
+        dialog.setBackgroundTitle('snf-image-creator')
+        super(InitializationOutput, self).__init__(dialog, "Initialization",
+                                                   "Initializing...")
+
+# vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
