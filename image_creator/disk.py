@@ -238,9 +238,10 @@ class DiskDevice(object):
 
         self.progressbar.goto((position * 100) // total)
 
-    def mount(self):
+    def mount(self, readonly=False):
         """Mount all disk partitions in a correct order."""
 
+        mount = self.g.mount_ro if readonly else self.g.mount
         self.out.output("Mounting image...", False)
         mps = self.g.inspect_get_mountpoints(self.root)
 
@@ -256,7 +257,7 @@ class DiskDevice(object):
         mps.sort(compare)
         for mp, dev in mps:
             try:
-                self.g.mount(dev, mp)
+                mount(dev, mp)
             except RuntimeError as msg:
                 self.out.warn("%s (ignored)" % msg)
         self.out.success("done")
