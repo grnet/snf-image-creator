@@ -37,7 +37,7 @@ import textwrap
 import re
 
 
-def get_os_class(distro, osfamily):
+def os_cls(distro, osfamily):
     module = None
     classname = None
     try:

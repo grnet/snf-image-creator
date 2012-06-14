@@ -39,7 +39,7 @@ from image_creator.disk import Disk
 from image_creator.util import get_command, FatalError, MD5
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
                                      OutputWthProgress
-from image_creator.os_type import get_os_class
+from image_creator.os_type import os_cls
 from image_creator.kamaki_wrapper import Kamaki
 import sys
 import os
@@ -187,8 +187,8 @@ def image_creator():
         dev = disk.get_device(snapshot)
         dev.mount()
 
-        osclass = get_os_class(dev.distro, dev.ostype)
-        image_os = osclass(dev.root, dev.g, out)
+        cls = os_cls(dev.distro, dev.ostype)
+        image_os = cls(dev.root, dev.g, out)
         out.output()
 
         for sysprep in options.disabled_syspreps:
@@ -283,10 +283,8 @@ def main():
         ret = image_creator()
         sys.exit(ret)
     except FatalError as e:
-        if sys.stdout.isatty():
-            error(e)
-        else:
-            error(e, True, False)
+        colored = sys.stderr.isatty()
+        SimpleOutput(colored).error(e)
         sys.exit(1)
 
 
