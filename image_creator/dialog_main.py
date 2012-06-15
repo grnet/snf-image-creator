@@ -38,16 +38,19 @@ import sys
 import os
 import textwrap
 import signal
+import StringIO
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError, MD5
-from image_creator.output.dialog import InitializationOutput
+from image_creator.output.dialog import InitializationOutput, GaugeOutput
 from image_creator.disk import Disk
 from image_creator.os_type import os_cls
+from image_creator.kamaki_wrapper import Kamaki, ClientError
 
 MSGBOX_WIDTH = 60
 YESNO_WIDTH = 50
 MENU_WIDTH = 70
+INPUTBOX_WIDTH=70
 
 
 class Reset(Exception):
@@ -63,9 +66,91 @@ def confirm_reset(d):
         "Are you sure you want to reset everything?",
         width=YESNO_WIDTH)
 
+def extract_image(session):
+    d = session['dialog']
+    dir = os.getcwd()
+    while 1:
+        if dir and dir[-1] != os.sep:
+            dir = dir + os.sep
+
+        (code, path) = d.fselect(dir, 10, 50, title="Save image as...")
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        if os.path.isdir(path):
+            dir=path
+            continue
+
+        if os.path.isdir("%s.meta" % path):
+            d.msgbox("Can't overwrite directory `%s.meta'" % path,
+                     width=MSGBOX_WIDTH)
+            continue
+
+        if os.path.isdir("%s.md5sum" % path):
+            d.msgbox("Can't overwrite directory `%s.md5sum'" % path,
+                     width=MSGBOX_WIDTH)
+            continue
+
+        basedir = os.path.dirname(path)
+        name = os.path.basename(path)
+        if not os.path.exists(basedir):
+            d.msgbox("Directory `%s' does not exist" % basedir,
+                     width=MSGBOX_WIDTH)
+            continue
+
+        dir = basedir
+        if len(name) == 0:
+            continue
+
+        files = ["%s%s" % (path, ext) for ext in ('', '.meta', '.md5sum')]
+        overwrite = filter(os.path.exists, files)
+
+        if len(overwrite) > 0:
+            if d.yesno("The following file(s) exist:\n"
+                        "%s\nDo you want to overwrite them?" %
+                        "\n".join(overwrite), width=YESNO_WIDTH):
+                continue
+
+        out = GaugeOutput(d, "Image Extraction", "Extracting image...")
+        try:
+            dev = session['device']
+            if "checksum" not in session:
+                size = dev.meta['SIZE']
+                md5 = MD5(out)
+                session['checksum'] = md5.compute(session['snapshot'], size)
+
+            # Extract image file
+            dev.out = out
+            dev.dump(path)
+
+            # Extract metadata file
+            out.output("Extracting metadata file...")
+            metastring = '\n'.join(
+                ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()])
+            metastring += '\n'
+            with open('%s.meta' % path, 'w') as f:
+                f.write(metastring)
+            out.success('done')
+
+            # Extract md5sum file
+            out.output("Extracting md5sum file...")
+            md5str = "%s %s\n" % (session['checksum'], name)
+            with open('%s.md5sum' % path, 'w') as f:
+                f.write(md5str)
+            out.success("done")
+
+        finally:
+            out.cleanup()
+        d.msgbox("Image file `%s' was successfully extracted!" % path,
+                 width=MSGBOX_WIDTH)
+        break
+
+    return True
+
 
 def upload_image(session):
     d = session["dialog"]
+    size = session['device'].meta['SIZE']
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos login username before you "
@@ -79,18 +164,60 @@ def upload_image(session):
         return False
 
     while 1:
-        (code, answer) = d.inputbox("Please provide a filename:",
-                        init=session["upload"] if "upload" in session else '')
+        init=session["upload"] if "upload" in session else ''
+        (code, answer) = d.inputbox("Please provide a filename:", init=init,
+                                    width=INPUTBOX_WIDTH)
+            
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
-        answer = answer.strip()
-        if len(answer) == 0:
+        filename = answer.strip()
+        if len(filename) == 0:
             d.msgbox("Filename cannot be empty", width=MSGBOX_WIDTH)
             continue
+        
+        break
 
-        session["upload"] = answer
-        return True
+    out = GaugeOutput(d, "Image Upload", "Uploading...")
+    if 'checksum' not in session:
+        md5 = MD5(out)
+        session['checksum'] = md5.compute(session['snapshot'], size)
+    try:
+        kamaki = Kamaki(session['account'], session['token'], out)
+        try:
+            # Upload image file
+            with open(session['snapshot'], 'rb') as f:
+                session["upload"] = kamaki.upload(f, size, filename,
+                                                  "Calculating block hashes",
+                                                  "Uploading missing blocks")
+            # Upload metadata file
+            out.output("Uploading metadata file...")
+            metastring = '\n'.join(
+                ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()])
+            metastring += '\n'
+            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
+                          remote_path="%s.meta" % filename)
+            out.success("done")
+
+            # Upload md5sum file
+            out.output("Uploading md5sum file...")
+            md5str = "%s %s\n" % (session['checksum'], filename)
+            kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
+                          remote_path="%s.md5sum" % filename)
+            out.success("done")
+
+        except ClientError as e:
+            d.msgbox("Error in pithos+ client: %s" % e.message,
+                     title="Pithos+ Client Error", width=MSGBOX_WIDTH)
+            if 'upload' in session:
+                del session['upload']
+            return False
+    finally:
+        out.cleanup()
+
+    d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename, 
+             width=MSGBOX_WIDTH)
+    return True
 
 
 def register_image(session):
@@ -114,6 +241,33 @@ def register_image(session):
                  width=MSGBOX_WIDTH)
         return False
 
+    while 1:
+        (code, answer) = d.inputbox("Please provide a registration name:"
+                                " be registered:", width=INPUTBOX_WIDTH)
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        name = answer.strip()
+        if len(name) == 0:
+            d.msgbox("Registration name cannot be empty", width=MSGBOX_WIDTH)
+            continue
+        break
+
+    out = GaugeOutput(d, "Image Registration", "Registrating image...")
+    try:
+        out.output("Registring image to cyclades...")
+        try:
+            kamaki = Kamaki(session['account'], session['token'], out)
+            kamaki.register(name, session['upload'], session['metadata'])
+            out.success('done')
+        except ClientError as e:
+            d.msgbox("Error in pithos+ client: %s" % e.message)
+            return False
+    finally:
+        out.cleanup()
+
+    d.msgbox("Image `%s' was successfully registered to cyclades as `%s'" %
+             (session['upload'], name), width=MSGBOX_WIDTH)
     return True
 
 
@@ -129,8 +283,7 @@ def kamaki_menu(session):
             width=MENU_WIDTH,
             choices=[("Account", "Change your ~okeanos username: %s" %
                       account),
-                     ("Token", "Change your ~okeanos token: %s" %
-                      token),
+                     ("Token", "Change your ~okeanos token: %s" % token),
                      ("Upload", "Upload image to pithos+"),
                      ("Register", "Register image to cyclades: %s" % upload)],
             cancel="Back",
@@ -182,7 +335,7 @@ def main_menu(session):
     d = session['dialog']
     dev = session['device']
     d.setBackgroundTitle("OS: %s, Distro: %s" % (dev.ostype, dev.distro))
-    actions = {"Register": kamaki_menu}
+    actions = {"Register": kamaki_menu, "Extract": extract_image}
     default_item = "Customize"
 
     while 1:
@@ -238,14 +391,16 @@ def select_file(d):
 
 def collect_metadata(dev, out):
 
-    dev.mount(readonly=True)
     out.output("Collecting image metadata...")
+    metadata = dev.meta
+    dev.mount(readonly=True)
     cls = os_cls(dev.distro, dev.ostype)
     image_os = cls(dev.root, dev.g, out)
-    out.success("done")
     dev.umount()
+    metadata.update(image_os.meta)
+    out.success("done")
 
-    return image_os.meta
+    return metadata
 
 
 def image_creator(d):
@@ -283,6 +438,7 @@ def image_creator(d):
 
         session = {"dialog": d,
                    "disk": disk,
+                   "snapshot": snapshot,
                    "device": dev,
                    "metadata": metadata}
 
