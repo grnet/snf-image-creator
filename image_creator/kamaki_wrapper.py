@@ -63,33 +63,27 @@ class Kamaki(object):
 
     def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
         """Upload a file to pithos"""
-        if remote_path is None:
-            remote_path = basename(filename)
+
+        path = basename(file_obj.name) if remote_path is None else remote_path
 
         try:
             self.pithos_client.create_container(self.container)
         except ClientError as e:
             if e.status != 202:  # Ignore container already exists errors
-                raise FatalError("Pithos client: %d %s" % \
-                                                    (e.status, e.message))
-        try:
-            hash_cb = self.out.progress_generator(hp) \
-                                                    if hp is not None else None
-            upload_cb = self.out.progress_generator(up) \
-                                                    if up is not None else None
-            self.pithos_client.create_object(remote_path, file_obj, size,
-                                                            hash_cb, upload_cb)
-            return "pithos://%s/%s/%s" % \
-                            (self.account, self.container, remote_path)
-        except ClientError as e:
-            raise FatalError("Pithos client: %d %s" % (e.status, e.message))
+                raise e
+
+        hash_cb = self.out.progress_generator(hp) if hp is not None else None
+        upload_cb = self.out.progress_generator(up) if up is not None else None
+
+        self.pithos_client.create_object(path, file_obj, size, hash_cb,
+                                         upload_cb)
+
+        return "pithos://%s/%s/%s" % (self.account, self.container, path)
 
     def register(self, name, location, metadata):
         """Register an image to ~okeanos"""
+
         params = {'is_public': 'true', 'disk_format': 'diskdump'}
-        try:
-            self.image_client.register(name, location, params, metadata)
-        except ClientError as e:
-            raise FatalError("Image client: %d %s" % (e.status, e.message))
+        self.image_client.register(name, location, params, metadata)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -40,7 +40,7 @@ from image_creator.util import get_command, FatalError, MD5
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
                                      OutputWthProgress
 from image_creator.os_type import os_cls
-from image_creator.kamaki_wrapper import Kamaki
+from image_creator.kamaki_wrapper import Kamaki, ClientError
 import sys
 import os
 import optparse
@@ -241,33 +241,37 @@ def image_creator():
         disk.destroy_device(dev)
 
         out.output()
+        try:
+            uploaded_obj = ""
+            if options.upload:
+                out.output("Uploading image to pithos:")
+                kamaki = Kamaki(options.account, options.token, out)
+                with open(snapshot) as f:
+                    uploaded_obj = kamaki.upload(f, size, options.upload,
+                                            "(1/4)  Calculating block hashes",
+                                            "(2/4)  Uploading missing blocks")
 
-        uploaded_obj = ""
-        if options.upload:
-            out.output("Uploading image to pithos:")
-            kamaki = Kamaki(options.account, options.token, out)
-            with open(snapshot) as f:
-                uploaded_obj = kamaki.upload(f, size, options.upload,
-                                "(1/4)  Calculating block hashes",
-                                "(2/4)  Uploading missing blocks")
+                out.output("(3/4)  Uploading metadata file...", False)
+                kamaki.upload(StringIO.StringIO(metastring),
+                              size=len(metastring),
+                              remote_path="%s.%s" % (options.upload, 'meta'))
+                out.success('done')
+                out.output("(4/4)  Uploading md5sum file...", False)
+                md5sumstr = '%s %s\n' % (
+                                    checksum, os.path.basename(options.upload))
+                kamaki.upload(StringIO.StringIO(md5sumstr),
+                              size=len(md5sumstr),
+                              remote_path="%s.%s" % (options.upload, 'md5sum'))
+                out.success('done')
+                out.output()
 
-            out.output("(3/4)  Uploading metadata file...", False)
-            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
-                                remote_path="%s.%s" % (options.upload, 'meta'))
-            out.success('done')
-            out.output("(4/4)  Uploading md5sum file...", False)
-            md5sumstr = '%s %s\n' % (
-                checksum, os.path.basename(options.upload))
-            kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
-                            remote_path="%s.%s" % (options.upload, 'md5sum'))
-            out.success('done')
-            out.output()
-
-        if options.register:
-            out.output('Registring image to ~okeanos...', False)
-            kamaki.register(options.register, uploaded_obj, metadata)
-            out.success('done')
-            out.output()
+            if options.register:
+                out.output('Registring image to ~okeanos...', False)
+                kamaki.register(options.register, uploaded_obj, metadata)
+                out.success('done')
+                out.output()
+        except ClientError as e:
+            raise FatalError("Pithos client: %d %s" % (e.status, e.message))
 
     finally:
         out.output('cleaning up...')
@@ -286,7 +290,6 @@ def main():
         colored = sys.stderr.isatty()
         SimpleOutput(colored).error(e)
         sys.exit(1)
-
 
 if __name__ == '__main__':
     main()
