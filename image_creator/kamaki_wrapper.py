@@ -83,7 +83,12 @@ class Kamaki(object):
     def register(self, name, location, metadata):
         """Register an image to ~okeanos"""
 
+        # Convert all metadata to strings
+        str_metadata = {}
+        for (key, value) in metadata.iteritems():
+            str_metadata[str(key)]=str(value)
+
         params = {'is_public': 'true', 'disk_format': 'diskdump'}
-        self.image_client.register(name, location, params, metadata)
+        self.image_client.register(name, location, params, str_metadata)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
