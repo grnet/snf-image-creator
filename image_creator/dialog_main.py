@@ -50,7 +50,23 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 MSGBOX_WIDTH = 60
 YESNO_WIDTH = 50
 MENU_WIDTH = 70
-INPUTBOX_WIDTH=70
+INPUTBOX_WIDTH = 70
+
+CONFIGURATION_TASKS = {
+    "FixPartitionTable":
+        "Enlarge last partition to use all the available space",
+    "FilesystemResizeUnmounted":
+        "Resize file system to use all the available space",
+    "AddSwap": "Set up the swap partition and add an entry in fstab",
+    "DeleteSSHKeys": "Remove ssh keys and in some cases recreate them",
+    "DisableRemoteDesktopConnections":
+        "Temporary Disable Remote Desktop Connections",
+    "40SELinuxAutorelabel": "Force the system to relabel at next boot",
+    "AssignHostname": "Assign Hostname/Computer Name to the instance",
+    "ChangePassword": "Changes Password for specified users",
+    "EnforcePersonality": "Inject files to the instance",
+    "FilesystemResizeMounted":
+        "Resize filesystem to use all the available space"}
 
 
 class Reset(Exception):
@@ -66,6 +82,7 @@ def confirm_reset(d):
         "Are you sure you want to reset everything?",
         width=YESNO_WIDTH)
 
+
 def extract_image(session):
     d = session['dialog']
     dir = os.getcwd()
@@ -78,7 +95,7 @@ def extract_image(session):
             return False
 
         if os.path.isdir(path):
-            dir=path
+            dir = path
             continue
 
         if os.path.isdir("%s.meta" % path):
@@ -164,10 +181,10 @@ def upload_image(session):
         return False
 
     while 1:
-        init=session["upload"] if "upload" in session else ''
+        init = session["upload"] if "upload" in session else ''
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
                                     width=INPUTBOX_WIDTH)
-            
+
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
@@ -175,7 +192,7 @@ def upload_image(session):
         if len(filename) == 0:
             d.msgbox("Filename cannot be empty", width=MSGBOX_WIDTH)
             continue
-        
+
         break
 
     out = GaugeOutput(d, "Image Upload", "Uploading...")
@@ -215,7 +232,7 @@ def upload_image(session):
     finally:
         out.cleanup()
 
-    d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename, 
+    d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename,
              width=MSGBOX_WIDTH)
     return True
 
@@ -288,6 +305,7 @@ def kamaki_menu(session):
                      ("Register", "Register image to cyclades: %s" % upload)],
             cancel="Back",
             default_item=default_item,
+            help_button=1,
             title="Image Registration Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
@@ -331,11 +349,144 @@ def kamaki_menu(session):
                 default_item = "Register"
 
 
+def add_property(session):
+    d = session['dialog']
+
+    while 1:
+        (code, answer) = d.inputbox("Please provide a name for a new image"
+                                    " property:", width=INPUTBOX_WIDTH)
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        name = answer.strip()
+        if len(name) == 0:
+            d.msgbox("A property name cannot be empty", width=MSGBOX_WIDTH)
+            continue
+
+        break
+
+    while 1:
+        (code, answer) = d.inputbox("Please provide a value for image "
+                                   "property %s" % name, width=INPUTBOX_WIDTH)
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        value = answer.strip()
+        if len(value) == 0:
+            d.msgbox("Value cannot be empty", width=MSGBOX_WIDTH)
+            continue
+
+        break
+
+    session['metadata'][name] = value
+
+    return True
+
+
+def modify_properties(session):
+    d = session['dialog']
+
+    while 1:
+        choices = []
+        for (key, val) in session['metadata'].items():
+            choices.append((str(key), str(val)))
+
+        (code, choice) = d.menu(
+            "In this menu you can edit existing image properties or add new "
+            "ones. Be carefull! Most properties have special meaning and "
+            "alter the image deployment behaviour. Press <HELP> to see more "
+            "information about image properties. Press <BACK> when done.",
+            height=18,
+            width=MENU_WIDTH,
+            choices=choices, menu_height=10,
+            ok_label="EDIT", extra_button=1, extra_label="ADD", cancel="BACK",
+            help_button=1, help_label="HELP", title="Image Metadata")
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            break
+        # Edit button
+        elif code == d.DIALOG_OK:
+            (code, answer) = d.inputbox("Please provide a new value for "
+                    "the image property with name `%s':" % choice,
+                    init=session['metadata'][choice], width=INPUTBOX_WIDTH)
+            if code not in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                value = answer.strip()
+                if len(value) == 0:
+                    d.msgbox("Value cannot be empty!")
+                    continue
+                else:
+                    session['metadata'][choice] = value
+        # ADD button
+        elif code == d.DIALOG_EXTRA:
+            add_property(session)
+
+
+def delete_properties(session):
+    d = session['dialog']
+
+    choices = []
+    for (key, val) in session['metadata'].items():
+        choices.append((key, "%s" % val, 0))
+
+    (code, to_delete) = d.checklist("Choose which properties to delete:",
+                                    choices=choices)
+    count = len(to_delete)
+    # If the user exits with ESC or CANCEL, the returned tag list is empty.
+    for i in to_delete:
+        del session['metadata'][i]
+
+    if count > 0:
+        d.msgbox("%d image properties were deleted.", width=MSGBOX_WIDTH)
+
+
+def exclude_task(session):
+    d = session['dialog']
+
+    choices = []
+    for (key, val) in session['metadata'].items():
+        choices.append((key, "%s" % val, 0))
+
+    (code, to_delete) = d.checklist("Choose which properties to delete:",
+                                    choices=choices)
+    count = len(to_delete)
+    # If the user exits with ESC or CANCEL, the returned tag list is empty.
+    for i in to_delete:
+        del session['metadata'][i]
+
+    if count > 0:
+        d.msgbox("%d image properties were deleted.", width=MSGBOX_WIDTH)
+
+
+def deploy_menu(session):
+    d = session['dialog']
+
+    default_item = "View/Modify"
+    actions = {"View/Modify": modify_properties, "Delete": delete_properties}
+    while 1:
+        (code, choice) = d.menu(
+            "Choose one of the following or press <Back> to exit.",
+            width=MENU_WIDTH,
+            choices=[("View/Modify", "View/Modify image properties"),
+                     ("Delete", "Delete image properties"),
+                     ("Exclude", "Exclude configuration tasks from running")],
+        cancel="Back",
+        default_item=default_item,
+        title="Image Deployment Menu")
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            break
+        elif choice in actions:
+            default_item = choice
+            actions[choice](session)
+
+
 def main_menu(session):
     d = session['dialog']
     dev = session['device']
     d.setBackgroundTitle("OS: %s, Distro: %s" % (dev.ostype, dev.distro))
-    actions = {"Register": kamaki_menu, "Extract": extract_image}
+    actions = {"Deploy": deploy_menu,
+               "Register": kamaki_menu,
+               "Extract": extract_image}
     default_item = "Customize"
 
     while 1:
@@ -369,24 +520,26 @@ def main_menu(session):
             actions[choice](session)
 
 
-def select_file(d):
+def select_file(d, media):
     root = os.sep
     while 1:
-        (code, path) = d.fselect(root, 10, 50,
+        if media is not None:
+            if not os.path.exists(media):
+                d.msgbox("The file you choose does not exist",
+                         width=MSGBOX_WIDTH)
+            else:
+                break
+
+        (code, media) = d.fselect(root, 10, 50,
                                  title="Please select input media")
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d, "You canceled the media selection dialog box."):
                 sys.exit(0)
             else:
+                media = None
                 continue
 
-        if not os.path.exists(path):
-            d.msgbox("The file you choose does not exist", width=MSGBOX_WIDTH)
-            continue
-        else:
-            break
-
-    return path
+    return media
 
 
 def collect_metadata(dev, out):
@@ -413,7 +566,7 @@ def image_creator(d):
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root" % basename)
 
-    media = sys.argv[1] if len(sys.argv) == 2 else select_file(d)
+    media = select_file(d, sys.argv[1] if len(sys.argv) == 2 else None)
 
     out = InitializationOutput(d)
     disk = Disk(media, out)
@@ -453,6 +606,13 @@ def image_creator(d):
 def main():
 
     d = dialog.Dialog(dialog="dialog")
+
+    # Add extra button in dialog library
+    dialog._common_args_syntax["extra_button"] = \
+        lambda enable: dialog._simple_option("--extra-button", enable)
+
+    dialog._common_args_syntax["extra_label"] = \
+        lambda string: ("--extra-label", string)
 
     while 1:
         try:
