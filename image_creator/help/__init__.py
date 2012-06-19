@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -33,24 +31,11 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import image_creator
+import sys
+import os
 
-from setuptools import setup, find_packages
+def get_help_file(name):
+    dirname = os.path.dirname(sys.modules[__name__].__file__)
+    return "%s%s%s.rst" % (dirname, os.sep, name)
 
-setup(
-    name='snf_image_creator',
-    version=image_creator.__version__,
-    description='Command line tool for creating images',
-#    long_description=open('README.rst').read(),
-    url='https://code.grnet.gr/projects/snf-image-creator',
-    license='BSD',
-    packages = find_packages(),
-    include_package_data=True,
-    install_requires=['pbs', 'ansicolors', 'progress', 'pysendfile'],
-    entry_points={
-        'console_scripts': [
-                'snf-image-creator = image_creator.main:main',
-                'snf-image-creator-dialog = image_creator.dialog_main:main']
-    }
-)
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
