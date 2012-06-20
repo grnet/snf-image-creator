@@ -90,10 +90,7 @@ class OSBase(object):
         objs = [getattr(self, name) for name in dir(self) \
             if not name.startswith('_')]
 
-        enabled = [x for x in objs if self._is_sysprep(x) and x.enabled]
-        disabled = [x for x in objs if self._is_sysprep(x) and not x.enabled]
-
-        return enabled, disabled
+        return [x for x in objs if self._is_sysprep(x)]
 
     def _sysprep_change_status(self, name, status):
 
@@ -123,7 +120,9 @@ class OSBase(object):
     def print_syspreps(self):
         """Print enabled and disabled system preperation operations."""
 
-        enabled, disabled = self.list_syspreps()
+        syspreps = self.list_syspreps()
+        enabled = filter(lambda x: x.enabled, syspreps)
+        disabled = filter(lambda x: not x.enabled, syspreps)
 
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = '\t'
