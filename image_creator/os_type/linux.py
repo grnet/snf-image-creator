@@ -114,7 +114,7 @@ class Linux(Unix):
                 return
 
     @sysprep()
-    def persistent_net_rules(self, print_header=True):
+    def remove_persistent_net_rules(self, print_header=True):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
@@ -151,7 +151,7 @@ class Linux(Unix):
         self.g.write('/etc/fstab', new_fstab)
 
     @sysprep()
-    def persistent_devs(self, print_header=True):
+    def use_persistent_block_device_names(self, print_header=True):
         """Scan fstab & grub configuration files and replace all non-persistent
         device appearences with UUIDs.
         """
