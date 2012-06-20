@@ -46,27 +46,30 @@ from image_creator.output.dialog import InitializationOutput, GaugeOutput
 from image_creator.disk import Disk
 from image_creator.os_type import os_cls
 from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.help import get_help_file
 
 MSGBOX_WIDTH = 60
 YESNO_WIDTH = 50
 MENU_WIDTH = 70
 INPUTBOX_WIDTH = 70
+CHECKBOX_WIDTH = 70
 
-CONFIGURATION_TASKS = {
-    "FixPartitionTable":
-        "Enlarge last partition to use all the available space",
-    "FilesystemResizeUnmounted":
-        "Resize file system to use all the available space",
-    "AddSwap": "Set up the swap partition and add an entry in fstab",
-    "DeleteSSHKeys": "Remove ssh keys and in some cases recreate them",
-    "DisableRemoteDesktopConnections":
-        "Temporary Disable Remote Desktop Connections",
-    "40SELinuxAutorelabel": "Force the system to relabel at next boot",
-    "AssignHostname": "Assign Hostname/Computer Name to the instance",
-    "ChangePassword": "Changes Password for specified users",
-    "EnforcePersonality": "Inject files to the instance",
-    "FilesystemResizeMounted":
-        "Resize filesystem to use all the available space"}
+CONFIGURATION_TASKS = [
+ ("Partition table manipulation", ["FixPartitionTable"],
+  ["linux", "windows"]),
+ ("File system resize",
+  ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
+  ["linux", "windows"]),
+ ("Swap partition configuration", ["AddSwap"], ["linux"]),
+ ("SSH keys removal", ["DeleteSSHKeys"], ["linux"]),
+ ("Temporal RDP disabling", ["DisableRemoteDesktopConnections"], ["windows"]),
+ ("SELinux relabeling at next boot", ["SELinuxAutorelabel"],
+  ["linux"]),
+ ("Hostname/Computer Name assignment", ["AssignHostname"],
+  ["windows", "linux"]),
+ ("Password change", ["ChangePassword"], ["windows", "linux"]),
+ ("File injection", ["EnforcePersonality"], ["windows", "linux"])
+]
 
 
 class Reset(Exception):
@@ -234,6 +237,7 @@ def upload_image(session):
 
     d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename,
              width=MSGBOX_WIDTH)
+
     return True
 
 
@@ -429,7 +433,7 @@ def delete_properties(session):
         choices.append((key, "%s" % val, 0))
 
     (code, to_delete) = d.checklist("Choose which properties to delete:",
-                                    choices=choices)
+                                    choices=choices, width=CHECKBOX_WIDTH)
     count = len(to_delete)
     # If the user exits with ESC or CANCEL, the returned tag list is empty.
     for i in to_delete:
@@ -439,39 +443,127 @@ def delete_properties(session):
         d.msgbox("%d image properties were deleted.", width=MSGBOX_WIDTH)
 
 
-def exclude_task(session):
+def exclude_tasks(session):
     d = session['dialog']
 
+    index = 0
+    displayed_index = 1
     choices = []
-    for (key, val) in session['metadata'].items():
-        choices.append((key, "%s" % val, 0))
+    mapping = {}
+    if 'excluded_tasks' not in session:
+        session['excluded_tasks'] = []
 
-    (code, to_delete) = d.checklist("Choose which properties to delete:",
-                                    choices=choices)
-    count = len(to_delete)
-    # If the user exits with ESC or CANCEL, the returned tag list is empty.
-    for i in to_delete:
-        del session['metadata'][i]
+    if -1 in session['excluded_tasks']:
+        if not d.yesno("Image deployment configuration is disabled. "
+                       "Do you wish to enable it?", width=YESNO_WIDTH):
+            session['excluded_tasks'].remove(-1)
+        else:
+            return
 
-    if count > 0:
-        d.msgbox("%d image properties were deleted.", width=MSGBOX_WIDTH)
+    for (msg, task, osfamily) in CONFIGURATION_TASKS:
+        if session['metadata']['OSFAMILY'] in osfamily:
+            checked = 1 if index in session['excluded_tasks'] else 0
+            choices.append((str(displayed_index), msg, checked))
+            mapping[displayed_index] = index
+            displayed_index += 1
+        index += 1
+
+    while 1:
+        (code, tags) = d.checklist(
+            "Please choose which configuration tasks you would like to "
+            "prevent from running during image deployment. "
+            "Press <No Config> to supress any configuration. "
+            "Press <Help> for more help on the image deployment configuration "
+            "tasks.", height=19, list_height=8,
+            title="Exclude Configuration Tasks", choices=choices,
+            width=CHECKBOX_WIDTH, help_button=1, extra_button=1,
+            extra_label="No Config")
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            break
+        elif code == d.DIALOG_HELP:
+            help_file = get_help_file("configuration_tasks")
+            assert os.path.exists(help_file)
+            d.textbox(help_file, title="Configuration Tasks",
+                                                        width=70, height=40)
+            continue
+        elif code == d.DIALOG_EXTRA:
+            session['excluded_tasks'] = [-1]
+            session['task_metadata'] = ["EXCLUDE_ALL_TASKS"]
+            break
+        elif code == d.DIALOG_OK:
+            session['excluded_tasks'] = []
+            for tag in tags:
+                session['excluded_tasks'].append(mapping[int(tag)])
+
+            exclude_metadata = []
+            for task in session['excluded_tasks']:
+                exclude_metadata.extend(CONFIGURATION_TASKS[task][1])
+
+            session['task_metadata'] = \
+                        map(lambda x: "EXCLUDE_TASK_%s" % x, exclude_metadata)
+            break
 
 
-def deploy_menu(session):
+def sysprep(session):
+    d = session['dialog']
+    image_os = session['image_os']
+
+    syspreps = image_os.list_syspreps()
+
+    wrapper = textwrap.TextWrapper()
+    wrapper.width = 65
+    sysprep_help = "System Preperation Tasks"
+    sysprep_help += "\n%s\n\n" % ('=' * len(sysprep_help))
+
+    while 1:
+        choices = []
+        index = 0
+        for sysprep in syspreps:
+            name, descr = image_os.sysprep_info(sysprep)
+            display_name = name.replace('-', ' ').capitalize()
+            sysprep_help += "%s\n%s\n%s\n\n" % \
+                            (display_name, '-' * len(display_name),
+                            wrapper.fill(" ".join(descr.split())))
+            enabled = 1 if sysprep.enabled else 0
+            choices.append((str(index + 1), display_name, enabled))
+            index += 1
+
+        (code, tags) = d.checklist(
+            "Please choose which system preperation tasks you would like to "
+            "run on the image. Press <Help> to see details about the system "
+            "preperation tasks.",
+            title="Run system preperation tasks", choices=choices,
+            width=70, ok_label="Run", help_button=1)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            break
+        if code == d.DIALOG_HELP:
+            d.scrollbox(sysprep_help, width=70)
+            continue
+
+
+def customize_menu(session):
     d = session['dialog']
 
-    default_item = "View/Modify"
-    actions = {"View/Modify": modify_properties, "Delete": delete_properties}
+    default_item = "Sysprep"
+    actions = {"Sysprep": sysprep,
+               "View/Modify": modify_properties,
+               "Delete": delete_properties,
+               "Exclude": exclude_tasks}
     while 1:
         (code, choice) = d.menu(
             "Choose one of the following or press <Back> to exit.",
             width=MENU_WIDTH,
-            choices=[("View/Modify", "View/Modify image properties"),
+            choices=[("Sysprep", "Run various image preperation tasks"),
+                     ("Shrink", "Shrink image"),
+                     ("View/Modify", "View/Modify image properties"),
                      ("Delete", "Delete image properties"),
-                     ("Exclude", "Exclude configuration tasks from running")],
-        cancel="Back",
-        default_item=default_item,
-        title="Image Deployment Menu")
+                     ("Exclude",
+                      "Exclude various deployment tasks from running")],
+            cancel="Back",
+            default_item=default_item,
+            title="Image Customization Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             break
@@ -484,7 +576,7 @@ def main_menu(session):
     d = session['dialog']
     dev = session['device']
     d.setBackgroundTitle("OS: %s, Distro: %s" % (dev.ostype, dev.distro))
-    actions = {"Deploy": deploy_menu,
+    actions = {"Customize": customize_menu,
                "Register": kamaki_menu,
                "Extract": extract_image}
     default_item = "Customize"
@@ -493,29 +585,23 @@ def main_menu(session):
         (code, choice) = d.menu(
             "Choose one of the following or press <Exit> to exit.",
             width=MENU_WIDTH,
-            choices=[("Customize", "Run various image customization tasks"),
-                     ("Deploy", "Configure ~okeanos image deployment options"),
+            choices=[("Customize",
+                      "Customize image and ~okeanos deployment options"),
                      ("Register", "Register image to ~okeanos"),
                      ("Extract", "Dump image to local file system"),
                      ("Reset", "Reset everything and start over again"),
                      ("Help", "Get help for using snf-image-creator")],
-            cancel="Exit",
-            default_item=default_item,
+            cancel="Exit", menu_height=5, height=13, default_item=default_item,
             title="Image Creator for ~okeanos (snf-image-creator version %s)" %
                   version)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d):
                 break
-            else:
-                continue
-
-        if choice == "Reset":
+        elif choice == "Reset":
             if confirm_reset(d):
                 d.infobox("Resetting snf-image-creator. Please wait...")
                 raise Reset
-            else:
-                continue
         elif choice in actions:
             actions[choice](session)
 
@@ -542,20 +628,6 @@ def select_file(d, media):
     return media
 
 
-def collect_metadata(dev, out):
-
-    out.output("Collecting image metadata...")
-    metadata = dev.meta
-    dev.mount(readonly=True)
-    cls = os_cls(dev.distro, dev.ostype)
-    image_os = cls(dev.root, dev.g, out)
-    dev.umount()
-    metadata.update(image_os.meta)
-    out.success("done")
-
-    return metadata
-
-
 def image_creator(d):
     basename = os.path.basename(sys.argv[0])
     usage = "Usage: %s [input_media]" % basename
@@ -580,7 +652,14 @@ def image_creator(d):
         snapshot = disk.snapshot()
         dev = disk.get_device(snapshot)
 
-        metadata = collect_metadata(dev, out)
+        out.output("Collecting image metadata...")
+        metadata = dev.meta
+        dev.mount(readonly=True)
+        cls = os_cls(dev.distro, dev.ostype)
+        image_os = cls(dev.root, dev.g, out)
+        dev.umount()
+        metadata.update(image_os.meta)
+        out.success("done")
         out.cleanup()
 
         # Make sure the signal handler does not call out.cleanup again
@@ -593,6 +672,7 @@ def image_creator(d):
                    "disk": disk,
                    "snapshot": snapshot,
                    "device": dev,
+                   "image_os": image_os,
                    "metadata": metadata}
 
         main_menu(session)
