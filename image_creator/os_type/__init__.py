@@ -92,6 +92,11 @@ class OSBase(object):
 
         return [x for x in objs if self._is_sysprep(x)]
 
+    def sysprep_info(self, obj):
+        assert self._is_sysprep(obj), "Object is not a sysprep"
+
+        return (obj.__name__.replace('_', '-'), textwrap.dedent(obj.__doc__))
+
     def _sysprep_change_status(self, name, status):
 
         error_msg = "Syprep operation %s does not exist for %s" % \
