@@ -209,10 +209,12 @@ class OSBase(object):
 
         self.out.output('Preparing system for image creation:')
 
-        tasks, _ = self.list_syspreps()
-        size = len(tasks)
+        tasks = self.list_syspreps()
+        enabled = filter(lambda x: x.enabled, tasks)
+
+        size = len(enabled)
         cnt = 0
-        for task in tasks:
+        for task in enabled:
             cnt += 1
             self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
