@@ -97,10 +97,10 @@ class OSBase(object):
 
         return (obj.__name__.replace('_', '-'), textwrap.dedent(obj.__doc__))
 
-    def _sysprep_change_status(self, name, status):
-
+    def get_sysprep_by_name(self, name):
+        """Returns the sysprep object with the given name"""
         error_msg = "Syprep operation %s does not exist for %s" % \
-                (name, self.__class__.__name__)
+                    (name, self.__class__.__name__)
 
         method_name = name.replace('-', '_')
         method = None
@@ -112,15 +112,15 @@ class OSBase(object):
         if not self._is_sysprep(method):
             raise FatalError(error_msg)
 
-        setattr(method.im_func, 'enabled', status)
+        return method
 
-    def enable_sysprep(self, name):
+    def enable_sysprep(self, obj):
         """Enable a system preperation operation"""
-        self._sysprep_change_status(name, True)
+        setattr(obj.im_func, 'enabled', True)
 
-    def disable_sysprep(self, name):
+    def disable_sysprep(self, obj):
         """Disable a system preperation operation"""
-        self._sysprep_change_status(name, False)
+        setattr(obj.im_func, 'enabled', False)
 
     def print_syspreps(self):
         """Print enabled and disabled system preperation operations."""

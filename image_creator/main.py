@@ -195,10 +195,10 @@ def image_creator():
         out.output()
 
         for sysprep in options.disabled_syspreps:
-            image_os.disable_sysprep(sysprep)
+            image_os.disable_sysprep(image_os.get_sysprep_by_name(sysprep))
 
         for sysprep in options.enabled_syspreps:
-            image_os.enable_sysprep(sysprep)
+            image_os.enable_sysprep(image_os.get_sysprep_by_name(sysprep))
 
         if options.print_sysprep:
             image_os.print_syspreps()
