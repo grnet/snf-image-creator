@@ -103,10 +103,32 @@ class GaugeOutput(Output):
             self.goto(self.output.index + 1)
 
 
-class InitializationOutput(GaugeOutput):
-    def __init__(self, dialog):
-        dialog.setBackgroundTitle('snf-image-creator')
-        super(InitializationOutput, self).__init__(dialog, "Initialization",
-                                                   "Initializing...")
+class InfoBoxOutput(Output):
+    def __init__(self, dialog, title, msg='', height=20, width=70):
+        self.d = dialog
+        self.title = title
+        self.msg = msg
+        self.width = width
+        self.height = height
+        self.d.infobox(self.msg, title=self.title)
+
+    def output(self, msg='', new_line=True):
+        nl = '\n' if new_line else ''
+        self.msg += "%s%s" % (msg, nl)
+        # If output is long, only output the last lines that fit in the box
+        lines = self.msg.splitlines()
+        h = self.height
+        display = self.msg if len(lines) <= h else "\n".join(lines[-h:])
+        self.d.infobox(display, title=self.title, height=self.height,
+                       width=self.width)
+
+    def success(self, result, new_line=True):
+        self.output(result, new_line)
+
+    def warn(self, msg, new_line=True):
+        self.output("Warning: %s" % msg, new_line)
+
+    def finalize(self):
+        self.d.msgbox(self.msg, height=(self.height + 2), width=self.width)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
