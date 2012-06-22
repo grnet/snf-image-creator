@@ -54,6 +54,7 @@ MENU_WIDTH = 70
 INPUTBOX_WIDTH = 70
 CHECKBOX_WIDTH = 70
 HELP_WIDTH = 70
+INFOBOX_WIDTH = 70
 
 CONFIGURATION_TASKS = [
  ("Partition table manipulation", ["FixPartitionTable"],
@@ -82,9 +83,8 @@ def confirm_exit(d, msg=''):
 
 
 def confirm_reset(d):
-    return not d.yesno(
-        "Are you sure you want to reset everything?",
-        width=YESNO_WIDTH)
+    return not d.yesno("Are you sure you want to reset everything?",
+                       width=YESNO_WIDTH)
 
 
 def update_background_title(session):
@@ -94,7 +94,11 @@ def update_background_title(session):
     MB = 2 ** 20
 
     size = (dev.meta['SIZE'] + MB - 1) // MB
-    title = "OS: %s, Distro: %s, Size: %dMB" % (dev.ostype, dev.distro, size)
+    shrinked = 'shrinked' in session and session['shrinked'] == True
+    postfix = " (shrinked)" if shrinked else ''
+
+    title = "OS: %s, Distro: %s, Size: %dMB%s" % \
+            (dev.ostype, dev.distro, size, postfix)
 
     d.setBackgroundTitle(title)
 
@@ -408,7 +412,7 @@ def modify_properties(session):
 
         (code, choice) = d.menu(
             "In this menu you can edit existing image properties or add new "
-            "ones. Be carefull! Most properties have special meaning and "
+            "ones. Be careful! Most properties have special meaning and "
             "alter the image deployment behaviour. Press <HELP> to see more "
             "information about image properties. Press <BACK> when done.",
             height=18, width=MENU_WIDTH, choices=choices, menu_height=10,
@@ -519,6 +523,15 @@ def sysprep(session):
     d = session['dialog']
     image_os = session['image_os']
 
+    # Is the image already shrinked?
+    if 'shrinked' in session and session['shrinked'] == True:
+        msg = "It seems you have shrinked the image. Running system " \
+              "preparation tasks on a shrinked image is dangerous."
+
+        if d.yesno("%s\n\nDo you really want to continue?" % msg,
+                   width=YESNO_WIDTH, defaultno=1):
+            return
+
     wrapper = textwrap.TextWrapper(width=65)
 
     help_title = "System Preperation Tasks"
@@ -530,6 +543,10 @@ def sysprep(session):
     all_syspreps = image_os.list_syspreps()
     # Only give the user the choice between syspreps that have not ran yet
     syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
+
+    if len(syspreps) == 0:
+        d.msgbox("No system preparation task left to run!", width=MSGBOX_WIDTH)
+        return
 
     while 1:
         choices = []
@@ -576,6 +593,9 @@ def sysprep(session):
                     image_os.out = out
                     image_os.do_sysprep()
 
+                    for (k, v) in image_os.meta.items():
+                        session['metadata'][str(k)] = str(v)
+
                     # Disable syspreps that have ran
                     for sysprep in session['exec_syspreps']:
                         image_os.disable_sysprep(sysprep)
@@ -588,7 +608,32 @@ def sysprep(session):
             break
 
 
-def customize_menu(session):
+def shrink(session):
+    d = session['dialog']
+    dev = session['device']
+
+    shrinked = 'shrinked' in session and session['shrinked'] == True
+
+    if shrinked:
+        d.msgbox("You have already shrinked your image!")
+        return
+
+    msg = "This operation will shrink the last partition of the image to " \
+          "reduce the total image size. If the last partition is a swap " \
+          "partition, then this partition is removed and the partition " \
+          "before that is shrinked. The removed swap partition will be " \
+          "recreated during image deployment."
+
+    if not d.yesno("%s\n\nDo you want to continue?" % msg, width=70,
+                   height=12, title="Image Shrinking"):
+        dev.out = InfoBoxOutput(d, "Image Shrinking", height=3)
+        session['metadata']['SIZE'] = str(dev.shrink())
+        session['shrinked'] = True
+        update_background_title(session)
+        dev.out.finalize()
+
+
+def customization_menu(session):
     d = session['dialog']
 
     choices = [("Sysprep", "Run various image preperation tasks"),
@@ -600,6 +645,7 @@ def customize_menu(session):
     default_item = "Sysprep"
 
     actions = {"Sysprep": sysprep,
+               "Shrink": shrink,
                "View/Modify": modify_properties,
                "Delete": delete_properties,
                "Exclude": exclude_tasks}
@@ -631,7 +677,7 @@ def main_menu(session):
 
     default_item = "Customize"
 
-    actions = {"Customize": customize_menu, "Register": kamaki_menu,
+    actions = {"Customize": customization_menu, "Register": kamaki_menu,
                "Extract": extract_image}
     while 1:
         (code, choice) = d.menu(
@@ -646,7 +692,8 @@ def main_menu(session):
                 break
         elif choice == "Reset":
             if confirm_reset(d):
-                d.infobox("Resetting snf-image-creator. Please wait...")
+                d.infobox("Resetting snf-image-creator. Please wait...",
+                          width=INFOBOX_WIDTH)
                 raise Reset
         elif choice in actions:
             actions[choice](session)
@@ -681,12 +728,12 @@ def image_creator(d):
         sys.stderr.write("%s\n" % usage)
         return 1
 
+    d.setBackgroundTitle('snf-image-creator')
+
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root" % basename)
 
     media = select_file(d, sys.argv[1] if len(sys.argv) == 2 else None)
-
-    d.setBackgroundTitle('snf-image-creator')
 
     out = GaugeOutput(d, "Initialization", "Initializing...")
     disk = Disk(media, out)
@@ -701,12 +748,19 @@ def image_creator(d):
         dev = disk.get_device(snapshot)
 
         out.output("Collecting image metadata...")
-        metadata = dev.meta
+
+        metadata = {}
+        for (key, value) in dev.meta.items():
+            metadata[str(key)] = str(value)
+
         dev.mount(readonly=True)
         cls = os_cls(dev.distro, dev.ostype)
         image_os = cls(dev.root, dev.g, out)
         dev.umount()
-        metadata.update(image_os.meta)
+
+        for (key, value) in image_os.meta.items():
+            metadata[str(key)] = str(value)
+
         out.success("done")
         out.cleanup()
 
@@ -748,7 +802,7 @@ def main():
                 sys.exit(ret)
             except FatalError as e:
                 msg = textwrap.fill(str(e), width=70)
-                d.infobox(msg, width=70, title="Fatal Error")
+                d.infobox(msg, width=INFOBOX_WIDTH, title="Fatal Error")
                 sys.exit(1)
         except Reset:
             continue

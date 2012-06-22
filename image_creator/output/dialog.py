@@ -129,6 +129,7 @@ class InfoBoxOutput(Output):
         self.output("Warning: %s" % msg, new_line)
 
     def finalize(self):
-        self.d.msgbox(self.msg, height=(self.height + 2), width=self.width)
+        self.d.msgbox(self.msg, title=self.title, height=(self.height + 2),
+                      width=self.width)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
