@@ -108,9 +108,9 @@ class Linux(Unix):
             elif event.strip() == ".*":
                 self.out.warn(
                     "Found action `.*'. Don't know how to handle this. " \
-                    "Please edit \%s' image file manually to make the " \
+                    "Please edit `%s' image file manually to make the " \
                     "system immediatelly shutdown when an power button acpi " \
-                    "event occures" % action)
+                    "event occures." % action.strip().split()[0])
                 return
 
     @sysprep()
