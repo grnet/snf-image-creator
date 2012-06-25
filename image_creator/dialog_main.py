@@ -126,7 +126,7 @@ def confirm_exit(d, msg=''):
 
 def confirm_reset(d):
     return not d.yesno("Are you sure you want to reset everything?",
-                       width=YESNO_WIDTH)
+                       width=YESNO_WIDTH, defaultno=1)
 
 
 def update_background_title(session):
@@ -366,7 +366,7 @@ def kamaki_menu(session):
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
-            width=MENU_WIDTH, choices=choices, cancel="Back", help_button=1,
+            width=MENU_WIDTH, choices=choices, cancel="Back",
             default_item=default_item, title="Image Registration Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
@@ -459,7 +459,7 @@ def modify_properties(session):
             "information about image properties. Press <BACK> when done.",
             height=18, width=MENU_WIDTH, choices=choices, menu_height=10,
             ok_label="Edit", extra_button=1, extra_label="Add", cancel="Back",
-            help_button=1, title="Image Metadata")
+            help_button=1, title="Image Properties")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             break
