@@ -78,6 +78,48 @@ class Reset(Exception):
     pass
 
 
+class metadata_monitor(object):
+    def __init__(self, session, meta):
+        self.session = session
+        self.meta = meta
+
+    def __enter__(self):
+        self.old = {}
+        for (k, v) in self.meta.items():
+            self.old[k] = v
+
+    def __exit__(self, type, value, traceback):
+        d = self.session['dialog']
+
+        altered = {}
+        added = {}
+
+        for (k, v) in self.meta.items():
+            if k not in self.old:
+                added[k] = v
+            elif self.old[k] != v:
+                altered[k] = v
+
+        if not (len(added) or len(altered)):
+            return
+
+        msg = "The last action has changed some image properties:\n\n"
+        if len(added):
+            msg += "New image properties:\n"
+            for (k, v) in added.items():
+                msg += '    %s: "%s"\n' % (k, v)
+            msg += "\n"
+        if len(altered):
+            msg += "Updated image properties:\n"
+            for (k, v) in altered.items():
+                msg += '    %s: "%s" -> "%s"\n' % (k, self.old[k], v)
+            msg += "\n"
+
+        self.session['metadata'].update(added)
+        self.session['metadata'].update(altered)
+        d.msgbox(msg, title="Image Property Changes", width=MSGBOX_WIDTH)
+
+
 def confirm_exit(d, msg=''):
     return not d.yesno("%s Do you want to exit?" % msg, width=YESNO_WIDTH)
 
@@ -590,17 +632,16 @@ def sysprep(session):
                     if 'checksum' in session:
                         del session['checksum']
 
-                    image_os.out = out
-                    image_os.do_sysprep()
-
-                    for (k, v) in image_os.meta.items():
-                        session['metadata'][str(k)] = str(v)
+                    # Monitor the metadata changes during syspreps
+                    with metadata_monitor(session, image_os.meta):
+                        image_os.out = out
+                        image_os.do_sysprep()
+                        image_os.out.finalize()
 
                     # Disable syspreps that have ran
                     for sysprep in session['exec_syspreps']:
                         image_os.disable_sysprep(sysprep)
 
-                    image_os.out.finalize()
                 finally:
                     dev.umount()
             finally:
@@ -626,11 +667,14 @@ def shrink(session):
 
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=70,
                    height=12, title="Image Shrinking"):
-        dev.out = InfoBoxOutput(d, "Image Shrinking", height=3)
-        session['metadata']['SIZE'] = str(dev.shrink())
+
+        with metadata_monitor(session, dev.meta):
+            dev.out = InfoBoxOutput(d, "Image Shrinking", height=3)
+            dev.shrink()
+            dev.out.finalize()
+
         session['shrinked'] = True
         update_background_title(session)
-        dev.out.finalize()
 
 
 def customization_menu(session):
