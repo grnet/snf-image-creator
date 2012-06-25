@@ -50,10 +50,10 @@ class Linux(Unix):
         if dev in self._uuid:
             return self._uuid[dev]
 
-        for attr in self.g.blkid(dev):
-            if attr[0] == 'UUID':
-                self._uuid[dev] = attr[1]
-                return attr[1]
+        uuid = self.g.vfs_uuid(dev)
+        assert len(uuid)
+        self._uuid[dev] = uuid
+        return uuid
 
     @sysprep()
     def fix_acpid(self, print_header=True):
