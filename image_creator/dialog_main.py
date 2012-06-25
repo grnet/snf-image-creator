@@ -57,20 +57,20 @@ HELP_WIDTH = 70
 INFOBOX_WIDTH = 70
 
 CONFIGURATION_TASKS = [
- ("Partition table manipulation", ["FixPartitionTable"],
-  ["linux", "windows"]),
- ("File system resize",
-  ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
-  ["linux", "windows"]),
- ("Swap partition configuration", ["AddSwap"], ["linux"]),
- ("SSH keys removal", ["DeleteSSHKeys"], ["linux"]),
- ("Temporal RDP disabling", ["DisableRemoteDesktopConnections"], ["windows"]),
- ("SELinux relabeling at next boot", ["SELinuxAutorelabel"],
-  ["linux"]),
- ("Hostname/Computer Name assignment", ["AssignHostname"],
-  ["windows", "linux"]),
- ("Password change", ["ChangePassword"], ["windows", "linux"]),
- ("File injection", ["EnforcePersonality"], ["windows", "linux"])
+    ("Partition table manipulation", ["FixPartitionTable"],
+        ["linux", "windows"]),
+    ("File system resize",
+        ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
+        ["linux", "windows"]),
+    ("Swap partition configuration", ["AddSwap"], ["linux"]),
+    ("SSH keys removal", ["DeleteSSHKeys"], ["linux"]),
+    ("Temporal RDP disabling", ["DisableRemoteDesktopConnections"],
+        ["windows"]),
+    ("SELinux relabeling at next boot", ["SELinuxAutorelabel"], ["linux"]),
+    ("Hostname/Computer Name assignment", ["AssignHostname"],
+        ["windows", "linux"]),
+    ("Password change", ["ChangePassword"], ["windows", "linux"]),
+    ("File injection", ["EnforcePersonality"], ["windows", "linux"])
 ]
 
 
@@ -186,8 +186,8 @@ def extract_image(session):
 
         if len(overwrite) > 0:
             if d.yesno("The following file(s) exist:\n"
-                        "%s\nDo you want to overwrite them?" %
-                        "\n".join(overwrite), width=YESNO_WIDTH):
+                       "%s\nDo you want to overwrite them?" %
+                       "\n".join(overwrite), width=YESNO_WIDTH):
                 continue
 
         out = GaugeOutput(d, "Image Extraction", "Extracting image...")
@@ -322,8 +322,8 @@ def register_image(session):
         return False
 
     while 1:
-        (code, answer) = d.inputbox("Please provide a registration name:"
-                                " be registered:", width=INPUTBOX_WIDTH)
+        (code, answer) = d.inputbox("Please provide a registration name:",
+                                    width=INPUTBOX_WIDTH)
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
@@ -428,7 +428,7 @@ def add_property(session):
 
     while 1:
         (code, answer) = d.inputbox("Please provide a value for image "
-                                   "property %s" % name, width=INPUTBOX_WIDTH)
+                                    "property %s" % name, width=INPUTBOX_WIDTH)
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
@@ -462,12 +462,14 @@ def modify_properties(session):
             help_button=1, title="Image Properties")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            break
+            return True
         # Edit button
         elif code == d.DIALOG_OK:
-            (code, answer) = d.inputbox("Please provide a new value for "
-                    "the image property with name `%s':" % choice,
-                    init=session['metadata'][choice], width=INPUTBOX_WIDTH)
+            (code, answer) = d.inputbox("Please provide a new value for the "
+                                        "image property with name `%s':" %
+                                        choice,
+                                        init=session['metadata'][choice],
+                                        width=INPUTBOX_WIDTH)
             if code not in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 value = answer.strip()
                 if len(value) == 0:
@@ -497,6 +499,9 @@ def delete_properties(session):
     cnt = len(to_delete)
     if cnt > 0:
         d.msgbox("%d image properties were deleted." % cnt, width=MSGBOX_WIDTH)
+        return True
+    else:
+        return False
 
 
 def exclude_tasks(session):
@@ -514,7 +519,7 @@ def exclude_tasks(session):
                        "Do you wish to enable it?", width=YESNO_WIDTH):
             session['excluded_tasks'].remove(-1)
         else:
-            return
+            return False
 
     for (msg, task, osfamily) in CONFIGURATION_TASKS:
         if session['metadata']['OSFAMILY'] in osfamily:
@@ -536,7 +541,7 @@ def exclude_tasks(session):
             title="Exclude Configuration Tasks")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            break
+            return False
         elif code == d.DIALOG_HELP:
             help_file = get_help_file("configuration_tasks")
             assert os.path.exists(help_file)
@@ -556,9 +561,11 @@ def exclude_tasks(session):
             for task in session['excluded_tasks']:
                 exclude_metadata.extend(CONFIGURATION_TASKS[task][1])
 
-            session['task_metadata'] = \
-                        map(lambda x: "EXCLUDE_TASK_%s" % x, exclude_metadata)
+            session['task_metadata'] = map(lambda x: "EXCLUDE_TASK_%s" % x,
+                                           exclude_metadata)
             break
+
+    return True
 
 
 def sysprep(session):
@@ -610,7 +617,7 @@ def sysprep(session):
             choices=choices, width=70, ok_label="Run", help_button=1)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            break
+            return False
         elif code == d.DIALOG_HELP:
             d.scrollbox(sysprep_help, width=HELP_WIDTH)
         elif code == d.DIALOG_OK:
@@ -647,6 +654,7 @@ def sysprep(session):
             finally:
                 out.cleanup()
             break
+    return True
 
 
 def shrink(session):
@@ -657,7 +665,7 @@ def shrink(session):
 
     if shrinked:
         d.msgbox("You have already shrinked your image!")
-        return
+        return True
 
     msg = "This operation will shrink the last partition of the image to " \
           "reduce the total image size. If the last partition is a swap " \
@@ -667,7 +675,6 @@ def shrink(session):
 
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=70,
                    height=12, title="Image Shrinking"):
-
         with metadata_monitor(session, dev.meta):
             dev.out = InfoBoxOutput(d, "Image Shrinking", height=3)
             dev.shrink()
@@ -675,6 +682,10 @@ def shrink(session):
 
         session['shrinked'] = True
         update_background_title(session)
+    else:
+        return False
+
+    return True
 
 
 def customization_menu(session):
@@ -686,7 +697,7 @@ def customization_menu(session):
                ("Delete", "Delete image properties"),
                ("Exclude", "Exclude various deployment tasks from running")]
 
-    default_item = "Sysprep"
+    default_item = 0
 
     actions = {"Sysprep": sysprep,
                "Shrink": shrink,
@@ -697,14 +708,15 @@ def customization_menu(session):
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to exit.",
             width=MENU_WIDTH, choices=choices, cancel="Back", height=13,
-            menu_height=len(choices), default_item=default_item,
+            menu_height=len(choices), default_item=choices[default_item][0],
             title="Image Customization Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             break
         elif choice in actions:
-            default_item = choice
-            actions[choice](session)
+            default_item = [entry[0] for entry in choices].index(choice)
+            if actions[choice](session):
+                default_item = (default_item + 1) % len(choices)
 
 
 def main_menu(session):
@@ -754,7 +766,7 @@ def select_file(d, media):
                 break
 
         (code, media) = d.fselect(root, 10, 50,
-                                 title="Please select input media")
+                                  title="Please select input media")
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d, "You canceled the media selection dialog box."):
                 sys.exit(0)
