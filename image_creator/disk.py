@@ -45,9 +45,6 @@ import time
 from sendfile import sendfile
 
 
-class DiskError(Exception):
-    pass
-
 dd = get_command('dd')
 dmsetup = get_command('dmsetup')
 losetup = get_command('losetup')
@@ -80,7 +77,8 @@ class Disk(object):
         return loop
 
     def _dir_to_disk(self):
-        raise NotImplementedError
+        raise FatalError("Using a directory as media source is not supported "
+                         "yet!")
 
     def cleanup(self):
         """Cleanup internal data. This needs to be called before the
@@ -103,10 +101,10 @@ class Disk(object):
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
-            success('looks like a directory')
+            self.out.success('looks like a directory')
             return self._losetup(self._dir_to_disk())
         elif stat.S_ISREG(mode):
-            success('looks like an image file')
+            self.out.success('looks like an image file')
             sourcedev = self._losetup(self.source)
         elif not stat.S_ISBLK(mode):
             raise ValueError("Invalid media source. Only block devices, "
