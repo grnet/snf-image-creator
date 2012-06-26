@@ -316,9 +316,8 @@ def register_image(session):
         return False
 
     if "upload" not in session:
-        d.msgbox("You need to have an image uploaded to pithos+ before you "
-                 "can register it to cyclades",
-                 width=MSGBOX_WIDTH)
+        d.msgbox("You need to upload the image to pithos+ before you can "
+                 "register it to cyclades", width=MSGBOX_WIDTH)
         return False
 
     while 1:
@@ -362,7 +361,7 @@ def kamaki_menu(session):
         choices = [("Account", "Change your ~okeanos username: %s" % account),
                    ("Token", "Change your ~okeanos token: %s" % token),
                    ("Upload", "Upload image to pithos+"),
-                   ("Register", "Register image to cyclades: %s" % upload)]
+                   ("Register", "Register the image to cyclades: %s" % upload)]
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -480,6 +479,10 @@ def modify_properties(session):
         # ADD button
         elif code == d.DIALOG_EXTRA:
             add_property(session)
+        elif code == 'help':
+            help_file = get_help_file("image_properties")
+            assert os.path.exists(help_file)
+            d.textbox(help_file, title="Image Properties", width=70, height=40)
 
 
 def delete_properties(session):
