@@ -255,18 +255,24 @@ class GPTPartitionTable(object):
         """Returns the payload size of GPT partitioned device."""
         return (self.primary.backup_lba + 1) * BLOCKSIZE
 
-    def shrink(self, size):
+    def shrink(self, size, old_size):
         """Move the secondary GPT Header entries to the address specified by
         size parameter.
         """
-        if size == self.size():
-            return size
 
-        assert size < self.size()
+        # Most partition manipulation programs leave 2048 sector after the last
+        # partition
+        aligned = size + 2048 * BLOCKSIZE
 
-        # new_size = size + Partition Entries + Secondary GPT Header
-        new_size = size + len(self.part_entries) + BLOCKSIZE
-        new_size = ((new_size + 4095) // 4096) * 4096  # align to 4K
+        # new_size is at least: size + Partition Entries + Secondary GPT Header
+        new_size = aligned if aligned <= old_size else \
+                   size + len(self.part_entries) + BLOCKSIZE
+
+        assert new_size <= old_size, "The secodary GPT fits in the device"
+
+        if new_size == self.size():
+            return new_size
+
         lba_count = new_size // BLOCKSIZE
 
         # Correct MBR

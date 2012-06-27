@@ -320,6 +320,8 @@ class DiskDevice(object):
 
         self.out.output("Shrinking image (this may take a while)...", False)
 
+        sector_size = self.g.blockdev_getss(self.guestfs_device)
+
         last_part = None
         fstype = None
         while True:
@@ -336,7 +338,10 @@ class DiskDevice(object):
                 part_del(last_part['part_num'])
                 continue
 
-            self.meta['SIZE'] = last_part['part_end'] + 1
+            # Most disk manipulation programs leave 2048 sectors after the last
+            # partition
+            new_size = last_part['part_end'] + 1 + 2048 * sector_size
+            self.meta['SIZE'] = min(self.meta['SIZE'], new_size)
             break
 
         if not re.match("ext[234]", fstype):
@@ -353,7 +358,6 @@ class DiskDevice(object):
         block_cnt = int(
             filter(lambda x: x[0] == 'Block count', out)[0][1])
 
-        sector_size = self.g.blockdev_getss(self.guestfs_device)
         start = last_part['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
@@ -398,13 +402,18 @@ class DiskDevice(object):
                 part_set_id(last_part['part_num'], last_part['id'])
 
         new_size = (end + 1) * sector_size
-        self.out.success("new size is %dMB" % ((new_size + MB - 1) // MB))
+
+        assert (new_size <= self.meta['SIZE'])
 
         if self.meta['PARTITION_TABLE'] == 'gpt':
             ptable = GPTPartitionTable(self.real_device)
-            self.meta['SIZE'] = ptable.shrink(new_size)
+            self.meta['SIZE'] = ptable.shrink(new_size, self.meta['SIZE'])
         else:
-            self.meta['SIZE'] = new_size
+            self.meta['SIZE'] = min(new_size + 2048 * sector_size,
+                                    self.meta['SIZE'])
+
+        self.out.success("new size is %dMB" %
+                         ((self.meta['SIZE'] + MB - 1) // MB))
 
         return self.meta['SIZE']
 
