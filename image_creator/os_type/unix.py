@@ -63,7 +63,7 @@ class Unix(OSBase):
 
             user, passwd = match.groups()
             if len(passwd) > 0 and passwd[0] == '!':
-                warn("Ignoring locked %s account." % user)
+                self.out.warn("Ignoring locked %s account." % user)
             else:
                 users.append(user)
 
