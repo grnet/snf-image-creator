@@ -120,6 +120,15 @@ class metadata_monitor(object):
         d.msgbox(msg, title="Image Property Changes", width=MSGBOX_WIDTH)
 
 
+def extract_metadata_string(session):
+    metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
+
+    if 'task_metadata' in session:
+        metadata.extend("%s=yes" % m for m in session['task_metadata'])
+
+    return '\n'.join(metadata) + '\n'
+
+
 def confirm_exit(d, msg=''):
     return not d.yesno("%s Do you want to exit?" % msg, width=YESNO_WIDTH)
 
@@ -204,11 +213,8 @@ def extract_image(session):
 
             # Extract metadata file
             out.output("Extracting metadata file...")
-            metastring = '\n'.join(
-                ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()])
-            metastring += '\n'
             with open('%s.meta' % path, 'w') as f:
-                f.write(metastring)
+                f.write(extract_metadata_string(session))
             out.success('done')
 
             # Extract md5sum file
@@ -271,9 +277,7 @@ def upload_image(session):
                                                   "Uploading missing blocks")
             # Upload metadata file
             out.output("Uploading metadata file...")
-            metastring = '\n'.join(
-                ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()])
-            metastring += '\n'
+            metastring = extract_metadata_string(session)
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                           remote_path="%s.meta" % filename)
             out.success("done")
@@ -332,12 +336,18 @@ def register_image(session):
             continue
         break
 
+    metadata = {}
+    metadata.update(session['metadata'])
+    if 'task_metadata' in session:
+        for key in session['task_metadata']:
+            metadata[key] = 'yes'
+
     out = GaugeOutput(d, "Image Registration", "Registrating image...")
     try:
         out.output("Registring image to cyclades...")
         try:
             kamaki = Kamaki(session['account'], session['token'], out)
-            kamaki.register(name, session['upload'], session['metadata'])
+            kamaki.register(name, session['upload'], metadata)
             out.success('done')
         except ClientError as e:
             d.msgbox("Error in pithos+ client: %s" % e.message)
@@ -679,7 +689,7 @@ def shrink(session):
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=70,
                    height=12, title="Image Shrinking"):
         with metadata_monitor(session, dev.meta):
-            dev.out = InfoBoxOutput(d, "Image Shrinking", height=3)
+            dev.out = InfoBoxOutput(d, "Image Shrinking", height=4)
             dev.shrink()
             dev.out.finalize()
 
@@ -806,13 +816,13 @@ def image_creator(d):
         snapshot = disk.snapshot()
         dev = disk.get_device(snapshot)
 
-        out.output("Collecting image metadata...")
 
         metadata = {}
         for (key, value) in dev.meta.items():
             metadata[str(key)] = str(value)
 
         dev.mount(readonly=True)
+        out.output("Collecting image metadata...")
         cls = os_cls(dev.distro, dev.ostype)
         image_os = cls(dev.root, dev.g, out)
         dev.umount()
