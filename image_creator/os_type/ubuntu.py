@@ -42,8 +42,8 @@ class Ubuntu(Linux):
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':
                 self.meta['OS'] = 'kubuntu'
-                self.meta['DESCRIPTION'] = \
-                        self.meta['DESCRIPTION'].replace('Ubuntu', 'Kubuntu')
+                descr = self.meta['DESCRIPTION'].replace('Ubuntu', 'Kubuntu')
+                self.meta['DESCRIPTION'] = descr
                 break
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -54,7 +54,7 @@ class Kamaki(object):
         pithos_url = config.get('storage', 'url')
         self.container = CONTAINER
         self.pithos_client = PithosClient(pithos_url, token, self.account,
-                                                                self.container)
+                                          self.container)
 
         image_url = config.get('image', 'url')
         self.image_client = ImageClient(image_url, token)
@@ -86,7 +86,7 @@ class Kamaki(object):
         # Convert all metadata to strings
         str_metadata = {}
         for (key, value) in metadata.iteritems():
-            str_metadata[str(key)]=str(value)
+            str_metadata[str(key)] = str(value)
 
         params = {'is_public': 'true', 'disk_format': 'diskdump'}
         self.image_client.register(name, location, params, str_metadata)

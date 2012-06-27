@@ -145,7 +145,7 @@ def update_background_title(session):
     MB = 2 ** 20
 
     size = (dev.meta['SIZE'] + MB - 1) // MB
-    shrinked = 'shrinked' in session and session['shrinked'] == True
+    shrinked = 'shrinked' in session and session['shrinked']
     postfix = " (shrinked)" if shrinked else ''
 
     title = "OS: %s, Distro: %s, Size: %dMB%s" % \
@@ -586,7 +586,7 @@ def sysprep(session):
     image_os = session['image_os']
 
     # Is the image already shrinked?
-    if 'shrinked' in session and session['shrinked'] == True:
+    if 'shrinked' in session and session['shrinked']:
         msg = "It seems you have shrinked the image. Running system " \
               "preparation tasks on a shrinked image is dangerous."
 
@@ -674,7 +674,7 @@ def shrink(session):
     d = session['dialog']
     dev = session['device']
 
-    shrinked = 'shrinked' in session and session['shrinked'] == True
+    shrinked = 'shrinked' in session and session['shrinked']
 
     if shrinked:
         d.msgbox("You have already shrinked your image!")
@@ -815,7 +815,6 @@ def image_creator(d):
     try:
         snapshot = disk.snapshot()
         dev = disk.get_device(snapshot)
-
 
         metadata = {}
         for (key, value) in dev.meta.items():

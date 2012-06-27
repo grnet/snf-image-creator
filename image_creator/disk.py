@@ -108,7 +108,7 @@ class Disk(object):
             sourcedev = self._losetup(self.source)
         elif not stat.S_ISBLK(mode):
             raise ValueError("Invalid media source. Only block devices, "
-                            "regular files and directories are supported.")
+                             "regular files and directories are supported.")
         else:
             self.out.success('looks like a block device')
 
@@ -125,8 +125,8 @@ class Disk(object):
         snapshot = uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
-            os.write(tablefd, "0 %d snapshot %s %s n 8" % \
-                                        (int(size), sourcedev, cowdev))
+            os.write(tablefd, "0 %d snapshot %s %s n 8" %
+                              (int(size), sourcedev, cowdev))
             dmsetup('create', snapshot, table)
             self._add_cleanup(dmsetup, 'remove', snapshot)
             # Sometimes dmsetup remove fails with Device or resource busy,
@@ -180,9 +180,10 @@ class DiskDevice(object):
         # feature of libguestfs, it's better to disable it.
         self.g.set_recovery_proc(0)
         version = self.g.version()
-        if version['major'] > 1 or (version['major'] == 1 and
-            (version['minor'] >= 18 or \
-            (version['minor'] == 17 and version['release'] >= 14))):
+        if version['major'] > 1 or \
+            (version['major'] == 1 and (version['minor'] >= 18 or
+                                        (version['minor'] == 17 and
+                                         version['release'] >= 14))):
             self.g.set_recovery_proc(1)
             self.out.output("Enabling recovery proc")
 
@@ -196,7 +197,7 @@ class DiskDevice(object):
         self.progressbar = self.out.Progress(100, "Launching helper VM",
                                              "percent")
         eh = self.g.set_event_callback(self.progress_callback,
-                                                    guestfs.EVENT_PROGRESS)
+                                       guestfs.EVENT_PROGRESS)
         self.g.launch()
         self.guestfs_enabled = True
         self.g.delete_event_callback(eh)
@@ -209,12 +210,12 @@ class DiskDevice(object):
             raise FatalError("No operating system found")
         if len(roots) > 1:
             raise FatalError("Multiple operating systems found."
-                            "We only support images with one filesystem.")
+                             "We only support images with one filesystem.")
         self.root = roots[0]
         self.guestfs_device = self.g.part_to_dev(self.root)
         self.meta['SIZE'] = self.g.blockdev_getsize64(self.guestfs_device)
         self.meta['PARTITION_TABLE'] = \
-                                self.g.part_get_parttype(self.guestfs_device)
+            self.g.part_get_parttype(self.guestfs_device)
 
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
@@ -267,13 +268,13 @@ class DiskDevice(object):
     def _last_partition(self):
         if self.meta['PARTITION_TABLE'] not in 'msdos' 'gpt':
             msg = "Unsupported partition table: %s. Only msdos and gpt " \
-            "partition tables are supported" % self.meta['PARTITION_TABLE']
+                "partition tables are supported" % self.meta['PARTITION_TABLE']
             raise FatalError(msg)
 
-        is_extended = lambda p: self.g.part_get_mbr_id(
-                                    self.guestfs_device, p['part_num']) == 5
-        is_logical = lambda p: self.meta['PARTITION_TABLE'] != 'msdos' and \
-                                                            p['part_num'] > 4
+        is_extended = lambda p: \
+            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+        is_logical = lambda p: \
+            self.meta['PARTITION_TABLE'] != 'msdos' and p['part_num'] > 4
 
         partitions = self.g.part_list(self.guestfs_device)
         last_partition = partitions[-1]
@@ -298,23 +299,24 @@ class DiskDevice(object):
 
         ATTENTION: make sure unmount is called before shrink
         """
-        get_fstype = lambda p: self.g.vfs_type("%s%d" % \
-                                        (self.guestfs_device, p['part_num']))
-        is_logical = lambda p: self.meta['PARTITION_TABLE'] == 'msdos' and \
-                                                            p['part_num'] > 4
-        is_extended = lambda p: self.meta['PARTITION_TABLE'] == 'msdos' and \
-                self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+        get_fstype = lambda p: \
+            self.g.vfs_type("%s%d" % (self.guestfs_device, p['part_num']))
+        is_logical = lambda p: \
+            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
+        is_extended = lambda p: \
+            self.meta['PARTITION_TABLE'] == 'msdos' and \
+            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
 
         part_add = lambda ptype, start, stop: \
-                    self.g.part_add(self.guestfs_device, ptype, start, stop)
+            self.g.part_add(self.guestfs_device, ptype, start, stop)
         part_del = lambda p: self.g.part_del(self.guestfs_device, p)
         part_get_id = lambda p: self.g.part_get_mbr_id(self.guestfs_device, p)
-        part_set_id = lambda p, id: self.g.part_set_mbr_id(
-                                                    self.guestfs_device, p, id)
-        part_get_bootable = lambda p: self.g.part_get_bootable(
-                                                        self.guestfs_device, p)
-        part_set_bootable = lambda p, bootable: self.g.part_set_bootable(
-                                            self.guestfs_device, p, bootable)
+        part_set_id = lambda p, id: \
+            self.g.part_set_mbr_id(self.guestfs_device, p, id)
+        part_get_bootable = lambda p: \
+            self.g.part_get_bootable(self.guestfs_device, p)
+        part_set_bootable = lambda p, bootable: \
+            self.g.part_set_bootable(self.guestfs_device, p, bootable)
 
         MB = 2 ** 20
 
@@ -330,8 +332,8 @@ class DiskDevice(object):
 
             if fstype == 'swap':
                 self.meta['SWAP'] = "%d:%s" % \
-                        (last_part['part_num'],
-                        (last_part['part_size'] + MB - 1) // MB)
+                    (last_part['part_num'],
+                     (last_part['part_size'] + MB - 1) // MB)
                 part_del(last_part['part_num'])
                 continue
             elif is_extended(last_part):

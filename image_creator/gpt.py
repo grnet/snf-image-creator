@@ -56,13 +56,12 @@ class MBR(object):
 
         def pack(self):
             return struct.pack(self.format,
-                self.status,
-                self.start,
-                self.type,
-                self.end,
-                self.first_sector,
-                self.sector_count
-            )
+                               self.status,
+                               self.start,
+                               self.type,
+                               self.end,
+                               self.first_sector,
+                               self.sector_count)
 
         @staticmethod
         def size():
@@ -73,7 +72,7 @@ class MBR(object):
             start = self.unpack_chs(self.start)
             end = self.unpack_chs(self.end)
             return "%d %s %d %s %d %d" % (self.status, start, self.type, end,
-                self.first_sector, self.sector_count)
+                                          self.first_sector, self.sector_count)
 
         def unpack_chs(self, chs):
             """Unpacks a CHS address string to a tuple."""
@@ -114,12 +113,12 @@ class MBR(object):
     """
     def __init__(self, block):
         raw_part = {}
-        self.code_area, \
-        raw_part[0], \
-        raw_part[1], \
-        raw_part[2], \
-        raw_part[3], \
-        self.signature = struct.unpack(self.format, block)
+        (self.code_area,
+         raw_part[0],
+         raw_part[1],
+         raw_part[2],
+         raw_part[3],
+         self.signature) = struct.unpack(self.format, block)
 
         self.part = {}
         for i in range(4):
@@ -133,20 +132,19 @@ class MBR(object):
     def pack(self):
         """Packs an MBR to a binary string."""
         return struct.pack(self.format,
-            self.code_area,
-            self.part[0].pack(),
-            self.part[1].pack(),
-            self.part[2].pack(),
-            self.part[3].pack(),
-            self.signature
-        )
+                           self.code_area,
+                           self.part[0].pack(),
+                           self.part[1].pack(),
+                           self.part[2].pack(),
+                           self.part[3].pack(),
+                           self.signature)
 
     def __str__(self):
         ret = ""
         for i in range(4):
             ret += "Partition %d: %s\n" % (i, self.part[i])
-        ret += "Signature: %s %s\n" % (
-                    hex(ord(self.signature[0])), hex(ord(self.signature[1])))
+        ret += "Signature: %s %s\n" % (hex(ord(self.signature[0])),
+                                       hex(ord(self.signature[1])))
         return ret
 
 
@@ -176,37 +174,36 @@ class GPTPartitionTable(object):
         """
 
         def __init__(self, block):
-            self.signature, \
-            self.revision, \
-            self.hdr_size, \
-            self.header_crc32, \
-            self.current_lba, \
-            self.backup_lba, \
-            self.first_usable_lba, \
-            self.last_usable_lba, \
-            self.uuid, \
-            self.part_entry_start, \
-            self.part_count, \
-            self.part_entry_size, \
-            self.part_crc32 = struct.unpack(self.format, block)
+            (self.signature,
+             self.revision,
+             self.hdr_size,
+             self.header_crc32,
+             self.current_lba,
+             self.backup_lba,
+             self.first_usable_lba,
+             self.last_usable_lba,
+             self.uuid,
+             self.part_entry_start,
+             self.part_count,
+             self.part_entry_size,
+             self.part_crc32) = struct.unpack(self.format, block)
 
         def pack(self):
             """Packs a GPT Header to a binary string."""
             return struct.pack(self.format,
-                self.signature, \
-                self.revision, \
-                self.hdr_size, \
-                self.header_crc32, \
-                self.current_lba, \
-                self.backup_lba, \
-                self.first_usable_lba, \
-                self.last_usable_lba, \
-                self.uuid, \
-                self.part_entry_start, \
-                self.part_count, \
-                self.part_entry_size, \
-                self.part_crc32
-            )
+                               self.signature,
+                               self.revision,
+                               self.hdr_size,
+                               self.header_crc32,
+                               self.current_lba,
+                               self.backup_lba,
+                               self.first_usable_lba,
+                               self.last_usable_lba,
+                               self.uuid,
+                               self.part_entry_start,
+                               self.part_count,
+                               self.part_entry_size,
+                               self.part_crc32)
 
         @staticmethod
         def size():
@@ -214,20 +211,20 @@ class GPTPartitionTable(object):
             return struct.calcsize(GPTPartitionTable.GPTHeader.format)
 
         def __str__(self):
-            return \
-            "Signature: %s\n" % self.signature + \
-            "Revision: %r\n" % self.revision + \
-            "Header Size: %d\n" % self.hdr_size + \
-            "CRC32: %d\n" % self.header_crc32 + \
-            "Current LBA: %d\n" % self.current_lba + \
-            "Backup LBA: %d\n" % self.backup_lba + \
-            "First Usable LBA: %d\n" % self.first_usable_lba + \
-            "Last Usable LBA: %d\n" % self.last_usable_lba + \
-            "Disk GUID: %s\n" % uuid.UUID(bytes=self.uuid) + \
-            "Partition entries starting LBA: %d\n" % self.part_entry_start + \
-            "Number of Partition entries: %d\n" % self.part_count + \
-            "Size of a partition entry: %d\n" % self.part_entry_size + \
-            "CRC32 of partition array: %s\n" % self.part_crc32
+            return "Signature: %s\n" % self.signature + \
+                   "Revision: %r\n" % self.revision + \
+                   "Header Size: %d\n" % self.hdr_size + \
+                   "CRC32: %d\n" % self.header_crc32 + \
+                   "Current LBA: %d\n" % self.current_lba + \
+                   "Backup LBA: %d\n" % self.backup_lba + \
+                   "First Usable LBA: %d\n" % self.first_usable_lba + \
+                   "Last Usable LBA: %d\n" % self.last_usable_lba + \
+                   "Disk GUID: %s\n" % uuid.UUID(bytes=self.uuid) + \
+                   "Partition entries starting LBA: %d\n" % \
+                   self.part_entry_start + \
+                   "Number of Partition entries: %d\n" % self.part_count + \
+                   "Size of a partition entry: %d\n" % self.part_entry_size + \
+                   "CRC32 of partition array: %s\n" % self.part_crc32
 
     def __init__(self, disk):
         self.disk = disk
@@ -243,7 +240,7 @@ class GPTPartitionTable(object):
             # Partition entries (LBA 2...34)
             d.seek(self.primary.part_entry_start * BLOCKSIZE)
             entries_size = self.primary.part_count * \
-                                                self.primary.part_entry_size
+                self.primary.part_entry_size
             self.part_entries = d.read(entries_size)
 
             # Secondary GPT Header (LBA -1)
@@ -266,7 +263,7 @@ class GPTPartitionTable(object):
 
         # new_size is at least: size + Partition Entries + Secondary GPT Header
         new_size = aligned if aligned <= old_size else \
-                   size + len(self.part_entries) + BLOCKSIZE
+            size + len(self.part_entries) + BLOCKSIZE
 
         assert new_size <= old_size, "The secodary GPT fits in the device"
 
@@ -284,7 +281,7 @@ class GPTPartitionTable(object):
         self.primary.backup_lba = lba_count - 1  # LBA-1
         self.primary.last_usable_lba = lba_count - 34  # LBA-34
         self.primary.header_crc32 = \
-                            binascii.crc32(self.primary.pack()) & 0xffffffff
+            binascii.crc32(self.primary.pack()) & 0xffffffff
 
         # Fix Secondary header
         self.secondary.header_crc32 = 0
@@ -292,7 +289,7 @@ class GPTPartitionTable(object):
         self.secondary.last_usable_lba = lba_count - 34  # LBA-34
         self.secondary.part_entry_start = lba_count - 33  # LBA-33
         self.secondary.header_crc32 = \
-                            binascii.crc32(self.secondary.pack()) & 0xffffffff
+            binascii.crc32(self.secondary.pack()) & 0xffffffff
 
         # Copy the new partition table back to the device
         with open(self.disk, "wb") as d:

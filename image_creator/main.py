@@ -38,7 +38,7 @@ from image_creator import util
 from image_creator.disk import Disk
 from image_creator.util import get_command, FatalError, MD5
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
-                                     OutputWthProgress
+    OutputWthProgress
 from image_creator.os_type import os_cls
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 import sys
@@ -69,54 +69,59 @@ def parse_options(input_args):
         else None
 
     parser.add_option("-o", "--outfile", type="string", dest="outfile",
-        default=None, action="callback", callback=check_writable_dir,
-        help="dump image to FILE", metavar="FILE")
+                      default=None, action="callback",
+                      callback=check_writable_dir, help="dump image to FILE",
+                      metavar="FILE")
 
     parser.add_option("-f", "--force", dest="force", default=False,
-        action="store_true", help="overwrite output files if they exist")
+                      action="store_true",
+                      help="overwrite output files if they exist")
 
     parser.add_option("-s", "--silent", dest="silent", default=False,
-        help="silent mode, only output errors", action="store_true")
+                      help="silent mode, only output errors",
+                      action="store_true")
 
     parser.add_option("-u", "--upload", dest="upload", type="string",
-        default=False, help="upload the image to pithos with name FILENAME",
-        metavar="FILENAME")
+                      default=False,
+                      help="upload the image to pithos with name FILENAME",
+                      metavar="FILENAME")
 
     parser.add_option("-r", "--register", dest="register", type="string",
-        default=False, help="register the image to ~okeanos as IMAGENAME",
-        metavar="IMAGENAME")
+                      default=False,
+                      help="register the image to ~okeanos as IMAGENAME",
+                      metavar="IMAGENAME")
 
     parser.add_option("-a", "--account", dest="account", type="string",
-        default=account,
-        help="Use this ACCOUNT when uploading/registring images [Default: %s]"\
-        % account)
+                      default=account, help="Use this ACCOUNT when "
+                      "uploading/registring images [Default: %s]" % account)
 
     parser.add_option("-m", "--metadata", dest="metadata", default=[],
-        help="Add custom KEY=VALUE metadata to the image", action="append",
-        metavar="KEY=VALUE")
+                      help="Add custom KEY=VALUE metadata to the image",
+                      action="append", metavar="KEY=VALUE")
 
     parser.add_option("-t", "--token", dest="token", type="string",
-        default=token,
-        help="Use this token when uploading/registring images [Default: %s]"\
-        % token)
+                      default=token, help="Use this token when "
+                      "uploading/registring images [Default: %s]" % token)
 
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
-        help="print the enabled and disabled system preparation operations "
-        "for this input media", action="store_true")
+                      help="print the enabled and disabled system preparation "
+                      "operations for this input media", action="store_true")
 
     parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
-        help="run SYSPREP operation on the input media",
-        action="append", metavar="SYSPREP")
+                      help="run SYSPREP operation on the input media",
+                      action="append", metavar="SYSPREP")
 
     parser.add_option("--disable-sysprep", dest="disabled_syspreps",
-        help="prevent SYSPREP operation from running on the input media",
-        default=[], action="append", metavar="SYSPREP")
+                      help="prevent SYSPREP operation from running on the "
+                      "input media", default=[], action="append",
+                      metavar="SYSPREP")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
-        help="don't perform system preperation", action="store_false")
+                      help="don't perform system preperation",
+                      action="store_false")
 
     parser.add_option("--no-shrink", dest="shrink", default=True,
-        help="don't shrink any partition", action="store_false")
+                      help="don't shrink any partition", action="store_false")
 
     options, args = parser.parse_args(input_args)
 
@@ -127,24 +132,25 @@ def parse_options(input_args):
     if not os.path.exists(options.source):
         raise FatalError("Input media `%s' is not accessible" % options.source)
 
-    if options.register and options.upload == False:
+    if options.register and not options.upload:
         raise FatalError("You also need to set -u when -r option is set")
 
     if options.upload and options.account is None:
         raise FatalError("Image uploading cannot be performed. No ~okeanos "
-        "account name is specified. Use -a to set an account name.")
+                         "account name is specified. Use -a to set an account "
+                         "name.")
 
     if options.upload and options.token is None:
         raise FatalError("Image uploading cannot be performed. No ~okeanos "
-        "token is specified. User -t to set a token.")
+                         "token is specified. User -t to set a token.")
 
     meta = {}
     for m in options.metadata:
         try:
             key, value = m.split('=', 1)
         except ValueError:
-            raise FatalError("Metadata option: `%s' is not in "\
-                                                    "KEY=VALUE format." % m)
+            raise FatalError("Metadata option: `%s' is not in "
+                             "KEY=VALUE format." % m)
         meta[key] = value
     options.metadata = meta
 
@@ -154,31 +160,31 @@ def parse_options(input_args):
 def image_creator():
     options = parse_options(sys.argv[1:])
 
-    if options.outfile is None and not options.upload \
-                                            and not options.print_sysprep:
-        raise FatalError("At least one of `-o', `-u' or `--print-sysprep' " \
-                                                                "must be set")
+    if options.outfile is None and not options.upload and not \
+            options.print_sysprep:
+        raise FatalError("At least one of `-o', `-u' or `--print-sysprep' "
+                         "must be set")
 
     if options.silent:
         out = SilentOutput()
     else:
         out = OutputWthProgress(True) if sys.stderr.isatty() else \
-                                                            SimpleOutput(False)
+            SimpleOutput(False)
 
     title = 'snf-image-creator %s' % version
     out.output(title)
     out.output('=' * len(title))
 
     if os.geteuid() != 0:
-        raise FatalError("You must run %s as root" \
-                        % os.path.basename(sys.argv[0]))
+        raise FatalError("You must run %s as root"
+                         % os.path.basename(sys.argv[0]))
 
     if not options.force and options.outfile is not None:
         for extension in ('', '.meta', '.md5sum'):
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
                 raise FatalError("Output file %s exists "
-                    "(use --force to overwrite it)." % filename)
+                                 "(use --force to overwrite it)." % filename)
 
     disk = Disk(options.source, out)
     try:
@@ -223,7 +229,7 @@ def image_creator():
         checksum = md5.compute(snapshot, size)
 
         metastring = '\n'.join(
-                ['%s=%s' % (key, value) for (key, value) in metadata.items()])
+            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
         metastring += '\n'
 
         if options.outfile is not None:
@@ -236,8 +242,8 @@ def image_creator():
 
             out.output('Dumping md5sum file...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
-                f.write('%s %s\n' % (checksum, \
-                                            os.path.basename(options.outfile)))
+                f.write('%s %s\n' % (checksum,
+                                     os.path.basename(options.outfile)))
             out.success('done')
 
         # Destroy the device. We only need the snapshot from now on
@@ -251,8 +257,10 @@ def image_creator():
                 kamaki = Kamaki(options.account, options.token, out)
                 with open(snapshot, 'rb') as f:
                     uploaded_obj = kamaki.upload(f, size, options.upload,
-                                            "(1/4)  Calculating block hashes",
-                                            "(2/4)  Uploading missing blocks")
+                                                 "(1/4)  Calculating block "
+                                                 "hashes",
+                                                 "(2/4)  Uploading missing "
+                                                 "blocks")
 
                 out.output("(3/4)  Uploading metadata file...", False)
                 kamaki.upload(StringIO.StringIO(metastring),
@@ -260,8 +268,8 @@ def image_creator():
                               remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
                 out.output("(4/4)  Uploading md5sum file...", False)
-                md5sumstr = '%s %s\n' % (
-                                    checksum, os.path.basename(options.upload))
+                md5sumstr = '%s %s\n' % (checksum,
+                                         os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
                               size=len(md5sumstr),
                               remote_path="%s.%s" % (options.upload, 'md5sum'))

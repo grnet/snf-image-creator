@@ -41,12 +41,12 @@ def os_cls(distro, osfamily):
     module = None
     classname = None
     try:
-        module = __import__("image_creator.os_type.%s"
-            % distro, fromlist=['image_creator.os_type'])
+        module = __import__("image_creator.os_type.%s" % distro,
+                            fromlist=['image_creator.os_type'])
         classname = distro.capitalize()
     except ImportError:
-        module = __import__("image_creator.os_type.%s"
-            % osfamily, fromlist=['image_creator.os_type'])
+        module = __import__("image_creator.os_type.%s" % osfamily,
+                            fromlist=['image_creator.os_type'])
         classname = osfamily.capitalize()
 
     return getattr(module, classname)
@@ -87,8 +87,8 @@ class OSBase(object):
 
     def list_syspreps(self):
 
-        objs = [getattr(self, name) for name in dir(self) \
-            if not name.startswith('_')]
+        objs = [getattr(self, name) for name in dir(self)
+                if not name.startswith('_')]
 
         return [x for x in objs if self._is_sysprep(x)]
 

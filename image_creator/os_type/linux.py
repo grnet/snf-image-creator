@@ -65,7 +65,7 @@ class Linux(Unix):
             self.out.output('Fixing acpid powerdown action')
 
         powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
-                                'shutdown -h now \"Power button pressed\"\n'
+                          'shutdown -h now "Power button pressed"\n'
 
         events_dir = '/etc/acpi/events'
         if not self.g.is_dir(events_dir):
@@ -95,22 +95,23 @@ class Linux(Unix):
                 if action:
                     if not self.g.is_file(action):
                         self.out.warn("Acpid action file: %s does not exist" %
-                                                                        action)
+                                      action)
                         return
-                    self.g.copy_file_to_file(action, \
-                      "%s.orig.snf-image-creator-%d" % (action, time.time()))
+                    self.g.copy_file_to_file(action,
+                                             "%s.orig.snf-image-creator-%d" %
+                                             (action, time.time()))
                     self.g.write(action, powerbtn_action)
                     return
                 else:
-                    self.out.warn(
-                            "Acpid event file %s does not contain and action")
+                    self.out.warn("Acpid event file %s does not contain and "
+                                  "action")
                     return
             elif event.strip() == ".*":
-                self.out.warn(
-                    "Found action `.*'. Don't know how to handle this. " \
-                    "Please edit `%s' image file manually to make the " \
-                    "system immediatelly shutdown when an power button acpi " \
-                    "event occures." % action.strip().split()[0])
+                self.out.warn("Found action `.*'. Don't know how to handle "
+                              "this. Please edit `%s' image file manually to "
+                              "make the system immediatelly shutdown when an "
+                              "power button acpi event occures." %
+                              action.strip().split()[0])
                 return
 
     @sysprep()
@@ -157,8 +158,8 @@ class Linux(Unix):
         """
 
         if print_header:
-            self.out.output(
-                    'Replacing fstab & grub non-persistent device appearences')
+            self.out.output("Replacing fstab & grub non-persistent device "
+                            "appearences")
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()

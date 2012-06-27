@@ -74,8 +74,8 @@ class Unix(OSBase):
         """Remove all user accounts with id greater than 1000"""
 
         if print_header:
-            self.out.output(
-                    'Removing all user accounts with id greater than 1000')
+            self.out.output("Removing all user accounts with id greater than "
+                            "1000")
 
         # Remove users from /etc/passwd
         passwd = []
@@ -123,8 +123,8 @@ class Unix(OSBase):
         """Remove all passwords and lock all user accounts"""
 
         if print_header:
-            self.out.output(
-                    'Cleaning up passwords & locking all user accounts')
+            self.out.output("Cleaning up passwords & locking all user "
+                            "accounts")
 
         shadow = []
 
@@ -182,8 +182,8 @@ class Unix(OSBase):
         homedirs = ['/root'] + self.ls('/home/')
 
         if print_header:
-            self.out.output('Removing sensitive user data under %s' % " ".
-                                                        join(homedirs))
+            self.out.output("Removing sensitive user data under %s" %
+                            " ".join(homedirs))
 
         for homedir in homedirs:
             for data in self.sensitive_userdata:

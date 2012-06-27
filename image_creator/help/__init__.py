@@ -34,6 +34,7 @@
 import sys
 import os
 
+
 def get_help_file(name):
     dirname = os.path.dirname(sys.modules[__name__].__file__)
     return "%s%s%s.rst" % (dirname, os.sep, name)
