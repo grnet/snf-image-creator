@@ -375,8 +375,9 @@ def kamaki_menu(session):
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
-            width=MENU_WIDTH, choices=choices, cancel="Back",
-            default_item=default_item, title="Image Registration Menu")
+            width=MENU_WIDTH, choices=choices, cancel="Back", height=13,
+            menu_height=5, default_item=default_item,
+            title="Image Registration Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
@@ -607,7 +608,7 @@ def sysprep(session):
     syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
 
     if len(syspreps) == 0:
-        d.msgbox("No system preparation task left to run!", width=MSGBOX_WIDTH)
+        d.msgbox("No system preparation task available to run!",                                 title="System Preperation", width=MSGBOX_WIDTH)
         return
 
     while 1:
@@ -677,7 +678,8 @@ def shrink(session):
     shrinked = 'shrinked' in session and session['shrinked']
 
     if shrinked:
-        d.msgbox("You have already shrinked your image!")
+        d.msgbox("The image is already shrinked!", title="Image Shrinking",
+                 width=MSGBOX_WIDTH)
         return True
 
     msg = "This operation will shrink the last partition of the image to " \

@@ -210,7 +210,7 @@ class DiskDevice(object):
             raise FatalError("No operating system found")
         if len(roots) > 1:
             raise FatalError("Multiple operating systems found."
-                             "We only support images with one filesystem.")
+                             "We only support images with one OS.")
         self.root = roots[0]
         self.guestfs_device = self.g.part_to_dev(self.root)
         self.meta['SIZE'] = self.g.blockdev_getsize64(self.guestfs_device)
