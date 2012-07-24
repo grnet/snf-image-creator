@@ -39,6 +39,7 @@ import os
 import textwrap
 import signal
 import StringIO
+import optparse
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError, MD5
@@ -608,7 +609,8 @@ def sysprep(session):
     syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
 
     if len(syspreps) == 0:
-        d.msgbox("No system preparation task available to run!",                                 title="System Preperation", width=MSGBOX_WIDTH)
+        d.msgbox("No system preparation task available to run!",
+                 title="System Preperation", width=MSGBOX_WIDTH)
         return
 
     while 1:
@@ -792,19 +794,26 @@ def select_file(d, media):
     return media
 
 
+def wizard(session):
+    pass
+
+
 def image_creator(d):
-    basename = os.path.basename(sys.argv[0])
-    usage = "Usage: %s [input_media]" % basename
-    if len(sys.argv) > 2:
-        sys.stderr.write("%s\n" % usage)
-        return 1
+
+    usage = "Usage: %prog [options] [<input_media>]"
+    parser = optparse.OptionParser(version=version, usage=usage)
+
+    options, args = parser.parse_args(sys.argv[1:])
+
+    if len(args) > 1:
+        parser.error("Wrong numver of arguments")
 
     d.setBackgroundTitle('snf-image-creator')
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root" % basename)
 
-    media = select_file(d, sys.argv[1] if len(sys.argv) == 2 else None)
+    media = select_file(d, args[0] if len(args) == 1 else None)
 
     out = GaugeOutput(d, "Initialization", "Initializing...")
     disk = Disk(media, out)
@@ -846,7 +855,16 @@ def image_creator(d):
                    "image_os": image_os,
                    "metadata": metadata}
 
-        main_menu(session)
+        msg = "Would you like to run the snf-image-creator wizard? " \
+              "Choose <Yes> if you want to run a wizards to assists " \
+              "you through the image creation process. Choose <No> to run " \
+              "the program in expert mode."
+
+        if d.yesno(msg, width=YESNO_WIDTH):
+            main_menu(session)
+        else:
+            wizard(session)
+
         d.infobox("Thank you for using snf-image-creator. Bye", width=53)
     finally:
         disk.cleanup()
