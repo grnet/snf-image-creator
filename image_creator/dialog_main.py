@@ -265,10 +265,10 @@ def upload_image(session):
         break
 
     out = GaugeOutput(d, "Image Upload", "Uploading...")
-    if 'checksum' not in session:
-        md5 = MD5(out)
-        session['checksum'] = md5.compute(session['snapshot'], size)
     try:
+        if 'checksum' not in session:
+            md5 = MD5(out)
+            session['checksum'] = md5.compute(session['snapshot'], size)
         kamaki = Kamaki(session['account'], session['token'], out)
         try:
             # Upload image file
@@ -364,6 +364,8 @@ def register_image(session):
 def kamaki_menu(session):
     d = session['dialog']
     default_item = "Account"
+
+    (session['account'], session['token']) = Kamaki.saved_credentials()
     while 1:
         account = session["account"] if "account" in session else "<none>"
         token = session["token"] if "token" in session else "<none>"
@@ -395,6 +397,7 @@ def kamaki_menu(session):
                     del session["account"]
             else:
                 session["account"] = answer.strip()
+                Kamaki.save_account(session['account'])
                 default_item = "Token"
         elif choice == "Token":
             default_item = "Token"
@@ -408,6 +411,7 @@ def kamaki_menu(session):
                 del session["token"]
             else:
                 session["token"] = answer.strip()
+                Kamaki.save_token(session['account'])
                 default_item = "Upload"
         elif choice == "Upload":
             if upload_image(session):
@@ -855,15 +859,27 @@ def image_creator(d):
                    "image_os": image_os,
                    "metadata": metadata}
 
-        msg = "Would you like to run the snf-image-creator wizard? " \
-              "Choose <Yes> if you want to run a wizards to assists " \
-              "you through the image creation process. Choose <No> to run " \
-              "the program in expert mode."
+        msg = "snf-image-creator detected a %s system on the input media. " \
+              "Would you like to run a wizards to assists you through the " \
+              "image creation process?\n\nChoose <Yes> to run the wizard, " \
+              "<No> to run the snf-image-creator in expert mode or press " \
+              "ESC to quit the program." \
+              % (dev.ostype if dev.ostype == dev.distro else "%s/%s" %
+                 (dev.distro, dev.ostype))
 
-        if d.yesno(msg, width=YESNO_WIDTH):
-            main_menu(session)
-        else:
-            wizard(session)
+        while True:
+            code = d.yesno(msg, width=YESNO_WIDTH, height=12)
+            if code == d.DIALOG_OK:
+                if wizard(session):
+                    break
+            elif code == d.DIALOG_CANCEL:
+                main_menu(session)
+                break
+
+            exit_msg = "You have not selected if you want to run " \
+                       "snf-image-creator in wizard or expert mode."
+            if confirm_exit(d, exit_msg):
+                break
 
         d.infobox("Thank you for using snf-image-creator. Bye", width=53)
     finally:

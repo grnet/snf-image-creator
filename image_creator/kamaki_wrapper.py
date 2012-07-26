@@ -44,6 +44,27 @@ CONTAINER = "images"
 
 
 class Kamaki(object):
+
+    @staticmethod
+    def saved_credentials():
+        config = Config()
+        account = config.get('storage', 'account')
+        token = config.get('global', 'token')
+
+        return (account, token)
+
+    @staticmethod
+    def save_account(account):
+        config = Config()
+        config.set('storage', 'account', account)
+        config.write()
+
+    @staticmethod
+    def save_token(token):
+        config = Config()
+        config.set('global', 'token', token)
+        config.write()
+
     def __init__(self, account, token, output):
         self.account = account
         self.token = token
@@ -53,13 +74,11 @@ class Kamaki(object):
 
         pithos_url = config.get('storage', 'url')
         self.container = CONTAINER
-        self.pithos_client = PithosClient(pithos_url, token, self.account,
+        self.pithos_client = PithosClient(pithos_url, self.token, self.account,
                                           self.container)
 
         image_url = config.get('image', 'url')
-        self.image_client = ImageClient(image_url, token)
-
-        self.uploaded_object = None
+        self.image_client = ImageClient(image_url, self.token)
 
     def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
         """Upload a file to pithos"""
