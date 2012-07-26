@@ -48,6 +48,7 @@ from image_creator.disk import Disk
 from image_creator.os_type import os_cls
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
+from image_creator.dialog_wizard import wizard
 
 MSGBOX_WIDTH = 60
 YESNO_WIDTH = 50
@@ -796,10 +797,6 @@ def select_file(d, media):
                 continue
 
     return media
-
-
-def wizard(session):
-    pass
 
 
 def image_creator(d):
