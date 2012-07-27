@@ -366,7 +366,14 @@ def kamaki_menu(session):
     d = session['dialog']
     default_item = "Account"
 
-    (session['account'], session['token']) = Kamaki.saved_credentials()
+    account = Kamaki.get_account()
+    if account:
+        session['account'] = account
+
+    token = Kamaki.get_token()
+    if token:
+        session['token'] = token
+
     while 1:
         account = session["account"] if "account" in session else "<none>"
         token = session["token"] if "token" in session else "<none>"
@@ -782,7 +789,7 @@ def select_file(d, media):
     while 1:
         if media is not None:
             if not os.path.exists(media):
-                d.msgbox("The file you choose does not exist",
+                d.msgbox("The file `%s' you choose does not exist." % media,
                          width=MSGBOX_WIDTH)
             else:
                 break
@@ -812,7 +819,7 @@ def image_creator(d):
     d.setBackgroundTitle('snf-image-creator')
 
     if os.geteuid() != 0:
-        raise FatalError("You must run %s as root" % basename)
+        raise FatalError("You must run %s as root" % parser.get_prog_name())
 
     media = select_file(d, args[0] if len(args) == 1 else None)
 
@@ -873,9 +880,7 @@ def image_creator(d):
                 main_menu(session)
                 break
 
-            exit_msg = "You have not selected if you want to run " \
-                       "snf-image-creator in wizard or expert mode."
-            if confirm_exit(d, exit_msg):
+            if confirm_exit(d):
                 break
 
         d.infobox("Thank you for using snf-image-creator. Bye", width=53)

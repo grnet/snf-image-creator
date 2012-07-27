@@ -46,12 +46,14 @@ CONTAINER = "images"
 class Kamaki(object):
 
     @staticmethod
-    def saved_credentials():
+    def get_account():
         config = Config()
-        account = config.get('storage', 'account')
-        token = config.get('global', 'token')
+        return config.get('storage', 'account')
 
-        return (account, token)
+    @staticmethod
+    def get_token():
+        config = Config()
+        return config.get('global', 'token')
 
     @staticmethod
     def save_account(account):
