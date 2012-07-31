@@ -871,6 +871,8 @@ def image_creator(d):
               % (dev.ostype if dev.ostype == dev.distro else "%s/%s" %
                  (dev.distro, dev.ostype))
 
+        update_background_title(session)
+
         while True:
             code = d.yesno(msg, width=YESNO_WIDTH, height=12)
             if code == d.DIALOG_OK:

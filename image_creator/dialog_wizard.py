@@ -35,79 +35,89 @@
 
 import dialog
 
+from image_creator.kamaki_wrapper import Kamaki
+
+PAGE_WIDTH = 70
+
+
+class Wizard:
+    def __init__(self, session):
+        self.session = session
+        self.pages = []
+        self.session['wizard'] = {}
+
+    def add_page(self, page):
+        self.pages.append(page)
+
+    def run(self):
+        idx = 0
+        while True:
+            idx += self.pages[idx].run(self.session, idx, len(self.pages))
+
+            if idx >= len(self.pages):
+                break
+
+            if idx < 0:
+                return False
+        return True
+
+
 class WizardPage:
     NEXT = 1
     PREV = -1
 
-    def __init__(self, session, title):
-        self.session = session
-        self.title = title
+    def __init__(self, name, message, **kargs):
+        self.name = name
+        self.message = message
+        self.title = kargs['title'] if 'title' in kargs else ''
+        self.init_value = kargs['init'] if 'init' in kargs else ''
+        self.allow_empty = kargs['empty'] if 'empty' in kargs else False
 
-    def run(self):
-        raise NotImplementedError
+    def run(self, session, index, total):
+        d = session['dialog']
+        w = session['wizard']
 
-
-class ImageName(WizardPage):
-    def run(self):
-        d = self.session['dialog']
-        w = self.session['wizard']
-        
-        init = w['ImageName'] if 'ImageName' in w else ""
-        while 1:
-            (code, answer) = d.inputbox("Please provide a name for the image:",
-                                        init=init, width=INPUTBOX_WIDTH,
-                                        ok_label="Next", cancel="Back",
-                                        title=self.title)
+        init = w[self.name] if self.name in w else self.init_value
+        while True:
+            (code, answer) = d.inputbox(self.message, init=init,
+                width=PAGE_WIDTH, ok_label="Next", cancel="Back",
+                title="(%d/%d) %s" % (index + 1, total, self.title))
 
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 return self.PREV
 
-            name = answer.strip()
-            if len(name) == 0:
-                d.msgbox("Image name cannot be empty", width=MSGBOX_WIDTH)
+            value = answer.strip()
+            if len(value) == 0 and self.allow_empty is False:
+                d.msgbox("The value cannot be empty!", width=PAGE_WIDTH)
                 continue
-            w['ImageName'] = name
-            break
-
-        return self.NEXT
-
-
-class ImageDescription(WizardPage):
-    def run(self):
-        d = self.session['dialog']
-        w = self.session['wizard']
-
-        init = w['ImageDescription'] if 'ImageDescription' in w else ""
-
-        while 1:
-            (code, answer) = d.inputbox(
-                                "Please provide a description for the image:",
-                                init=init, width=INPUTBOX_WIDTH,
-                                ok_label="Next", cancel="Back",
-                                title=self.title)
-
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                return self.PREV
-
-            name = answer.strip()
-            if len(filename) == 0:
-                # Description is allowed to be empty
-                del w['ImageDescription']
-            else:
-                w['ImageDescription'] = name
+            w[self.name] = value
             break
 
         return self.NEXT
 
 
 def wizard(session):
-    session['wizard'] = {}
 
-    steps = []
-    steps.append(ImageName(session, "(1/5) Image Name"))
-    steps.append(ImageDescription(session, "(2/5) Image Description"))
+    name = WizardPage("ImageName", "Please provide a name for the image:",
+                      title="Image Name", init=session['device'].distro)
+    descr = WizardPage("ImageDescription",
+        "Please provide a description for the image:",
+        title="Image Description", empty=True,
+        init=session['metadata']['DESCRIPTION'] if 'DESCRIPTION' in
+        session['metadata'] else '')
+    account = WizardPage("account",
+        "Please provide your ~okeanos account e-mail:",
+        title="~okeanos account information", init=Kamaki.get_account())
+    token = WizardPage("token",
+        "Please provide your ~okeanos account token:",
+        title="~okeanos account token", init=Kamaki.get_token())
 
-    return True
+    w = Wizard(session)
+    w.add_page(name)
+    w.add_page(descr)
+    w.add_page(account)
+    w.add_page(token)
 
+    return w.run()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
