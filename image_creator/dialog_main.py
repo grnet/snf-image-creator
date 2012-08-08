@@ -868,8 +868,8 @@ def image_creator(d):
               "image creation process?\n\nChoose <Yes> to run the wizard, " \
               "<No> to run the snf-image-creator in expert mode or press " \
               "ESC to quit the program." \
-              % (dev.ostype if dev.ostype == dev.distro else "%s/%s" %
-                 (dev.distro, dev.ostype))
+              % (dev.ostype if dev.ostype == dev.distro else "%s (%s)" %
+                 (dev.ostype, dev.distro))
 
         update_background_title(session)
 

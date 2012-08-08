@@ -34,8 +34,12 @@
 # or implied, of GRNET S.A.
 
 import dialog
+import time
+import StringIO
 
-from image_creator.kamaki_wrapper import Kamaki
+from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.util import MD5, FatalError
+from image_creator.output.cli import OutputWthProgress
 
 PAGE_WIDTH = 70
 
@@ -65,6 +69,13 @@ class Wizard:
 class WizardPage:
     NEXT = 1
     PREV = -1
+    EXIT = -255
+
+    def run(self, session, index, total):
+        raise NotImplementedError
+
+
+class WizardInputPage(WizardPage):
 
     def __init__(self, name, message, **kargs):
         self.name = name
@@ -96,28 +107,125 @@ class WizardPage:
         return self.NEXT
 
 
+class WizardYesNoPage(WizardPage):
+
+    def __init__(self, message, **kargs):
+        self.message = message
+        self.title = kargs['title'] if 'title' in kargs else ''
+
+    def run(self, session, index, total):
+        d = session['dialog']
+
+        while True:
+            ret = d.yesno(self.message, width=PAGE_WIDTH, ok_label="Yes",
+                    cancel="Back", extra_button=1, extra_label="Quit",
+                    title="(%d/%d) %s" % (index + 1, total, self.title))
+
+            if ret == d.DIALOG_CANCEL:
+                return self.PREV
+            elif ret == d.DIALOG_EXTRA:
+                return self.EXIT
+            elif ret == d.DIALOG_OK:
+                return self.NEXT
+
+
 def wizard(session):
 
-    name = WizardPage("ImageName", "Please provide a name for the image:",
+    name = WizardInputPage("ImageName", "Please provide a name for the image:",
                       title="Image Name", init=session['device'].distro)
-    descr = WizardPage("ImageDescription",
+    descr = WizardInputPage("ImageDescription",
         "Please provide a description for the image:",
         title="Image Description", empty=True,
         init=session['metadata']['DESCRIPTION'] if 'DESCRIPTION' in
         session['metadata'] else '')
-    account = WizardPage("account",
+    account = WizardInputPage("account",
         "Please provide your ~okeanos account e-mail:",
         title="~okeanos account information", init=Kamaki.get_account())
-    token = WizardPage("token",
+    token = WizardInputPage("token",
         "Please provide your ~okeanos account token:",
         title="~okeanos account token", init=Kamaki.get_token())
 
+    msg = "Do you wish to continue with the image extraction process?"
+    proceed = WizardYesNoPage(msg, title="Confirmation")
+
     w = Wizard(session)
+
     w.add_page(name)
     w.add_page(descr)
     w.add_page(account)
     w.add_page(token)
+    w.add_page(proceed)
 
-    return w.run()
+    if w.run():
+        extract_image(session)
+    else:
+        return False
+
+    return True
+
+
+def extract_image(session):
+    disk = session['disk']
+    device = session['device']
+    snapshot = session['snapshot']
+    image_os = session['image_os']
+    wizard = session['wizard']
+
+    out = OutputWthProgress(True)
+    #Initialize the output
+    disk.out = out
+    device.out = out
+    image_os.out = out
+
+    out.output()
+
+    #Sysprep
+    device.mount(False)
+    image_os.do_sysprep()
+    metadata = image_os.meta
+    device.umount()
+
+    #Shrink
+    size = device.shrink()
+
+    #MD5
+    md5 = MD5(out)
+    checksum = md5.compute(snapshot, size)
+
+    #Metadata
+    metastring = '\n'.join(
+        ['%s=%s' % (key, value) for (key, value) in metadata.items()])
+    metastring += '\n'
+
+    out.output()
+    try:
+        out.output("Uploading image to pithos:")
+        kamaki = Kamaki(wizard['account'], wizard['token'], out)
+
+        name = "%s-%s.diskdump" % (wizard['ImageName'],
+                                   time.strftime("%Y%m%d%H%M"))
+        pithos_file = ""
+        with open(snapshot, 'rb') as f:
+            pithos_file = kamaki.upload(f, size, name,
+                                         "(1/4)  Calculating block hashes",
+                                         "(2/4)  Uploading missing blocks")
+
+        out.output("(3/4)  Uploading metadata file...", False)
+        kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
+                      remote_path="%s.%s" % (name, 'meta'))
+        out.success('done')
+        out.output("(4/4)  Uploading md5sum file...", False)
+        md5sumstr = '%s %s\n' % (checksum, name)
+        kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
+                      remote_path="%s.%s" % (name, 'md5sum'))
+        out.success('done')
+        out.output()
+
+        out.output('Registring image to ~okeanos...', False)
+        kamaki.register(wizard['ImageName'], pithos_file, metadata)
+        out.success('done')
+        out.output()
+    except ClientError as e:
+        raise FatalError("Pithos client: %d %s" % (e.status, e.message))
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
