@@ -36,7 +36,7 @@
 from image_creator import __version__ as version
 from image_creator import util
 from image_creator.disk import Disk
-from image_creator.util import get_command, FatalError, MD5
+from image_creator.util import FatalError, MD5
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.os_type import os_cls
