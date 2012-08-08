@@ -177,7 +177,7 @@ def extract_image(session):
     device.out = out
     image_os.out = out
 
-    out.output()
+    out.clear()
 
     #Sysprep
     device.mount(False)

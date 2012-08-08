@@ -58,6 +58,12 @@ def success(msg, new_line=True, colored=True):
     output(msg, new_line, color)
 
 
+def clear():
+    #clear the page
+    if sys.stderr.isatty():
+        sys.stderr.write('\033[H\033[2J')
+
+
 class SilentOutput(Output):
     pass
 
@@ -77,6 +83,9 @@ class SimpleOutput(Output):
 
     def output(self, msg='', new_line=True):
         output(msg, new_line)
+
+    def clear(self):
+        clear()
 
 
 class OutputWthProgress(SimpleOutput):
