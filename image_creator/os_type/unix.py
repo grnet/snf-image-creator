@@ -51,6 +51,11 @@ class Unix(OSBase):
         super(Unix, self).__init__(rootdev, ghandler, output)
 
         self.meta["USERS"] = " ".join(self._get_passworded_users())
+        # Delete the USERS metadata if empty
+        if not len(self.meta['USERS']):
+            self.out.warn("No passworded users found!")
+            del self.meta['USERS']
+
 
     def _get_passworded_users(self):
         users = []
@@ -77,6 +82,9 @@ class Unix(OSBase):
             self.out.output("Removing all user accounts with id greater than "
                             "1000")
 
+        if 'USERS' not in self.meta:
+            return
+
         # Remove users from /etc/passwd
         passwd = []
         removed_users = {}
@@ -92,6 +100,11 @@ class Unix(OSBase):
                 passwd.append(':'.join(fields))
 
         self.meta['USERS'] = " ".join(metadata_users)
+
+        # Delete the USERS metadata if empty
+        if not len(self.meta['USERS']):
+            del self.meta['USERS']
+
         self.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
 
         # Remove the corresponding /etc/shadow entries
