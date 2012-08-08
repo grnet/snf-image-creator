@@ -219,7 +219,7 @@ def image_creator():
         metadata = image_os.meta
         dev.umount()
 
-        size = options.shrink and dev.shrink() or dev.meta['SIZE']
+        size = options.shrink and dev.shrink() or dev.size
         metadata.update(dev.meta)
 
         # Add command line metadata to the collected ones...

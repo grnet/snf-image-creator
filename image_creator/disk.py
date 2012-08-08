@@ -168,6 +168,7 @@ class DiskDevice(object):
         self.bootable = bootable
         self.progress_bar = None
         self.guestfs_device = None
+        self.size = 0
         self.meta = {}
 
         self.g = guestfs.GuestFS()
@@ -213,7 +214,7 @@ class DiskDevice(object):
                              "We only support images with one OS.")
         self.root = roots[0]
         self.guestfs_device = self.g.part_to_dev(self.root)
-        self.meta['SIZE'] = self.g.blockdev_getsize64(self.guestfs_device)
+        self.size = self.g.blockdev_getsize64(self.guestfs_device)
         self.meta['PARTITION_TABLE'] = \
             self.g.part_get_parttype(self.guestfs_device)
 
@@ -343,12 +344,12 @@ class DiskDevice(object):
             # Most disk manipulation programs leave 2048 sectors after the last
             # partition
             new_size = last_part['part_end'] + 1 + 2048 * sector_size
-            self.meta['SIZE'] = min(self.meta['SIZE'], new_size)
+            self.size = min(self.size, new_size)
             break
 
         if not re.match("ext[234]", fstype):
             self.out.warn("Don't know how to resize %s partitions." % fstype)
-            return self.meta['SIZE']
+            return self.size
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
         self.g.e2fsck_f(part_dev)
@@ -405,19 +406,17 @@ class DiskDevice(object):
 
         new_size = (end + 1) * sector_size
 
-        assert (new_size <= self.meta['SIZE'])
+        assert (new_size <= self.size)
 
         if self.meta['PARTITION_TABLE'] == 'gpt':
             ptable = GPTPartitionTable(self.real_device)
-            self.meta['SIZE'] = ptable.shrink(new_size, self.meta['SIZE'])
+            self.size = ptable.shrink(new_size, self.size)
         else:
-            self.meta['SIZE'] = min(new_size + 2048 * sector_size,
-                                    self.meta['SIZE'])
+            self.size = min(new_size + 2048 * sector_size, self.size)
 
-        self.out.success("new size is %dMB" %
-                         ((self.meta['SIZE'] + MB - 1) // MB))
+        self.out.success("new size is %dMB" % ((self.size + MB - 1) // MB))
 
-        return self.meta['SIZE']
+        return self.size
 
     def dump(self, outfile):
         """Dumps the content of device into a file.
@@ -427,7 +426,7 @@ class DiskDevice(object):
         """
         MB = 2 ** 20
         blocksize = 4 * MB  # 4MB
-        size = self.meta['SIZE']
+        size = self.size
         progr_size = (size + MB - 1) // MB  # in MB
         progressbar = self.out.Progress(progr_size, "Dumping image file", 'mb')
 

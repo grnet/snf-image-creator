@@ -146,7 +146,7 @@ def update_background_title(session):
 
     MB = 2 ** 20
 
-    size = (dev.meta['SIZE'] + MB - 1) // MB
+    size = (dev.size + MB - 1) // MB
     shrinked = 'shrinked' in session and session['shrinked']
     postfix = " (shrinked)" if shrinked else ''
 
@@ -205,7 +205,7 @@ def extract_image(session):
         try:
             dev = session['device']
             if "checksum" not in session:
-                size = dev.meta['SIZE']
+                size = dev.size
                 md5 = MD5(out)
                 session['checksum'] = md5.compute(session['snapshot'], size)
 
@@ -237,7 +237,7 @@ def extract_image(session):
 
 def upload_image(session):
     d = session["dialog"]
-    size = session['device'].meta['SIZE']
+    size = session['device'].size
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos login username before you "

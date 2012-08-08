@@ -187,6 +187,7 @@ def extract_image(session):
 
     #Shrink
     size = device.shrink()
+    metadata.update(device.meta)
 
     #MD5
     md5 = MD5(out)
