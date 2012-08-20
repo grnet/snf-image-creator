@@ -44,6 +44,10 @@ from image_creator.output.cli import OutputWthProgress
 PAGE_WIDTH = 70
 
 
+class WizardExit(Exception):
+    pass
+
+
 class Wizard:
     def __init__(self, session):
         self.session = session
@@ -56,7 +60,10 @@ class Wizard:
     def run(self):
         idx = 0
         while True:
-            idx += self.pages[idx].run(self.session, idx, len(self.pages))
+            try:
+                idx += self.pages[idx].run(self.session, idx, len(self.pages))
+            except WizardExit:
+                return False
 
             if idx >= len(self.pages):
                 break
@@ -69,7 +76,6 @@ class Wizard:
 class WizardPage:
     NEXT = 1
     PREV = -1
-    EXIT = -255
 
     def run(self, session, index, total):
         raise NotImplementedError
@@ -124,7 +130,7 @@ class WizardYesNoPage(WizardPage):
             if ret == d.DIALOG_CANCEL:
                 return self.PREV
             elif ret == d.DIALOG_EXTRA:
-                return self.EXIT
+                raise WizardExit
             elif ret == d.DIALOG_OK:
                 return self.NEXT
 
