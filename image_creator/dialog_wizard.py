@@ -81,6 +81,41 @@ class WizardPage:
         raise NotImplementedError
 
 
+class WizardRadioListPage(WizardPage):
+
+    def __init__(self, name, message, choices, **kargs):
+        self.name = name
+        self.message = message
+        self.choices = choices
+        self.title = kargs['title'] if 'title' in kargs else ''
+        self.default = kargs['default'] if 'default' in kargs else 0
+
+    def run(self, session, index, total):
+        d = session['dialog']
+        w = session['wizard']
+
+        choices = []
+        for i in range(len(self.choices)):
+            default = 1 if i == self.default else 0
+            choices.append((self.choices[i][0], self.choices[i][1], default))
+
+        while True:
+            (code, answer) = d.radiolist(self.message, width=PAGE_WIDTH,
+                ok_label="Next", cancel="Back", choices=choices,
+                title="(%d/%d) %s" % (index + 1, total, self.title))
+
+            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                return self.PREV
+
+            for i in range(len(choices)):
+                if self.choices[i] == answer:
+                    self.default = i
+                    w[name] = i
+                    break
+
+            return self.NEXT
+
+
 class WizardInputPage(WizardPage):
 
     def __init__(self, name, message, **kargs):
@@ -171,6 +206,7 @@ def wizard(session):
 
 
 def extract_image(session):
+    d = session['dialog']
     disk = session['disk']
     device = session['device']
     snapshot = session['snapshot']
@@ -199,7 +235,7 @@ def extract_image(session):
 
     #MD5
     md5 = MD5(out)
-    checksum = md5.compute(snapshot, size)
+    session['checksum'] = md5.compute(snapshot, size)
 
     #Metadata
     metastring = '\n'.join(
@@ -224,7 +260,7 @@ def extract_image(session):
                       remote_path="%s.%s" % (name, 'meta'))
         out.success('done')
         out.output("(4/4)  Uploading md5sum file...", False)
-        md5sumstr = '%s %s\n' % (checksum, name)
+        md5sumstr = '%s %s\n' % (session['checksum'], name)
         kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                       remote_path="%s.%s" % (name, 'md5sum'))
         out.success('done')
@@ -234,7 +270,15 @@ def extract_image(session):
         kamaki.register(wizard['ImageName'], pithos_file, metadata)
         out.success('done')
         out.output()
+
     except ClientError as e:
         raise FatalError("Pithos client: %d %s" % (e.status, e.message))
+
+    msg = "The image was successfully uploaded and registered to " \
+          "~okeanos. Would you like to keep a local copy of the image?"
+    if not d.yesno(msg, width=PAGE_WIDTH):
+        getattr(__import__("image_creator.dialog_main",
+                fromlist=['image_creator']), "extract_image")(session)
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
