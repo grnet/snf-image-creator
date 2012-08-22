@@ -56,7 +56,6 @@ class Unix(OSBase):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
 
-
     def _get_passworded_users(self):
         users = []
         regexp = re.compile('(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
