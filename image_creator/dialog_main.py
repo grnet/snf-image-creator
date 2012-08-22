@@ -43,6 +43,8 @@ import optparse
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError, MD5
+from image_creator.output import Output, CombinedOutput
+from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.disk import Disk
 from image_creator.os_type import os_cls
@@ -201,33 +203,37 @@ def extract_image(session):
                        "\n".join(overwrite), width=YESNO_WIDTH):
                 continue
 
-        out = GaugeOutput(d, "Image Extraction", "Extracting image...")
+        gauge = GaugeOutput(d, "Image Extraction", "Extracting image...")
         try:
             dev = session['device']
-            if "checksum" not in session:
-                size = dev.size
-                md5 = MD5(out)
-                session['checksum'] = md5.compute(session['snapshot'], size)
+            out = dev.out
+            out.add(gauge)
+            try:
+                if "checksum" not in session:
+                    size = dev.size
+                    md5 = MD5(out)
+                    session['checksum'] = md5.compute(session['snapshot'],
+                                                      size)
 
-            # Extract image file
-            dev.out = out
-            dev.dump(path)
+                # Extract image file
+                dev.dump(path)
 
-            # Extract metadata file
-            out.output("Extracting metadata file...")
-            with open('%s.meta' % path, 'w') as f:
-                f.write(extract_metadata_string(session))
-            out.success('done')
+                # Extract metadata file
+                out.output("Extracting metadata file...")
+                with open('%s.meta' % path, 'w') as f:
+                    f.write(extract_metadata_string(session))
+                out.success('done')
 
-            # Extract md5sum file
-            out.output("Extracting md5sum file...")
-            md5str = "%s %s\n" % (session['checksum'], name)
-            with open('%s.md5sum' % path, 'w') as f:
-                f.write(md5str)
-            out.success("done")
-
+                # Extract md5sum file
+                out.output("Extracting md5sum file...")
+                md5str = "%s %s\n" % (session['checksum'], name)
+                with open('%s.md5sum' % path, 'w') as f:
+                    f.write(md5str)
+                out.success("done")
+            finally:
+                out.remove(gauge)
         finally:
-            out.cleanup()
+            gauge.cleanup()
         d.msgbox("Image file `%s' was successfully extracted!" % path,
                  width=MSGBOX_WIDTH)
         break
@@ -237,7 +243,8 @@ def extract_image(session):
 
 def upload_image(session):
     d = session["dialog"]
-    size = session['device'].size
+    dev = session['device']
+    size = dev.size
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos login username before you "
@@ -265,40 +272,47 @@ def upload_image(session):
 
         break
 
-    out = GaugeOutput(d, "Image Upload", "Uploading...")
+    gauge = GaugeOutput(d, "Image Upload", "Uploading...")
     try:
-        if 'checksum' not in session:
-            md5 = MD5(out)
-            session['checksum'] = md5.compute(session['snapshot'], size)
-        kamaki = Kamaki(session['account'], session['token'], out)
+        out = dev.out
+        out.add(gauge)
         try:
-            # Upload image file
-            with open(session['snapshot'], 'rb') as f:
-                session["upload"] = kamaki.upload(f, size, filename,
-                                                  "Calculating block hashes",
-                                                  "Uploading missing blocks")
-            # Upload metadata file
-            out.output("Uploading metadata file...")
-            metastring = extract_metadata_string(session)
-            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
-                          remote_path="%s.meta" % filename)
-            out.success("done")
+            if 'checksum' not in session:
+                md5 = MD5(out)
+                session['checksum'] = md5.compute(session['snapshot'], size)
 
-            # Upload md5sum file
-            out.output("Uploading md5sum file...")
-            md5str = "%s %s\n" % (session['checksum'], filename)
-            kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
-                          remote_path="%s.md5sum" % filename)
-            out.success("done")
+            kamaki = Kamaki(session['account'], session['token'], out)
+            try:
+                # Upload image file
+                with open(session['snapshot'], 'rb') as f:
+                    session["upload"] = kamaki.upload(f, size, filename,
+                                                    "Calculating block hashes",
+                                                    "Uploading missing blocks")
+                # Upload metadata file
+                out.output("Uploading metadata file...")
+                metastring = extract_metadata_string(session)
+                kamaki.upload(StringIO.StringIO(metastring),
+                              size=len(metastring),
+                              remote_path="%s.meta" % filename)
+                out.success("done")
 
-        except ClientError as e:
-            d.msgbox("Error in pithos+ client: %s" % e.message,
-                     title="Pithos+ Client Error", width=MSGBOX_WIDTH)
-            if 'upload' in session:
-                del session['upload']
-            return False
+                # Upload md5sum file
+                out.output("Uploading md5sum file...")
+                md5str = "%s %s\n" % (session['checksum'], filename)
+                kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
+                              remote_path="%s.md5sum" % filename)
+                out.success("done")
+
+            except ClientError as e:
+                d.msgbox("Error in pithos+ client: %s" % e.message,
+                         title="Pithos+ Client Error", width=MSGBOX_WIDTH)
+                if 'upload' in session:
+                    del session['upload']
+                return False
+        finally:
+            out.remove(gauge)
     finally:
-        out.cleanup()
+        gauge.cleanup()
 
     d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename,
              width=MSGBOX_WIDTH)
@@ -308,6 +322,7 @@ def upload_image(session):
 
 def register_image(session):
     d = session["dialog"]
+    dev = session['device']
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos login username before you "
@@ -344,18 +359,23 @@ def register_image(session):
         for key in session['task_metadata']:
             metadata[key] = 'yes'
 
-    out = GaugeOutput(d, "Image Registration", "Registrating image...")
+    gauge = GaugeOutput(d, "Image Registration", "Registrating image...")
     try:
-        out.output("Registring image to cyclades...")
+        out = dev.out
+        out.add(gauge)
         try:
-            kamaki = Kamaki(session['account'], session['token'], out)
-            kamaki.register(name, session['upload'], metadata)
-            out.success('done')
-        except ClientError as e:
-            d.msgbox("Error in pithos+ client: %s" % e.message)
-            return False
+            out.output("Registring image to cyclades...")
+            try:
+                kamaki = Kamaki(session['account'], session['token'], out)
+                kamaki.register(name, session['upload'], metadata)
+                out.success('done')
+            except ClientError as e:
+                d.msgbox("Error in pithos+ client: %s" % e.message)
+                return False
+        finally:
+            out.remove(gauge)
     finally:
-        out.cleanup()
+        gauge.cleanup()
 
     d.msgbox("Image `%s' was successfully registered to cyclades as `%s'" %
              (session['upload'], name), width=MSGBOX_WIDTH)
@@ -657,30 +677,31 @@ def sysprep(session):
                 else:
                     image_os.disable_sysprep(syspreps[i])
 
-            out = InfoBoxOutput(d, "Image Configuration")
+            infobox = InfoBoxOutput(d, "Image Configuration")
             try:
                 dev = session['device']
-                dev.out = out
-                dev.mount(readonly=False)
+                dev.out.add(infobox)
                 try:
-                    # The checksum is invalid. We have mounted the image rw
-                    if 'checksum' in session:
-                        del session['checksum']
+                    dev.mount(readonly=False)
+                    try:
+                        # The checksum is invalid. We have mounted the image rw
+                        if 'checksum' in session:
+                            del session['checksum']
 
-                    # Monitor the metadata changes during syspreps
-                    with metadata_monitor(session, image_os.meta):
-                        image_os.out = out
-                        image_os.do_sysprep()
-                        image_os.out.finalize()
+                        # Monitor the metadata changes during syspreps
+                        with metadata_monitor(session, image_os.meta):
+                            image_os.do_sysprep()
+                            infobox.finalize()
 
-                    # Disable syspreps that have ran
-                    for sysprep in session['exec_syspreps']:
-                        image_os.disable_sysprep(sysprep)
-
+                        # Disable syspreps that have ran
+                        for sysprep in session['exec_syspreps']:
+                            image_os.disable_sysprep(sysprep)
+                    finally:
+                        dev.umount()
                 finally:
-                    dev.umount()
+                    dev.out.remove(infobox)
             finally:
-                out.cleanup()
+                infobox.cleanup()
             break
     return True
 
@@ -705,9 +726,13 @@ def shrink(session):
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=70,
                    height=12, title="Image Shrinking"):
         with metadata_monitor(session, dev.meta):
-            dev.out = InfoBoxOutput(d, "Image Shrinking", height=4)
-            dev.shrink()
-            dev.out.finalize()
+            infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
+            dev.out.add(infobox)
+            try:
+                dev.shrink()
+                infobox.finalize()
+            finally:
+                dev.out.remove(infobox)
 
         session['shrinked'] = True
         update_background_title(session)
@@ -784,50 +809,16 @@ def main_menu(session):
             actions[choice](session)
 
 
-def select_file(d, media):
-    root = os.sep
-    while 1:
-        if media is not None:
-            if not os.path.exists(media):
-                d.msgbox("The file `%s' you choose does not exist." % media,
-                         width=MSGBOX_WIDTH)
-            else:
-                break
-
-        (code, media) = d.fselect(root, 10, 50,
-                                  title="Please select input media")
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            if confirm_exit(d, "You canceled the media selection dialog box."):
-                sys.exit(0)
-            else:
-                media = None
-                continue
-
-    return media
-
-
-def image_creator(d):
-
-    usage = "Usage: %prog [options] [<input_media>]"
-    parser = optparse.OptionParser(version=version, usage=usage)
-
-    options, args = parser.parse_args(sys.argv[1:])
-
-    if len(args) > 1:
-        parser.error("Wrong numver of arguments")
+def image_creator(d, media, out):
 
     d.setBackgroundTitle('snf-image-creator')
 
-    if os.geteuid() != 0:
-        raise FatalError("You must run %s as root" % parser.get_prog_name())
-
-    media = select_file(d, args[0] if len(args) == 1 else None)
-
-    out = GaugeOutput(d, "Initialization", "Initializing...")
+    gauge = GaugeOutput(d, "Initialization", "Initializing...")
+    out.add(gauge)
     disk = Disk(media, out)
 
     def signal_handler(signum, frame):
-        out.cleanup()
+        gauge.cleanup()
         disk.cleanup()
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -849,12 +840,13 @@ def image_creator(d):
             metadata[str(key)] = str(value)
 
         out.success("done")
-        out.cleanup()
+        gauge.cleanup()
+        out.remove(gauge)
 
-        # Make sure the signal handler does not call out.cleanup again
+        # Make sure the signal handler does not call gauge.cleanup again
         def dummy(self):
             pass
-        out.cleanup = type(GaugeOutput.cleanup)(dummy, out, GaugeOutput)
+        gauge.cleanup = type(GaugeOutput.cleanup)(dummy, gauge, GaugeOutput)
 
         session = {"dialog": d,
                    "disk": disk,
@@ -892,6 +884,28 @@ def image_creator(d):
     return 0
 
 
+def select_file(d, media):
+    root = os.sep
+    while 1:
+        if media is not None:
+            if not os.path.exists(media):
+                d.msgbox("The file `%s' you choose does not exist." % media,
+                         width=MSGBOX_WIDTH)
+            else:
+                break
+
+        (code, media) = d.fselect(root, 10, 50,
+                                  title="Please select input media")
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            if confirm_exit(d, "You canceled the media selection dialog box."):
+                sys.exit(0)
+            else:
+                media = None
+                continue
+
+    return media
+
+
 def main():
 
     d = dialog.Dialog(dialog="dialog")
@@ -903,16 +917,53 @@ def main():
     dialog._common_args_syntax["extra_label"] = \
         lambda string: ("--extra-label", string)
 
-    while 1:
-        try:
+    usage = "Usage: %prog [options] [<input_media>]"
+    parser = optparse.OptionParser(version=version, usage=usage)
+    parser.add_option("-l", "--logfile", type="string", dest="logfile",
+                      default=None, help="log all messages to FILE",
+                      metavar="FILE")
+
+    options, args = parser.parse_args(sys.argv[1:])
+
+    if len(args) > 1:
+        parser.error("Wrong number of arguments")
+
+    d.setBackgroundTitle('snf-image-creator')
+
+    try:
+        if os.geteuid() != 0:
+            raise FatalError("You must run %s as root" % \
+                             parser.get_prog_name())
+
+        media = select_file(d, args[0] if len(args) == 1 else None)
+
+        logfile = None
+        if options.logfile is not None:
             try:
-                ret = image_creator(d)
-                sys.exit(ret)
-            except FatalError as e:
-                msg = textwrap.fill(str(e), width=70)
-                d.infobox(msg, width=INFOBOX_WIDTH, title="Fatal Error")
-                sys.exit(1)
-        except Reset:
-            continue
+                logfile = open(options.logfile, 'w')
+            except IOError as e:
+                raise FatalError(
+                    "Unable to open logfile `%s' for writing. Reason: %s" % \
+                    (options.logfile, e.strerror))
+        try:
+            log = SimpleOutput(False, logfile) if logfile is not None \
+                                               else Output()
+            while 1:
+                try:
+                    out = CombinedOutput([log])
+                    out.output("Starting %s version %s..." % \
+                               (parser.get_prog_name(), version))
+                    ret = image_creator(d, media, out)
+                    sys.exit(ret)
+                except Reset:
+                    log.output("Resetting everything...")
+                    continue
+        finally:
+            if logfile is not None:
+                logfile.close()
+    except FatalError as e:
+        msg = textwrap.fill(str(e), width=70)
+        d.infobox(msg, width=INFOBOX_WIDTH, title="Fatal Error")
+        sys.exit(1)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -38,30 +38,30 @@ from colors import red, green, yellow
 from progress.bar import Bar
 
 
-def output(msg='', new_line=True, decorate=lambda x: x):
+def output(msg, new_line, decorate, stream):
     nl = "\n" if new_line else ' '
-    sys.stderr.write(decorate(msg) + nl)
+    stream.write(decorate(msg) + nl)
 
 
-def error(msg, new_line=True, colored=True):
+def error(msg, new_line, colored, stream):
     color = red if colored else lambda x: x
-    output("Error: %s" % msg, new_line, color)
+    output("Error: %s" % msg, new_line, color, stream)
 
 
-def warn(msg, new_line=True, colored=True):
+def warn(msg, new_line, colored, stream):
     color = yellow if colored else lambda x: x
-    output("Warning: %s" % msg, new_line, color)
+    output("Warning: %s" % msg, new_line, color, stream)
 
 
-def success(msg, new_line=True, colored=True):
+def success(msg, new_line, colored, stream):
     color = green if colored else lambda x: x
-    output(msg, new_line, color)
+    output(msg, new_line, color, stream)
 
 
-def clear():
+def clear(stream):
     #clear the page
-    if sys.stderr.isatty():
-        sys.stderr.write('\033[H\033[2J')
+    if stream.isatty():
+        stream.write('\033[H\033[2J')
 
 
 class SilentOutput(Output):
@@ -69,23 +69,24 @@ class SilentOutput(Output):
 
 
 class SimpleOutput(Output):
-    def __init__(self, colored=True):
+    def __init__(self, colored=True, stream=None):
         self.colored = colored
+        self.stream = sys.stderr if stream is None else stream
 
     def error(self, msg, new_line=True):
-        error(msg, new_line, self.colored)
+        error(msg, new_line, self.colored, self.stream)
 
     def warn(self, msg, new_line=True):
-        warn(msg, new_line, self.colored)
+        warn(msg, new_line, self.colored, self.stream)
 
     def success(self, msg, new_line=True):
-        success(msg, new_line, self.colored)
+        success(msg, new_line, self.colored, self.stream)
 
     def output(self, msg='', new_line=True):
-        output(msg, new_line)
+        output(msg, new_line, lambda x: x, self.stream)
 
     def clear(self):
-        clear()
+        clear(self.stream)
 
 
 class OutputWthProgress(SimpleOutput):
@@ -116,6 +117,5 @@ class OutputWthProgress(SimpleOutput):
         def success(self, result):
             self.output.output("\r%s...\033[K" % self.title, False)
             self.output.success(result)
-
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

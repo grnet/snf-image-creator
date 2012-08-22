@@ -85,4 +85,59 @@ class Output(object):
             yield
         return generator
 
+
+class CombinedOutput(Output):
+
+    def __init__(self, outputs=[]):
+        self._outputs = outputs
+
+    def add(self, output):
+        self._outputs.append(output)
+
+    def remove(self, output):
+        self._outputs.remove(output)
+
+    def error(self, msg, new_line=True):
+        for out in self._outputs:
+            out.error(msg, new_line)
+
+    def warn(self, msg, new_line=True):
+        for out in self._outputs:
+            out.warn(msg, new_line)
+
+    def success(self, msg, new_line=True):
+        for out in self._outputs:
+            out.success(msg, new_line)
+
+    def output(self, msg='', new_line=True):
+        for out in self._outputs:
+            out.output(msg, new_line)
+
+    def cleanup(self):
+        for out in self._outputs:
+            out.cleanup()
+
+    def clear(self):
+        for out in self._outputs:
+            out.clear()
+
+    class _Progress(object):
+
+        def __init__(self, size, title, bar_type='default'):
+            self.progresses = []
+            for out in self.output._outputs:
+                self.progresses.append(out.Progress(size, title, bar_type))
+
+        def goto(self, dest):
+            for progress in self.progresses:
+                progress.goto(dest)
+
+        def next(self):
+            for progress in self.progresses:
+                progress.next()
+
+        def success(self, result):
+            for progress in self.progresses:
+                progress.success(result)
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

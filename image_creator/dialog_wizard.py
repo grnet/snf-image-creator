@@ -213,66 +213,66 @@ def extract_image(session):
     image_os = session['image_os']
     wizard = session['wizard']
 
-    out = OutputWthProgress(True)
-    #Initialize the output
-    disk.out = out
-    device.out = out
-    image_os.out = out
-
-    out.clear()
-
-    #Sysprep
-    device.mount(False)
-    image_os.do_sysprep()
-    metadata = image_os.meta
-    device.umount()
-
-    #Shrink
-    size = device.shrink()
-
-    metadata.update(device.meta)
-    metadata['DESCRIPTION'] = wizard['ImageDescription']
-
-    #MD5
-    md5 = MD5(out)
-    session['checksum'] = md5.compute(snapshot, size)
-
-    #Metadata
-    metastring = '\n'.join(
-        ['%s=%s' % (key, value) for (key, value) in metadata.items()])
-    metastring += '\n'
-
-    out.output()
+    with_progress = OutputWthProgress(True)
+    out = disk.out
+    out.add(with_progress)
     try:
-        out.output("Uploading image to pithos:")
-        kamaki = Kamaki(wizard['account'], wizard['token'], out)
+        out.clear()
 
-        name = "%s-%s.diskdump" % (wizard['ImageName'],
-                                   time.strftime("%Y%m%d%H%M"))
-        pithos_file = ""
-        with open(snapshot, 'rb') as f:
-            pithos_file = kamaki.upload(f, size, name,
-                                         "(1/4)  Calculating block hashes",
-                                         "(2/4)  Uploading missing blocks")
+        #Sysprep
+        device.mount(False)
+        image_os.do_sysprep()
+        metadata = image_os.meta
+        device.umount()
 
-        out.output("(3/4)  Uploading metadata file...", False)
-        kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
-                      remote_path="%s.%s" % (name, 'meta'))
-        out.success('done')
-        out.output("(4/4)  Uploading md5sum file...", False)
-        md5sumstr = '%s %s\n' % (session['checksum'], name)
-        kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
-                      remote_path="%s.%s" % (name, 'md5sum'))
-        out.success('done')
+        #Shrink
+        size = device.shrink()
+
+        metadata.update(device.meta)
+        metadata['DESCRIPTION'] = wizard['ImageDescription']
+
+        #MD5
+        md5 = MD5(out)
+        session['checksum'] = md5.compute(snapshot, size)
+
+        #Metadata
+        metastring = '\n'.join(
+            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
+        metastring += '\n'
+
         out.output()
+        try:
+            out.output("Uploading image to pithos:")
+            kamaki = Kamaki(wizard['account'], wizard['token'], out)
 
-        out.output('Registring image to ~okeanos...', False)
-        kamaki.register(wizard['ImageName'], pithos_file, metadata)
-        out.success('done')
-        out.output()
+            name = "%s-%s.diskdump" % (wizard['ImageName'],
+                                       time.strftime("%Y%m%d%H%M"))
+            pithos_file = ""
+            with open(snapshot, 'rb') as f:
+                pithos_file = kamaki.upload(f, size, name,
+                                             "(1/4)  Calculating block hashes",
+                                             "(2/4)  Uploading missing blocks")
 
-    except ClientError as e:
-        raise FatalError("Pithos client: %d %s" % (e.status, e.message))
+            out.output("(3/4)  Uploading metadata file...", False)
+            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
+                          remote_path="%s.%s" % (name, 'meta'))
+            out.success('done')
+            out.output("(4/4)  Uploading md5sum file...", False)
+            md5sumstr = '%s %s\n' % (session['checksum'], name)
+            kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
+                          remote_path="%s.%s" % (name, 'md5sum'))
+            out.success('done')
+            out.output()
+
+            out.output('Registring image to ~okeanos...', False)
+            kamaki.register(wizard['ImageName'], pithos_file, metadata)
+            out.success('done')
+            out.output()
+
+        except ClientError as e:
+            raise FatalError("Pithos client: %d %s" % (e.status, e.message))
+    finally:
+        out.remove(with_progress)
 
     msg = "The image was successfully uploaded and registered to " \
           "~okeanos. Would you like to keep a local copy of the image?"
