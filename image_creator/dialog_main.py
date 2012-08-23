@@ -857,9 +857,9 @@ def image_creator(d, media, out):
                    "metadata": metadata}
 
         msg = "snf-image-creator detected a %s system on the input media. " \
-              "Would you like to run a wizards to assists you through the " \
-              "image creation process?\n\nChoose <Yes> to run the wizard, " \
-              "<No> to run the snf-image-creator in expert mode or press " \
+              "Would you like to run a wizard to assist you through the " \
+              "image creation process?\n\nChoose <Wizard> to run the wizard," \
+              " <Expert> to run the snf-image-creator in expert mode or press " \
               "ESC to quit the program." \
               % (dev.ostype if dev.ostype == dev.distro else "%s (%s)" %
                  (dev.ostype, dev.distro))
@@ -867,7 +867,8 @@ def image_creator(d, media, out):
         update_background_title(session)
 
         while True:
-            code = d.yesno(msg, width=YESNO_WIDTH, height=12)
+            code = d.yesno(msg, width=YESNO_WIDTH, height=12,
+                           yes_label="Wizard", no_label="Expert")
             if code == d.DIALOG_OK:
                 if wizard(session):
                     break
@@ -917,6 +918,13 @@ def main():
 
     dialog._common_args_syntax["extra_label"] = \
         lambda string: ("--extra-label", string)
+
+    # Allow yes-no label overwriting
+    dialog._common_args_syntax["yes_label"] = \
+        lambda string: ("--yes-label", string)
+
+    dialog._common_args_syntax["no_label"] = \
+        lambda string: ("--no-label", string)
 
     usage = "Usage: %prog [options] [<input_media>]"
     parser = optparse.OptionParser(version=version, usage=usage)
