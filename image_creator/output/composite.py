@@ -31,58 +31,68 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+from image_creator.output import Output
 
-class Output(object):
+
+class CompositeOutput(Output):
+    """This class can be used to composite different outputs into a single one
+
+    You may create an instance of this class and then add other output
+    instances to it. Executing a method on this instance will cause the
+    execution of the same method in each output instance that has been added to
+    this one.
+    """
+
+    def __init__(self, outputs=[]):
+        self._outputs = outputs
+
+    def add(self, output):
+        self._outputs.append(output)
+
+    def remove(self, output):
+        self._outputs.remove(output)
+
     def error(self, msg, new_line=True):
-        pass
+        for out in self._outputs:
+            out.error(msg, new_line)
 
     def warn(self, msg, new_line=True):
-        pass
+        for out in self._outputs:
+            out.warn(msg, new_line)
 
     def success(self, msg, new_line=True):
-        pass
+        for out in self._outputs:
+            out.success(msg, new_line)
 
     def output(self, msg='', new_line=True):
-        pass
+        for out in self._outputs:
+            out.output(msg, new_line)
 
     def cleanup(self):
-        pass
+        for out in self._outputs:
+            out.cleanup()
 
     def clear(self):
-        pass
-
-    def _get_progress(self):
-        progress = self._Progress
-        progress.output = self
-        return progress
-
-    Progress = property(_get_progress)
+        for out in self._outputs:
+            out.clear()
 
     class _Progress(object):
+
         def __init__(self, size, title, bar_type='default'):
-            self.size = size
-            self.bar_type = bar_type
-            self.output.output("%s..." % title, False)
+            self._progresses = []
+            for out in self.output._outputs:
+                self._progresses.append(out.Progress(size, title, bar_type))
 
         def goto(self, dest):
-            pass
+            for progress in self._progresses:
+                progress.goto(dest)
 
         def next(self):
-            pass
+            for progress in self._progresses:
+                progress.next()
 
         def success(self, result):
-            self.output.success(result)
-
-    def progress_generator(self, message):
-        def generator(n):
-            progressbar = self.Progress(n, message)
-
-            for _ in range(n):
-                yield
-                progressbar.next()
-
-            progressbar.success('done')
-            yield
-        return generator
+            for progress in self._progresses:
+                progress.success(result)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

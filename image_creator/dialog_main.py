@@ -43,9 +43,10 @@ import optparse
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError, MD5
-from image_creator.output import Output, CombinedOutput
+from image_creator.output import Output
 from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
+from image_creator.output.composite import CompositeOutput
 from image_creator.disk import Disk
 from image_creator.os_type import os_cls
 from image_creator.kamaki_wrapper import Kamaki, ClientError
@@ -950,7 +951,7 @@ def main():
                                                else Output()
             while 1:
                 try:
-                    out = CombinedOutput([log])
+                    out = CompositeOutput([log])
                     out.output("Starting %s version %s..." % \
                                (parser.get_prog_name(), version))
                     ret = image_creator(d, media, out)
