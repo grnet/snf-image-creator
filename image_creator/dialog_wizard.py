@@ -186,7 +186,7 @@ def wizard(session):
         "Please provide your ~okeanos account token:",
         title="~okeanos account token", init=Kamaki.get_token())
 
-    msg = "Do you wish to continue with the image extraction process?"
+    msg = "All necessary information has been gathered. Confirm and Proceed."
     proceed = WizardYesNoPage(msg, title="Confirmation")
 
     w = Wizard(session)
