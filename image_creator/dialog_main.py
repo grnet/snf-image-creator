@@ -440,7 +440,7 @@ def kamaki_menu(session):
                 del session["token"]
             else:
                 session["token"] = answer.strip()
-                Kamaki.save_token(session['account'])
+                Kamaki.save_token(session['token'])
                 default_item = "Upload"
         elif choice == "Upload":
             if upload_image(session):
@@ -960,7 +960,7 @@ def main():
             while 1:
                 try:
                     out = CompositeOutput([log])
-                    out.output("Starting %s version %s..." % \
+                    out.output("Starting %s v%s..." % \
                                (parser.get_prog_name(), version))
                     ret = image_creator(d, media, out)
                     sys.exit(ret)
