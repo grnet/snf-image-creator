@@ -227,6 +227,10 @@ def extract_image(session):
 
         #Shrink
         size = device.shrink()
+        session['shrinked'] = True
+        getattr(__import__("image_creator.dialog_main",
+                fromlist=['image_creator']),
+                "update_background_title")(session)
 
         metadata.update(device.meta)
         metadata['DESCRIPTION'] = wizard['ImageDescription']
