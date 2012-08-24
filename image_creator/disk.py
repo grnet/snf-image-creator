@@ -114,12 +114,12 @@ class Disk(object):
 
         # Take a snapshot and return it to the user
         self.out.output("Snapshotting media source...", False)
-        size = blockdev('--getsize', sourcedev)
+        size = blockdev('--getsz', sourcedev)
         cowfd, cow = tempfile.mkstemp()
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
-        # Create 1G cow sparse file
-        dd('if=/dev/null', 'of=%s' % cow, 'bs=1k', 'seek=%d' % (1024 * 1024))
+        # Create cow sparse file
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=512', 'seek=%d' % int(size))
         cowdev = self._losetup(cow)
 
         snapshot = uuid.uuid4().hex
