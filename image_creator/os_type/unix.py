@@ -42,9 +42,7 @@ class Unix(OSBase):
     sensitive_userdata = [
         '.bash_history',
         '.gnupg',
-        '.ssh',
-        '.mozilla',
-        '.thunderbird'
+        '.ssh'
     ]
 
     def __init__(self, rootdev, ghandler, output):
@@ -202,5 +200,7 @@ class Unix(OSBase):
                 fname = "%s/%s" % (homedir, data)
                 if self.g.is_file(fname):
                     self.g.scrub_file(fname)
+                elif self.g.is_dir(fname):
+                    self.foreach_file(fname, self.g.scrub_file, ftype='r')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
