@@ -91,7 +91,7 @@ class Linux(Unix):
                     action = m.group(1)
                     continue
 
-            if event.strip() == "button[ /]power":
+            if event.strip() in ("button[ /]power", "button/power.*"):
                 if action:
                     if not self.g.is_file(action):
                         self.out.warn("Acpid action file: %s does not exist" %
@@ -113,6 +113,8 @@ class Linux(Unix):
                               "power button acpi event occures." %
                               action.strip().split()[0])
                 return
+
+        self.out.warn("No acpi power button event found!")
 
     @sysprep()
     def remove_persistent_net_rules(self, print_header=True):
