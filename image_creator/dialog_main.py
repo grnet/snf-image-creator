@@ -270,7 +270,7 @@ def upload_image(session):
         if len(filename) == 0:
             d.msgbox("Filename cannot be empty", width=MSGBOX_WIDTH)
             continue
-
+        session['upload'] = filename
         break
 
     gauge = GaugeOutput(d, "Image Upload", "Uploading...")
@@ -286,7 +286,7 @@ def upload_image(session):
             try:
                 # Upload image file
                 with open(session['snapshot'], 'rb') as f:
-                    session["upload"] = kamaki.upload(f, size, filename,
+                    session["pithos_uri"] = kamaki.upload(f, size, filename,
                                                     "Calculating block hashes",
                                                     "Uploading missing blocks")
                 # Upload metadata file
@@ -307,8 +307,8 @@ def upload_image(session):
             except ClientError as e:
                 d.msgbox("Error in pithos+ client: %s" % e.message,
                          title="Pithos+ Client Error", width=MSGBOX_WIDTH)
-                if 'upload' in session:
-                    del session['upload']
+                if 'pithos_uri' in session:
+                    del session['pithos_uri']
                 return False
         finally:
             out.remove(gauge)
@@ -337,7 +337,7 @@ def register_image(session):
                  width=MSGBOX_WIDTH)
         return False
 
-    if "upload" not in session:
+    if "pithos_uri" not in session:
         d.msgbox("You need to upload the image to pithos+ before you can "
                  "register it to cyclades", width=MSGBOX_WIDTH)
         return False
@@ -368,7 +368,7 @@ def register_image(session):
             out.output("Registring image to cyclades...")
             try:
                 kamaki = Kamaki(session['account'], session['token'], out)
-                kamaki.register(name, session['upload'], metadata)
+                kamaki.register(name, session['pithos_uri'], metadata)
                 out.success('done')
             except ClientError as e:
                 d.msgbox("Error in pithos+ client: %s" % e.message)
