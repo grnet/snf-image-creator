@@ -156,12 +156,12 @@ class Linux(Unix):
     @sysprep()
     def use_persistent_block_device_names(self, print_header=True):
         """Scan fstab & grub configuration files and replace all non-persistent
-        device appearences with UUIDs.
+        device references with UUIDs.
         """
 
         if print_header:
             self.out.output("Replacing fstab & grub non-persistent device "
-                            "appearences")
+                            "references")
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()

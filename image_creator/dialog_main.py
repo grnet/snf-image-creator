@@ -360,12 +360,12 @@ def register_image(session):
         for key in session['task_metadata']:
             metadata[key] = 'yes'
 
-    gauge = GaugeOutput(d, "Image Registration", "Registrating image...")
+    gauge = GaugeOutput(d, "Image Registration", "Registering image...")
     try:
         out = dev.out
         out.add(gauge)
         try:
-            out.output("Registring image to cyclades...")
+            out.output("Registering image with Cyclades...")
             try:
                 kamaki = Kamaki(session['account'], session['token'], out)
                 kamaki.register(name, session['pithos_uri'], metadata)
@@ -378,7 +378,7 @@ def register_image(session):
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image `%s' was successfully registered to cyclades as `%s'" %
+    d.msgbox("Image `%s' was successfully registered with Cyclades as `%s'" %
              (session['upload'], name), width=MSGBOX_WIDTH)
     return True
 
@@ -660,9 +660,9 @@ def sysprep(session):
             index += 1
 
         (code, tags) = d.checklist(
-            "Please choose which system preperation tasks you would like to "
+            "Please choose which system preparation tasks you would like to "
             "run on the image. Press <Help> to see details about the system "
-            "preperation tasks.", title="Run system preperation tasks",
+            "preparation tasks.", title="Run system preparation tasks",
             choices=choices, width=70, ok_label="Run", help_button=1)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
@@ -746,7 +746,7 @@ def shrink(session):
 def customization_menu(session):
     d = session['dialog']
 
-    choices = [("Sysprep", "Run various image preperation tasks"),
+    choices = [("Sysprep", "Run various image preparation tasks"),
                ("Shrink", "Shrink image"),
                ("View/Modify", "View/Modify image properties"),
                ("Delete", "Delete image properties"),

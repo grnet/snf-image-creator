@@ -88,12 +88,12 @@ def parse_options(input_args):
 
     parser.add_option("-r", "--register", dest="register", type="string",
                       default=False,
-                      help="register the image to ~okeanos as IMAGENAME",
+                      help="register the image with ~okeanos as IMAGENAME",
                       metavar="IMAGENAME")
 
     parser.add_option("-a", "--account", dest="account", type="string",
                       default=account, help="Use this ACCOUNT when "
-                      "uploading/registring images [Default: %s]" % account)
+                      "uploading/registering images [Default: %s]" % account)
 
     parser.add_option("-m", "--metadata", dest="metadata", default=[],
                       help="Add custom KEY=VALUE metadata to the image",
@@ -101,7 +101,7 @@ def parse_options(input_args):
 
     parser.add_option("-t", "--token", dest="token", type="string",
                       default=token, help="Use this token when "
-                      "uploading/registring images [Default: %s]" % token)
+                      "uploading/registering images [Default: %s]" % token)
 
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
                       help="print the enabled and disabled system preparation "
@@ -117,7 +117,7 @@ def parse_options(input_args):
                       metavar="SYSPREP")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
-                      help="don't perform system preperation",
+                      help="don't perform system preparation",
                       action="store_false")
 
     parser.add_option("--no-shrink", dest="shrink", default=True,
@@ -277,7 +277,7 @@ def image_creator():
                 out.output()
 
             if options.register:
-                out.output('Registring image to ~okeanos...', False)
+                out.output('Registering image with ~okeanos...', False)
                 kamaki.register(options.register, uploaded_obj, metadata)
                 out.success('done')
                 out.output()

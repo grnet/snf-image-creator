@@ -268,7 +268,7 @@ def extract_image(session):
             out.success('done')
             out.output()
 
-            out.output('Registring image to ~okeanos...', False)
+            out.output('Registering image with ~okeanos...', False)
             kamaki.register(wizard['ImageName'], pithos_file, metadata)
             out.success('done')
             out.output()
@@ -278,7 +278,7 @@ def extract_image(session):
     finally:
         out.remove(with_progress)
 
-    msg = "The image was successfully uploaded and registered to " \
+    msg = "The image was successfully uploaded and registered with " \
           "~okeanos. Would you like to keep a local copy of the image?"
     if not d.yesno(msg, width=PAGE_WIDTH):
         getattr(__import__("image_creator.dialog_main",

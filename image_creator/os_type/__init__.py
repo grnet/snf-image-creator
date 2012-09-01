@@ -115,15 +115,15 @@ class OSBase(object):
         return method
 
     def enable_sysprep(self, obj):
-        """Enable a system preperation operation"""
+        """Enable a system preparation operation"""
         setattr(obj.im_func, 'enabled', True)
 
     def disable_sysprep(self, obj):
-        """Disable a system preperation operation"""
+        """Disable a system preparation operation"""
         setattr(obj.im_func, 'enabled', False)
 
     def print_syspreps(self):
-        """Print enabled and disabled system preperation operations."""
+        """Print enabled and disabled system preparation operations."""
 
         syspreps = self.list_syspreps()
         enabled = filter(lambda x: x.enabled, syspreps)
@@ -134,7 +134,7 @@ class OSBase(object):
         wrapper.initial_indent = '\t'
         wrapper.width = 72
 
-        self.out.output("Enabled system preperation operations:")
+        self.out.output("Enabled system preparation operations:")
         if len(enabled) == 0:
             self.out.output("(none)")
         else:
@@ -143,7 +143,7 @@ class OSBase(object):
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 self.out.output('    %s:\n%s\n' % (name, descr))
 
-        self.out.output("Disabled system preperation operations:")
+        self.out.output("Disabled system preparation operations:")
         if len(disabled) == 0:
             self.out.output("(none)")
         else:
