@@ -40,6 +40,7 @@ import StringIO
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.util import MD5, FatalError
 from image_creator.output.cli import OutputWthProgress
+from image_creator.dialog_util import extract_image, update_background_title
 
 PAGE_WIDTH = 70
 
@@ -100,9 +101,11 @@ class WizardRadioListPage(WizardPage):
             choices.append((self.choices[i][0], self.choices[i][1], default))
 
         while True:
-            (code, answer) = d.radiolist(self.message, width=PAGE_WIDTH,
-                ok_label="Next", cancel="Back", choices=choices,
-                title="(%d/%d) %s" % (index + 1, total, self.title))
+            (code, answer) = \
+                d.radiolist(self.message, width=PAGE_WIDTH,
+                            ok_label="Next", cancel="Back", choices=choices,
+                            title="(%d/%d) %s" % (index + 1, total, self.title)
+                            )
 
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 return self.PREV
@@ -131,9 +134,10 @@ class WizardInputPage(WizardPage):
 
         init = w[self.name] if self.name in w else self.init_value
         while True:
-            (code, answer) = d.inputbox(self.message, init=init,
-                width=PAGE_WIDTH, ok_label="Next", cancel="Back",
-                title="(%d/%d) %s" % (index + 1, total, self.title))
+            (code, answer) = \
+                d.inputbox(self.message, init=init,
+                           width=PAGE_WIDTH, ok_label="Next", cancel="Back",
+                           title="(%d/%d) %s" % (index + 1, total, self.title))
 
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 return self.PREV
@@ -159,8 +163,8 @@ class WizardYesNoPage(WizardPage):
 
         while True:
             ret = d.yesno(self.message, width=PAGE_WIDTH, ok_label="Yes",
-                    cancel="Back", extra_button=1, extra_label="Quit",
-                    title="(%d/%d) %s" % (index + 1, total, self.title))
+                          cancel="Back", extra_button=1, extra_label="Quit",
+                          title="(%d/%d) %s" % (index + 1, total, self.title))
 
             if ret == d.DIALOG_CANCEL:
                 return self.PREV
@@ -173,18 +177,20 @@ class WizardYesNoPage(WizardPage):
 def wizard(session):
 
     name = WizardInputPage("ImageName", "Please provide a name for the image:",
-                      title="Image Name", init=session['device'].distro)
+                           title="Image Name", init=session['device'].distro)
     descr = WizardInputPage("ImageDescription",
-        "Please provide a description for the image:",
-        title="Image Description", empty=True,
-        init=session['metadata']['DESCRIPTION'] if 'DESCRIPTION' in
-        session['metadata'] else '')
+                            "Please provide a description for the image:",
+                            title="Image Description", empty=True,
+                            init=session['metadata']['DESCRIPTION'] if
+                            'DESCRIPTION' in session['metadata'] else '')
     account = WizardInputPage("account",
-        "Please provide your ~okeanos account e-mail:",
-        title="~okeanos account information", init=Kamaki.get_account())
+                              "Please provide your ~okeanos account e-mail:",
+                              title="~okeanos account information",
+                              init=Kamaki.get_account())
     token = WizardInputPage("token",
-        "Please provide your ~okeanos account token:",
-        title="~okeanos account token", init=Kamaki.get_token())
+                            "Please provide your ~okeanos account token:",
+                            title="~okeanos account token",
+                            init=Kamaki.get_token())
 
     msg = "All necessary information has been gathered. Confirm and Proceed."
     proceed = WizardYesNoPage(msg, title="Confirmation")
@@ -198,14 +204,14 @@ def wizard(session):
     w.add_page(proceed)
 
     if w.run():
-        extract_image(session)
+        create_image(session)
     else:
         return False
 
     return True
 
 
-def extract_image(session):
+def create_image(session):
     d = session['dialog']
     disk = session['disk']
     device = session['device']
@@ -228,9 +234,7 @@ def extract_image(session):
         #Shrink
         size = device.shrink()
         session['shrinked'] = True
-        getattr(__import__("image_creator.dialog_main",
-                fromlist=['image_creator']),
-                "update_background_title")(session)
+        update_background_title(session)
 
         metadata.update(device.meta)
         metadata['DESCRIPTION'] = wizard['ImageDescription']
@@ -254,8 +258,8 @@ def extract_image(session):
             pithos_file = ""
             with open(snapshot, 'rb') as f:
                 pithos_file = kamaki.upload(f, size, name,
-                                             "(1/4)  Calculating block hashes",
-                                             "(2/4)  Uploading missing blocks")
+                                            "(1/4)  Calculating block hashes",
+                                            "(2/4)  Uploading missing blocks")
 
             out.output("(3/4)  Uploading metadata file...", False)
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
@@ -281,8 +285,6 @@ def extract_image(session):
     msg = "The image was successfully uploaded and registered with " \
           "~okeanos. Would you like to keep a local copy of the image?"
     if not d.yesno(msg, width=PAGE_WIDTH):
-        getattr(__import__("image_creator.dialog_main",
-                fromlist=['image_creator']), "extract_image")(session)
-
+        extract_image(session)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -41,10 +41,10 @@ setup(
     name='snf_image_creator',
     version=image_creator.__version__,
     description='Command line tool for creating images',
-#    long_description=open('README.rst').read(),
+    # long_description=open('README.rst').read(),
     url='https://code.grnet.gr/projects/snf-image-creator',
     license='BSD',
-    packages = find_packages(),
+    packages=find_packages(),
     include_package_data=True,
     install_requires=['pbs', 'ansicolors', 'progress', 'pysendfile'],
     entry_points={
