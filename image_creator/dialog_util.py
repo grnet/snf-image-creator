@@ -34,6 +34,8 @@
 # or implied, of GRNET S.A.
 
 import os
+from image_creator.output.dialog import GaugeOutput
+from image_creator.util import MD5
 
 SMALL_WIDTH = 60
 WIDTH = 70
@@ -66,6 +68,15 @@ def confirm_reset(d):
 
 class Reset(Exception):
     pass
+
+
+def extract_metadata_string(session):
+    metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
+
+    if 'task_metadata' in session:
+        metadata.extend("%s=yes" % m for m in session['task_metadata'])
+
+    return '\n'.join(metadata) + '\n'
 
 
 def extract_image(session):

@@ -44,7 +44,8 @@ from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
-    update_background_title, confirm_reset, confirm_exit, Reset, extract_image
+    update_background_title, confirm_reset, confirm_exit, Reset, \
+    extract_image, extract_metadata_string
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -104,15 +105,6 @@ class metadata_monitor(object):
         self.session['metadata'].update(added)
         self.session['metadata'].update(altered)
         d.msgbox(msg, title="Image Property Changes", width=SMALL_WIDTH)
-
-
-def extract_metadata_string(session):
-    metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
-
-    if 'task_metadata' in session:
-        metadata.extend("%s=yes" % m for m in session['task_metadata'])
-
-    return '\n'.join(metadata) + '\n'
 
 
 def upload_image(session):
