@@ -41,7 +41,7 @@ setup(
     name='snf_image_creator',
     version=image_creator.__version__,
     description='Command line tool for creating images',
-    # long_description=open('README.rst').read(),
+    long_description=open('README.rst').read(),
     url='https://code.grnet.gr/projects/snf-image-creator',
     license='BSD',
     packages=find_packages(),
@@ -50,7 +50,7 @@ setup(
     entry_points={
         'console_scripts': [
                 'snf-image-creator = image_creator.main:main',
-                'snf-image-creator-dialog = image_creator.dialog_main:main']
+                'snf-mkimage = image_creator.dialog_main:main']
     }
 )
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
