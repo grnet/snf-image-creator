@@ -15,6 +15,7 @@ Contents:
 
    overview
    install
+   usage
 
 
 Indices and tables
