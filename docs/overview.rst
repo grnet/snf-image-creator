@@ -22,9 +22,9 @@ determine which tasks should run on it. The main purpose of running those tasks
 is to:
 
  * Shrink the image
- * Clear out sensitive user data (passwords, keys, etc.)
+ * Clear out sensitive user data (passwords, ssh keys, history files, etc.)
  * Prepare the image for being deployed on a virtual environment (change device
-   files, remove persistent net rules, etc.)
+   names, remove persistent net rules, etc.)
 
 Creation
 --------
@@ -36,5 +36,5 @@ Image Format
 ------------
 
 The images the program creates are in diskdump format. This is the recommended
-format for `snf-image <https://code/grnet.gr/projects/snf-image>`_, the Ganeti
+format for `snf-image <https://code.grnet.gr/projects/snf-image>`_, the Ganeti
 OS Definition used by `Synnefo <https://code.grnet.gr/projects/synnefo>`_.
