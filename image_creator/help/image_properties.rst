@@ -22,11 +22,10 @@ Properties used by the ~okeanos User Interface
      with an Operating System Logo.
  - DESCRIPTION
      A short description about the image.
- - SIZE
-     This is used by the UI to compute the image copy progress
-     during deployment.
  - GUI
      Short description about the Graphical User Interface the
      image hosts.
  - KERNEL
      The kernel version of the image OS.
+ - SORTORDER
+     A number used to sort the available images
