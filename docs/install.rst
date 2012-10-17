@@ -1,5 +1,5 @@
 Installation
-============
+^^^^^^^^^^^^
 
 This guide describes how to install snf-image-creator on an Ubuntu 12.04 LTS
 system. It it highly recommended to have virtualization capable hardware.
@@ -7,7 +7,7 @@ snf-image-creator can work on processors that do not support virtualization but
 it will be extremely slow.
 
 Dependencies
-------------
+============
 
 snf-image-creator depends on the following programs:
 
@@ -33,7 +33,7 @@ the following command:
 The rest of the dependencies will be resolved by setuptools.
 
 Python Virtual Environment
---------------------------
+==========================
 
 Since snf-image-creator and the rest of it's dependencies won't be installed
 using packages provided by the distribution it's better to work in an isolated
@@ -64,7 +64,7 @@ You can later deactivate it using the following command:
 
 
 kamaki Installation
--------------------
+===================
 
 Install kamaki from source, by cloning it's repository:
 
@@ -82,7 +82,7 @@ execute:
    $ ./setup install
 
 snf-image-creator Installation
-------------------------------
+==============================
 
 Install snf-image-creator the same way:
 

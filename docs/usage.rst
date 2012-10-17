@@ -1,12 +1,12 @@
 Usage
-=====
+^^^^^
 
 snf-image-creator comes in 2 variants:
  * snf-image-creator: A non-interactive command line program
  * snf-mkimage: A user-friendly dialog-based program
 
 Non-interactive version
------------------------
+=======================
 
 snf-image-creator receives the following options:
 
@@ -52,20 +52,19 @@ pithos, you need to specify valid credentials with *-a* and *-t* options and a
 filename using *-u* option. To also register the image with ~okeanos, specify a
 name using the *-r* option.
 
-By default snf-image-creator will run a number of system preparation tasks on
-the snapshot of the media and will shrink the last partition found, before
-extracting the image. Both can be disabled by specifying *--no-sysprep* and
-*--no-shrink* respectively.
+By default snf-image-creator will run a number of system preparation
+preparations on the snapshot of the media and will shrink the last partition
+found, before extracting the image. Both can be disabled by specifying
+*--no-sysprep* and *--no-shrink* respectively.
 
-If *--print-sysprep* is defined, then snf-image-creator will not create an
-image at all. It will only run the OS detection part and will output the system
-preparation tasks that would and would not run on the image. This behavior is,
-convenient because it allows you to see the available system preparation tasks
-that you can enable or disable with *-{enable,disable}-sysprep* options when
-you create a new image.
+If *--print-sysprep* is defined, then snf-image-creator will only run the OS
+detection part and will output the system preparation operation that would and
+would not run during image creation. This behavior is, convenient because it
+allows you to see the available system preparation tasks that you can enable or
+disable with *-{enable,disable}-sysprep* options when you create a new image.
 
 Running *snf-image-creator* with *--print-sysprep* on a raw file that hosts a
-debian system, I get the following output:
+debian system, we get the following output:
 
 .. code-block:: console
 
@@ -133,14 +132,68 @@ removed, you can create it specifying the *--enable-sysprep* option like this:
    $ snf-image-creator --enable-sysprep cleanup-mail,remove-user-accounts ...
 
 Dialog-based version
---------------------
+====================
 
+*snf-mkimage* receives the following options:
+
+.. code-block:: console
+
+   $ Usage: snf-mkimage [options] [<input_media>]
+
+   Options:
+     --version             show program's version number and exit
+     -h, --help            show this help message and exit
+     -l FILE, --logfile=FILE
+                            log all messages to FILE
+
+If the input media is not specified in the command line, then the user will be
+asked to specify it in the first dialog box. After the input media is examined
+and the program is initialized, the user is given the choice to run
+*snf-mkimage* in *wizard* or *expert* mode.
+
+Wizard mode
+-----------
+
+When *snf-mkimage* runs in *wizard* mode, the user is just asked to provide the
+following basic information:
+
+ * Name: A short name for image (ex. "Slackware")
+ * Description: An one line description for the image (ex. "Slackware Linux 14.0 with KDE")
+ * Account: An ~okeanos account e-mail
+ * Token: A token corresponding to the account defined previously
+
+For most users the functionality this mode provides should be sufficient.
+
+Expert mode
+-----------
+
+Expert mode allows the user to have better control on the image creation
+process. In the picture below the main menu can be seen:
+
+.. image:: /snapshots/main_menu.png
+
+In the *Customize* submenu the user can control:
+
+ * The system preparation operations that will run during the image creation process
+ * Whether the image will be shrunk or not
+ * The properties associated with the image
+ * Which configuration tasks will run during image deployment
+
+In the *Register* submenu the user can provide:
+
+ * The credentials to login to ~okeanos
+ * A pithos filename for the uploaded diskdump image
+ * A name for the image to be registered to ~okeanos with
+
+By choosing the *Extract* menu entry the user can dump the image to the local
+file system and finally, if the user selects *Reset*, the system will ignore
+all changes made so far and will start the image creation process again.
 
 Creating a new image
---------------------
+====================
 
-Suppose you want to create a new ubuntu server image. Download the installation
-disk from the internet:
+Suppose you want to create a new Ubuntu server image. Download the installation
+disk from the Internet:
 
 .. code-block:: console
 
@@ -152,15 +205,16 @@ Create a 2G sparce file to host the new system:
 
    $ truncate -s 2G ubuntu_hd.raw
 
-And install the ubuntu system on this file:
+And install the Ubuntu system on this file:
 
 .. code-block:: console
 
    $ sudo kvm -boot d -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio \
      -cdrom ubuntu-12.04.1-server-amd64.iso
 
-After this, become root, activate the virtual environment you have installed
-snf-image-creator in, and use *snf-mkimage* to create and upload the image:
+After the installation finishes, become root, activate the virtual environment
+you have installed snf-image-creator in, and use *snf-mkimage* to create and
+upload the image:
 
 .. code-block:: console
 
@@ -169,7 +223,7 @@ snf-image-creator in, and use *snf-mkimage* to create and upload the image:
    $ snf-mkimage ubuntu_hd.raw
 
 In the first screen you will be asked to choose if you want to run the program
-in *Wizand* or *Expert* mode. Choose *Wizard*.
+in *Wizard* or *Expert* mode. Choose *Wizard*.
 
 .. image:: /snapshots/01_wizard.png
 
@@ -181,3 +235,38 @@ confirm the provided data.
 
 Choosing *YES* will create the image and upload it to your ~okeanos account.
 
+Things you need to pay attention on when creating images
+========================================================
+
+Para-virtualized drivers
+------------------------
+
+~Okeanos uses the VirtIO framework. The disk I/O controller and the Ethernet
+cards on the VM instances are para-virtualized and need special VirtIO drivers.
+Those drivers are included in the Linux Kernel mainline since version 2.6.25
+and are shipped with all the popular Linux distributions. The problem is that
+if those drivers are built as modules, they need to be preloaded using an
+initial ramdisk, otherwise the VM will not be able to boot.
+
+In the image creation demonstration above, we initially installed the Ubuntu
+system on a a hard disk (ubuntu_hd.raw) that was para-virtualized (pay
+attention on the *if=virtio* option of the kvm line). The Ubuntu installer
+detected that the disk was paravirtualized and made sure the appropriate
+drivers will be preloaded each time the system boots. In many distros this is
+not the case. In Arch Linux for example, the user needs to manually add
+*virtio_blk* and *virtio_pci* drivers in */etc/mkinitcpio.conf* and then
+rebuild the initial ramdisk [#f1]_ to make the virtio drivers get preloaded
+during boot.
+
+Swap partitions
+---------------
+
+If you want your image to have a swap partitions, make sure this is the last
+partition on the disk. If snf-image-creator detects a swap partition in the end
+of the input media, it will remove the partition during shrinking and will save
+enough information to be able to recreate it during image deployment. This will
+make your image smaller and will speed up the deployment process.
+
+.. rubric:: Footnotes
+
+.. [#f1] https://wiki.archlinux.org/index.php/KVM#Paravirtualized_guests_.28virtio.29

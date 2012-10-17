@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Welcome to snf-image-creator's documentation!
-=============================================
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 snf-image-creator is an image creation tool for `Synnefo <https://code.grnet.gr/projects/synnefo>`_
 
