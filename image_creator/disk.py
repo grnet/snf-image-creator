@@ -84,13 +84,16 @@ class Disk(object):
         """Cleanup internal data. This needs to be called before the
         program ends.
         """
-        while len(self._devices):
-            device = self._devices.pop()
-            device.destroy()
-
-        while len(self._cleanup_jobs):
-            job, args = self._cleanup_jobs.pop()
-            job(*args)
+        try:
+            while len(self._devices):
+                device = self._devices.pop()
+                device.destroy()
+        finally:
+            # Make sure those are executed even if one of the device.destroy
+            # methods throws exeptions.
+            while len(self._cleanup_jobs):
+                job, args = self._cleanup_jobs.pop()
+                job(*args)
 
     def snapshot(self):
         """Creates a snapshot of the original source media of the Disk
@@ -225,12 +228,14 @@ class DiskDevice(object):
     def destroy(self):
         """Destroy this DiskDevice instance."""
 
-        if self.guestfs_enabled:
-            self.g.umount_all()
-            self.g.sync()
-
-        # Close the guestfs handler if open
-        self.g.close()
+        # In new guestfs versions, there is a handy shutdown method for this
+        try:
+            if self.guestfs_enabled:
+                self.g.umount_all()
+                self.g.sync()
+        finally:
+            # Close the guestfs handler if open
+            self.g.close()
 
     def progress_callback(self, ev, eh, buf, array):
         position = array[2]

@@ -67,6 +67,7 @@ def image_creator(d, media, out):
         disk.cleanup()
 
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     try:
         snapshot = disk.snapshot()
         dev = disk.get_device(snapshot)

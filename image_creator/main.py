@@ -45,6 +45,7 @@ import sys
 import os
 import optparse
 import StringIO
+import signal
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -187,6 +188,12 @@ def image_creator():
                                  "(use --force to overwrite it)." % filename)
 
     disk = Disk(options.source, out)
+
+    def signal_handler(signum, frame):
+        disk.cleanup()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     try:
         snapshot = disk.snapshot()
 
