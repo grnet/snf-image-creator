@@ -111,8 +111,8 @@ class OutputWthProgress(SimpleOutput):
             self.suffix = self.template[bar_type]
             self.max = size
 
-            # print empty progress bar workaround
-            self.goto(1)
+            # print empty progress bar
+            self.start()
 
         def success(self, result):
             self.output.output("\r%s...\033[K" % self.title, False)
