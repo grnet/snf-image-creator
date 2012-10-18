@@ -3,8 +3,8 @@ Installation
 
 This guide describes how to install snf-image-creator on an Ubuntu 12.04 LTS
 system. It it highly recommended to have virtualization capable hardware.
-snf-image-creator can work on processors that do not support virtualization but
-it will be extremely slow.
+snf-image-creator will work on processors that do not support virtualization
+but it will be extremely slow.
 
 Dependencies
 ============
@@ -23,22 +23,22 @@ snf-image-creator depends on the following programs:
 
 The first four programs (python2, setuptools, libguestfs and Python Dialog)
 need to be installed manually by the user. In an Ubuntu 12.04 LTS system this
-can be archived using packages directly provided by the distribution, using
-the following command:
+can be archived by installing packages provided by the distribution, using the
+following command:
 
 .. code-block:: console
 
    $ apt-get install python-setuptools python-guestfs python-dialog
 
-The rest of the dependencies will be resolved by setuptools.
+The rest of the dependencies will be automatically resolved by setuptools.
 
 Python Virtual Environment
 ==========================
 
 Since snf-image-creator and the rest of it's dependencies won't be installed
-using packages provided by the distribution it's better to work in an isolated
-python virtual environment (virtualenv). Installing the Virtual Python
-Environment builder in Ubuntu can be accomplished using the following command:
+using packages, it's better to work in an isolated python virtual environment
+(virtualenv). Installing the Virtual Python Environment builder in Ubuntu can
+be accomplished using the following command:
 
 .. code-block:: console
 

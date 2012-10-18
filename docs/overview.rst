@@ -4,8 +4,8 @@ Overview
 snf-image-creator is a simple command-line tools for creating OS images. The
 original media from which the image is created, can be a block device or a
 regular file that represents a hard disk. Given a media file, snf-image-creator
-will create a snapshot for it and will run a number of image preparation task
-on the snapshot, before the image is created.
+will create a snapshot for it and will run a number of system preparation
+operations on the snapshot, before the image is created.
 
 Snapshotting
 ============
@@ -16,15 +16,14 @@ the program do not affect the original media.
 Preparation
 ===========
 
-Some of the image preparation operations that run on each image are OS
-specific. snf-image-creator will use heuristics to detect the OS of the image
-and determine which operations should run on it. The main purpose of running
-them is to:
+Some of the system preparation operations are OS specific. snf-image-creator
+will use heuristics to detect the OS of the media and determine which
+operations should perform on it. The main purpose of running them is to:
 
  * Shrink the image
  * Clear out sensitive user data (passwords, ssh keys, history files, etc.)
- * Prepare the image for being deployed on a virtual environment (change device
-   names, remove persistent net rules, etc.)
+ * Prepare the guest OS for being deployed on a virtual environment (change
+   device names, remove persistent net rules, etc.)
 
 Creation
 ========

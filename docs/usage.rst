@@ -47,21 +47,21 @@ snf-image-creator receives the following options:
 
 
 Most input options are self-describing. If you want to save a local copy for
-the image, you need to specify *-o* option. In order to upload the image to
-pithos, you need to specify valid credentials with *-a* and *-t* options and a
-filename using *-u* option. To also register the image with ~okeanos, specify a
-name using the *-r* option.
+the image you create, you specify *-o* option. To upload the image to
+*pithos+*, you specify valid credentials with *-a* and *-t* options and a
+filename using *-u*. If you want to register the image with *~okeanos*,
+in addition to *-u* specify a registration name using *-r*.
 
-By default snf-image-creator will run a number of system preparation
-preparations on the snapshot of the media and will shrink the last partition
+By default snf-image-creator will perform a number of system preparation
+operations on the snapshot of the media and will shrink the last partition
 found, before extracting the image. Both can be disabled by specifying
 *--no-sysprep* and *--no-shrink* respectively.
 
-If *--print-sysprep* is defined, then snf-image-creator will only run the OS
-detection part and will output the system preparation operation that would and
-would not run during image creation. This behavior is, convenient because it
-allows you to see the available system preparation tasks that you can enable or
-disable with *-{enable,disable}-sysprep* options when you create a new image.
+If *--print-sysprep* is defined, the program will exit after outputing a
+list of enabled and disabled system preparation operation appliable to this
+media source. The user can enable or disable specific *syspreps* when creating
+an image, using *-{enable,disable}-sysprep* options. You can specify those
+options multiple times to enable or disable multiple *syspreps*.
 
 Running *snf-image-creator* with *--print-sysprep* on a raw file that hosts a
 debian system, we get the following output:
@@ -77,7 +77,7 @@ debian system, we get the following output:
    Enabling recovery proc
    Launching helper VM... done
    Inspecting Operating System... found a(n) debian system
-   Mounting image... done
+   Mounting the media read-only... done
    
    Enabled system preparation operations:
        cleanup-cache:
@@ -124,12 +124,12 @@ debian system, we get the following output:
    
    cleaning up...
 
-If I want your images to also have all normal user accounts and all mail files
-removed, you can create it specifying the *--enable-sysprep* option like this:
+If we want the image to have all normal user accounts and all mail files
+removed, we can create it specifying *--enable-sysprep* option like this:
 
 .. code-block:: console
 
-   $ snf-image-creator --enable-sysprep cleanup-mail,remove-user-accounts ...
+   $ snf-image-creator --enable-sysprep cleanup-mail --enable-sysprep remove-user-accounts ...
 
 Dialog-based version
 ====================
@@ -146,9 +146,9 @@ Dialog-based version
      -l FILE, --logfile=FILE
                             log all messages to FILE
 
-If the input media is not specified in the command line, then the user will be
-asked to specify it in the first dialog box. After the input media is examined
-and the program is initialized, the user is given the choice to run
+If the input media is not specified in the command line, in the first dialog
+box the user will be asked to specify it. After the input media is examined and
+the program is initialized, the user will be given the choice to run
 *snf-mkimage* in *wizard* or *expert* mode.
 
 Wizard mode
@@ -158,11 +158,14 @@ When *snf-mkimage* runs in *wizard* mode, the user is just asked to provide the
 following basic information:
 
  * Name: A short name for image (ex. "Slackware")
- * Description: An one line description for the image (ex. "Slackware Linux 14.0 with KDE")
- * Account: An ~okeanos account e-mail
+ * Description: An one-line description for the image (ex. "Slackware Linux 14.0 with KDE")
+ * Account: An *~okeanos* account email
  * Token: A token corresponding to the account defined previously
 
-For most users the functionality this mode provides should be sufficient.
+After confirming, the image will be extracted, uploaded to *pithos+* and
+registered to *~okeanos*. The user will also be given the choice to keep a local
+copy of it. For most users the functionality this mode provides should be
+sufficient.
 
 Expert mode
 -----------
@@ -172,18 +175,18 @@ process. In the picture below the main menu can be seen:
 
 .. image:: /snapshots/main_menu.png
 
-In the *Customize* submenu the user can control:
+In the *Customize* sub-menu the user can control:
 
- * The system preparation operations that will run during the image creation process
+ * The system preparation operations that will be applied on the media
  * Whether the image will be shrunk or not
  * The properties associated with the image
- * Which configuration tasks will run during image deployment
+ * The configuration tasks that will run during image deployment
 
-In the *Register* submenu the user can provide:
+In the *Register* sub-menu the user can provide:
 
- * The credentials to login to ~okeanos
- * A pithos filename for the uploaded diskdump image
- * A name for the image to be registered to ~okeanos with
+ * The credentials to login to *~okeanos*
+ * A pithos filename for the uploaded *diskdump* image
+ * A name for the image to be registered to *~okeanos* with
 
 By choosing the *Extract* menu entry the user can dump the image to the local
 file system and finally, if the user selects *Reset*, the system will ignore
@@ -227,45 +230,47 @@ in *Wizard* or *Expert* mode. Choose *Wizard*.
 
 .. image:: /snapshots/01_wizard.png
 
-Then you will be asked to provide a name, a description, an ~okeanos account
+Then you will be asked to provide a name, a description, an *~okeanos* account
 and the token corresponding to this account. After that you will be asked to
 confirm the provided data.
 
 .. image:: /snapshots/06_confirm.png
 
-Choosing *YES* will create the image and upload it to your ~okeanos account.
+Choosing *YES* will create the image and upload it to your *~okeanos* account.
 
-Things you need to pay attention on when creating images
+Things you need to pay attention to when creating images
 ========================================================
 
 Para-virtualized drivers
 ------------------------
 
-~Okeanos uses the VirtIO framework. The disk I/O controller and the Ethernet
-cards on the VM instances are para-virtualized and need special VirtIO drivers.
+*~Okeanos* uses the *VirtIO* framework. The disk I/O controller and the Ethernet
+cards on the VM instances are para-virtualized and need special *VirtIO* drivers.
 Those drivers are included in the Linux Kernel mainline since version 2.6.25
 and are shipped with all the popular Linux distributions. The problem is that
-if those drivers are built as modules, they need to be preloaded using an
-initial ramdisk, otherwise the VM will not be able to boot.
+if the driver for the para-virtualized disk I/O controller is built as
+module, it needs to be preloaded using an initial ramdisk, otherwise the VM
+will not be able to boot.
 
 In the image creation demonstration above, we initially installed the Ubuntu
-system on a a hard disk (ubuntu_hd.raw) that was para-virtualized (pay
-attention on the *if=virtio* option of the kvm line). The Ubuntu installer
-detected that the disk was paravirtualized and made sure the appropriate
-drivers will be preloaded each time the system boots. In many distros this is
+system on a hard disk (*ubuntu_hd.raw*) that was connected on a
+para-virtualized interface (pay attention to the *if=virtio* option of the kvm
+line). Ubuntu and Debian create a generic initial ramdisk file that contains
+many different modules, including the VirtIO drivers. In many distros this is
 not the case. In Arch Linux for example, the user needs to manually add
-*virtio_blk* and *virtio_pci* drivers in */etc/mkinitcpio.conf* and then
-rebuild the initial ramdisk [#f1]_ to make the virtio drivers get preloaded
-during boot.
+*virtio_blk* and *virtio_pci* drivers in */etc/mkinitcpio.conf* and rebuild the
+initial ramdisk [#f1]_ to make the virtio drivers get preloaded during boot.
+For now, *snf-image-creator* cannot resolve this kind of problems and it's left
+to the user to do it.
 
 Swap partitions
 ---------------
 
 If you want your image to have a swap partitions, make sure this is the last
 partition on the disk. If snf-image-creator detects a swap partition in the end
-of the input media, it will remove the partition during shrinking and will save
+of the input media, it will remove the partition when shrinking and will save
 enough information to be able to recreate it during image deployment. This will
-make your image smaller and will speed up the deployment process.
+make the image smaller and will speed up the deployment process.
 
 .. rubric:: Footnotes
 
