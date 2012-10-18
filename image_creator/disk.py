@@ -242,7 +242,8 @@ class DiskDevice(object):
         """Mount all disk partitions in a correct order."""
 
         mount = self.g.mount_ro if readonly else self.g.mount
-        self.out.output("Mounting image...", False)
+        msg = " read-only" if readonly else ""
+        self.out.output("Mounting the media%s..." % msg, False)
         mps = self.g.inspect_get_mountpoints(self.root)
 
         # Sort the keys to mount the fs in a correct order.

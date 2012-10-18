@@ -193,7 +193,8 @@ def image_creator():
         dev = disk.get_device(snapshot)
 
         # If no customization is to be applied, the image should be mounted ro
-        readonly = not (options.sysprep or options.shrink)
+        readonly = (not (options.sysprep or options.shrink) or
+                    options.print_sysprep)
         dev.mount(readonly)
 
         cls = os_cls(dev.distro, dev.ostype)
