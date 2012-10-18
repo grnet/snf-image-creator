@@ -238,19 +238,19 @@ confirm the provided data.
 
 Choosing *YES* will create the image and upload it to your *~okeanos* account.
 
-Things you need to pay attention to when creating images
-========================================================
+Some caveats on image creation
+==============================
 
 Para-virtualized drivers
 ------------------------
 
-*~Okeanos* uses the *VirtIO* framework. The disk I/O controller and the Ethernet
-cards on the VM instances are para-virtualized and need special *VirtIO* drivers.
-Those drivers are included in the Linux Kernel mainline since version 2.6.25
-and are shipped with all the popular Linux distributions. The problem is that
-if the driver for the para-virtualized disk I/O controller is built as
-module, it needs to be preloaded using an initial ramdisk, otherwise the VM
-will not be able to boot.
+*~Okeanos* uses the *VirtIO* framework. The disk I/O controller and the
+Ethernet cards on the VM instances are para-virtualized and need special
+*VirtIO* drivers. Those drivers are included in the Linux Kernel mainline since
+version 2.6.25 and are shipped with all the popular Linux distributions. The
+problem is that if the driver for the para-virtualized disk I/O controller is
+built as module, it needs to be preloaded using an initial ramdisk, otherwise
+the VM will not be able to boot.
 
 In the image creation demonstration above, we initially installed the Ubuntu
 system on a hard disk (*ubuntu_hd.raw*) that was connected on a
