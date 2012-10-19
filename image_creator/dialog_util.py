@@ -44,6 +44,7 @@ WIDTH = 70
 def update_background_title(session):
     d = session['dialog']
     dev = session['device']
+    disk = session['disk']
 
     MB = 2 ** 20
 
@@ -51,8 +52,9 @@ def update_background_title(session):
     shrinked = 'shrinked' in session and session['shrinked']
     postfix = " (shrinked)" if shrinked else ''
 
-    title = "OS: %s, Distro: %s, Size: %dMB%s" % \
-            (dev.ostype, dev.distro, size, postfix)
+    title = "OS: %s, Distro: %s, Size: %dMB%s, Source: %s" % \
+            (dev.ostype, dev.distro, size, postfix,
+             os.path.abspath(disk.source))
 
     d.setBackgroundTitle(title)
 
