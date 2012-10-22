@@ -32,7 +32,7 @@
 # or implied, of GRNET S.A.
 
 import sys
-import pbs
+import sh
 import hashlib
 
 
@@ -45,12 +45,12 @@ def get_command(command):
         search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
         for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
             if os.path.exists(fullpath) and os.access(fullpath, os.X_OK):
-                return pbs.Command(fullpath)
+                return sh.Command(fullpath)
         raise exception
 
     try:
-        return pbs.__getattr__(command)
-    except pbs.CommadNotFount as e:
+        return sh.__getattr__(command)
+    except sh.CommadNotFount as e:
         return find_sbin_command(command, e)
 
 
