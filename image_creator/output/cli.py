@@ -102,6 +102,7 @@ class OutputWthProgress(SimpleOutput):
         }
 
         def __init__(self, size, title, bar_type='default'):
+            self.hide_cursor = False
             super(OutputWthProgress._Progress, self).__init__()
             self.title = title
             self.fill = '#'
