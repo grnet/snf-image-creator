@@ -16,7 +16,7 @@ snf-image-creator depends on the following programs:
  * Python Dialog [http://pythondialog.sourceforge.net/]
  * Python bindings for libguestfs [http://libguestfs.org/]
  * Kamaki [https://code.grnet.gr/projects/kamaki]
- * Python Sybprocess Wrapper [http://pypi.python.org/pypi/pbs]
+ * Python sh (previously pbs) [https://github.com/amoffat/sh]
  * ANSI colors for Python [http://pypi.python.org/pypi/ansicolors]
  * progress [http://pypi.python.org/pypi/progress]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
