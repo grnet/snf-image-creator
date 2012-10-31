@@ -48,7 +48,8 @@ class Kamaki(object):
     @staticmethod
     def get_account():
         config = Config()
-        return config.get('storage', 'account')
+        return config.get('store', 'account') or \
+            config.get('global', 'account')
 
     @staticmethod
     def get_token():
@@ -58,7 +59,7 @@ class Kamaki(object):
     @staticmethod
     def save_account(account):
         config = Config()
-        config.set('storage', 'account', account)
+        config.set('store', 'account', account)
         config.write()
 
     @staticmethod
@@ -74,7 +75,7 @@ class Kamaki(object):
 
         config = Config()
 
-        pithos_url = config.get('storage', 'url')
+        pithos_url = config.get('store', 'url')
         self.container = CONTAINER
         self.pithos_client = PithosClient(pithos_url, self.token, self.account,
                                           self.container)
@@ -96,7 +97,7 @@ class Kamaki(object):
         hash_cb = self.out.progress_generator(hp) if hp is not None else None
         upload_cb = self.out.progress_generator(up) if up is not None else None
 
-        self.pithos_client.create_object(path, file_obj, size, hash_cb,
+        self.pithos_client.upload_object(path, file_obj, size, hash_cb,
                                          upload_cb)
 
         return "pithos://%s/%s/%s" % (self.account, self.container, path)
