@@ -33,7 +33,7 @@
 
 from os.path import basename
 
-from kamaki.config import Config
+from kamaki.cli.config import Config
 from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient

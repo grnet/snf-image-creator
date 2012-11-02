@@ -33,6 +33,9 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+import gevent.monkey  # Monkey-patch everything for gevent early on
+gevent.monkey.patch_all()
+
 from image_creator import __version__ as version
 from image_creator import util
 from image_creator.disk import Disk

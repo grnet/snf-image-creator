@@ -46,7 +46,8 @@ setup(
     license='BSD',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'pysendfile'],
+    install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'py-sendfile',
+        'gevent'],
     entry_points={
         'console_scripts': [
                 'snf-image-creator = image_creator.main:main',

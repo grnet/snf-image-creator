@@ -443,7 +443,8 @@ class DiskDevice(object):
                 progressbar.next()
                 while left > 0:
                     length = min(left, blocksize)
-                    sent = sendfile(dst.fileno(), src.fileno(), offset, length)
+                    _, sent = sendfile(dst.fileno(), src.fileno(), offset,
+                        length)
                     offset += sent
                     left -= sent
                     progressbar.goto((size - left) // MB)
