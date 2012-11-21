@@ -34,6 +34,7 @@
 from image_creator.util import get_command
 from image_creator.util import FatalError
 from image_creator.gpt import GPTPartitionTable
+from image_creator.bundle_volume import bundle_volume
 import stat
 import os
 import tempfile
@@ -77,8 +78,9 @@ class Disk(object):
         return loop
 
     def _dir_to_disk(self):
-        raise FatalError("Using a directory as media source is not supported "
-                         "yet!")
+        if self.source == '/':
+            return bundle_volume()
+        raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
         """Cleanup internal data. This needs to be called before the
