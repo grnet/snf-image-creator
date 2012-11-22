@@ -12,8 +12,10 @@ Dependencies
 snf-image-creator depends on the following programs:
 
  * Python 2 [http://www.python.org/]
+ * Python development headers
  * Python setuptools [http://pypi.python.org/pypi/setuptools]
  * Python Dialog [http://pythondialog.sourceforge.net/]
+ * Python gevent library [http://pypi.python.org/pypi/gevent]
  * Python bindings for libguestfs [http://libguestfs.org/]
  * Kamaki [https://code.grnet.gr/projects/kamaki]
  * Python sh (previously pbs) [https://github.com/amoffat/sh]
@@ -21,17 +23,24 @@ snf-image-creator depends on the following programs:
  * progress [http://pypi.python.org/pypi/progress]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
 
-The first four programs (python2, setuptools, libguestfs and Python Dialog)
-need to be installed manually by the user. In an Ubuntu 12.04 LTS system this
-can be archived by installing packages provided by the distribution, using the
-following command:
+The first six programs (python2, python-dev, setuptools, Python-Dialog, 
+python-gevent and libguestfs) need to be installed manually by the user. In an
+Ubuntu 12.04 LTS system this can be achieved by installing packages provided by
+the distribution, using the following command:
 
 .. code-block:: console
 
-   $ apt-get install python-setuptools python-guestfs python-dialog
+   $ apt-get install python-setuptools python-guestfs python-dialog \
+     python-gevent python-dev
 
 The rest of the dependencies will be automatically resolved by setuptools.
+Keep in mind though that git needs to be installed to download the source 
+files. You can use the following command:
 
+.. code-block:: console
+
+   $ apt-get install git
+ 
 Python Virtual Environment
 ==========================
 
@@ -63,6 +72,24 @@ You can later deactivate it using the following command:
    $ deactivate
 
 
+snf-common Installation
+=======================
+
+Install snf-common from source, by cloning it's repository:
+
+.. code-block:: console
+   
+   $ cd ~
+   $ git clone https://code.grnet.gr/git/synnefo
+   $ cd synnefo/snf-common
+   $ python setup.py build
+
+Then, make sure you are within the activated virtual environment before you
+
+.. code-block:: console
+
+   $ python setup.py install
+
 kamaki Installation
 ===================
 
@@ -70,16 +97,17 @@ Install kamaki from source, by cloning it's repository:
 
 .. code-block:: console
 
+   $ cd ~
    $ git clone https://code.grnet.gr/git/kamaki
    $ cd kamaki
-   $ ./setup build
+   $ ./setup.py build
 
-Then, make sure you are within the activated virtual environment before you
+As above, make sure you are within the activated virtual environment before you
 execute:
 
 .. code-block:: console
 
-   $ ./setup install
+   $ ./setup.py install
 
 snf-image-creator Installation
 ==============================
@@ -88,13 +116,14 @@ Install snf-image-creator the same way:
 
 .. code-block:: console
 
+   $ cd ~
    $ git clone https://code.grnet.gr/git/snf-image-creator
+   $ git checkout stable-0.1
    $ cd snf-image-creator
-   $ ./setup build
+   $ ./setup.py build
 
 And from within the virtual environment execute:
 
 .. code-block:: console
 
-   $ ./setup install
-
+   $ ./setup.py install
