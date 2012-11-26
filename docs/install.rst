@@ -28,8 +28,7 @@ following command:
 
 .. code-block:: console
 
-   $ apt-get install python-setuptools python-guestfs python-dialog \
-     python-gevent python-dev
+   $ apt-get install python-setuptools python-guestfs python-dialog
 
 The rest of the dependencies will be automatically resolved by setuptools.
 Keep in mind though that git needs to be installed to download the source
