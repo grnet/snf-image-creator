@@ -12,10 +12,8 @@ Dependencies
 snf-image-creator depends on the following programs:
 
  * Python 2 [http://www.python.org/]
- * Python development headers
  * Python setuptools [http://pypi.python.org/pypi/setuptools]
  * Python Dialog [http://pythondialog.sourceforge.net/]
- * Python gevent library [http://pypi.python.org/pypi/gevent]
  * Python bindings for libguestfs [http://libguestfs.org/]
  * Kamaki [https://code.grnet.gr/projects/kamaki]
  * Python sh (previously pbs) [https://github.com/amoffat/sh]
@@ -23,10 +21,10 @@ snf-image-creator depends on the following programs:
  * progress [http://pypi.python.org/pypi/progress]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
 
-The first six programs (python2, python-dev, setuptools, Python-Dialog, 
-python-gevent and libguestfs) need to be installed manually by the user. In an
-Ubuntu 12.04 LTS system this can be achieved by installing packages provided by
-the distribution, using the following command:
+The first four programs (python2, setuptools, Python-Dialog, and libguestfs)
+need to be installed manually by the user. In an Ubuntu 12.04 LTS system this
+can be achieved by installing packages provided by the distribution, using the
+following command:
 
 .. code-block:: console
 
@@ -34,13 +32,13 @@ the distribution, using the following command:
      python-gevent python-dev
 
 The rest of the dependencies will be automatically resolved by setuptools.
-Keep in mind though that git needs to be installed to download the source 
+Keep in mind though that git needs to be installed to download the source
 files. You can use the following command:
 
 .. code-block:: console
 
    $ apt-get install git
- 
+
 Python Virtual Environment
 ==========================
 
@@ -78,7 +76,7 @@ snf-common Installation
 Install snf-common from source, by cloning it's repository:
 
 .. code-block:: console
-   
+
    $ cd ~
    $ git clone https://code.grnet.gr/git/synnefo
    $ cd synnefo/snf-common
