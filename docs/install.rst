@@ -31,8 +31,8 @@ methods are presented below.
 Install snf-image-creator using official packages
 =================================================
 
-This method of installing snf-image-creator boasts all the advantages of
-Ubuntu's APT installation:
+This method of installing snf-image-creator has all the advantages of Ubuntu's
+APT installation:
 
 * Automatic resolution of dependencies
 * Simple installation of consequent updates
@@ -102,8 +102,12 @@ distribution, using the following command:
    $ apt-get install python-setuptools python-guestfs python-dialog
 
 The rest of the dependencies will be automatically resolved by setuptools.
-Keep in mind though that git needs to be installed to download the source
-files. You can use the following command:
+Note that at some point during the installation, you will be prompted to
+create/update a "supermin appliance". This is a setting regarding libguestfs
+and you can safely choose "Yes".
+
+In order to download the source files, git needs to be installed. You can do
+so with the following command:
 
 .. code-block:: console
 
@@ -112,7 +116,7 @@ files. You can use the following command:
 Python Virtual Environment
 --------------------------
 
-Since snf-image-creator and the rest of it's dependencies won't be installed
+Since snf-image-creator and the rest of its dependencies won't be installed
 using packages, it's better to work in an isolated python virtual environment
 (virtualenv). Installing the Virtual Python Environment builder in Ubuntu can
 be accomplished using the following command:
@@ -152,6 +156,7 @@ Install snf-common from source, by cloning it's repository:
    $ python setup.py build
 
 Then, make sure you are within the activated virtual environment before you
+execute:
 
 .. code-block:: console
 
@@ -194,4 +199,3 @@ And from within the virtual environment execute:
 .. code-block:: console
 
    $ ./setup.py install
-
