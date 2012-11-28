@@ -21,106 +21,60 @@ snf-image-creator depends on the following programs:
  * progress [http://pypi.python.org/pypi/progress]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
 
-The first four programs (python2, setuptools, Python-Dialog, and libguestfs)
-need to be installed manually by the user. In an Ubuntu 12.04 LTS system this
-can be achieved by installing packages provided by the distribution, using the
-following command:
+When installing snf-image-creator, the above dependencies are automatically
+resolved.
+
+Development repository addition
+===============================
+
+In order to install snf-image-creator and the rest of it's dependencies, you
+must first add GRNET's dev repo to your sources. You can use the following
+commands:
 
 .. code-block:: console
 
-   $ apt-get install python-setuptools python-guestfs python-dialog
+   cd /etc/apt/sources.list.d
+   echo "deb http://apt.dev.grnet.gr precise main" | \
+   sudo tee -a  apt.dev.grnet.gr.list
+   echo "deb-src http://apt.dev.grnet.gr precise main" | \
+   sudo tee -a apt.dev.grnet.gr.list
 
-The rest of the dependencies will be automatically resolved by setuptools.
-Keep in mind though that git needs to be installed to download the source
-files. You can use the following command:
-
-.. code-block:: console
-
-   $ apt-get install git
-
-Python Virtual Environment
-==========================
-
-Since snf-image-creator and the rest of it's dependencies won't be installed
-using packages, it's better to work in an isolated python virtual environment
-(virtualenv). Installing the Virtual Python Environment builder in Ubuntu can
-be accomplished using the following command:
+You will also need to import the repo's GPG key. You can use the ``curl`` tool
+for this.
 
 .. code-block:: console
 
-   $ apt-get install python-virtualenv
+   $ sudo apt-get install curl
 
-Now, create a new python virtual environment like this:
-
-.. code-block:: console
-
-   $ virtualenv --system-site-packages ~/image-creator-env
-
-and activate it by executing:
+Use the following command to import the GPG key:
 
 .. code-block:: console
 
-   $ source ~/image-creator-env/bin/activate
+   $ sudo curl https://dev.grnet.gr/files/apt-grnetdev.pub | sudo apt-key add -
 
-You can later deactivate it using the following command:
-
-.. code-block:: console
-
-   $ deactivate
-
-
-snf-common Installation
-=======================
-
-Install snf-common from source, by cloning it's repository:
+You can verify that the repo has been added successfully if snf-image-creator
+exists as a package. First do an update of your sources:
 
 .. code-block:: console
 
-   $ cd ~
-   $ git clone https://code.grnet.gr/git/synnefo
-   $ cd synnefo/snf-common
-   $ python setup.py build
+   $ sudo apt-get update
 
-Then, make sure you are within the activated virtual environment before you
+then check if snf-image-creator exists with the following command:
 
 .. code-block:: console
 
-   $ python setup.py install
-
-kamaki Installation
-===================
-
-Install kamaki from source, by cloning it's repository:
-
-.. code-block:: console
-
-   $ cd ~
-   $ git clone https://code.grnet.gr/git/kamaki
-   $ cd kamaki
-   $ ./setup.py build
-
-As above, make sure you are within the activated virtual environment before you
-execute:
-
-.. code-block:: console
-
-   $ ./setup.py install
+   $ apt-cache showpkg snf-image-creator
 
 snf-image-creator Installation
 ==============================
 
-Install snf-image-creator the same way:
+If GRNET's dev repo has been added successfully, you can install
+snf-image-creator, along with its dependencies, with the following command:
 
 .. code-block:: console
 
-   $ cd ~
-   $ git clone https://code.grnet.gr/git/snf-image-creator
-   $ git checkout stable-0.1
-   $ cd snf-image-creator
-   $ ./setup.py build
+   $ sudo apt-get install snf-image-creator
 
-And from within the virtual environment execute:
-
-.. code-block:: console
-
-   $ ./setup.py install
+The installation might take a while. Please note that at some point during the
+installation you will be prompted to create/update a "supermin appliance". This
+is a setting regarding libguestfs and you can safely choose "Yes".
