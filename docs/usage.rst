@@ -78,50 +78,50 @@ debian system, we get the following output:
    Launching helper VM... done
    Inspecting Operating System... found a(n) debian system
    Mounting the media read-only... done
-   
+
    Enabled system preparation operations:
        cleanup-cache:
    	Remove all regular files under /var/cache
-   
+
        cleanup-log:
    	Empty all files under /var/log
-   
+
        cleanup-passwords:
    	Remove all passwords and lock all user accounts
-   
+
        cleanup-tmp:
    	Remove all files under /tmp and /var/tmp
-   
+
        cleanup-userdata:
    	Delete sensitive userdata
-   
+
        fix-acpid:
    	Replace acpid powerdown action scripts to immediately shutdown the
    	system without checking if a GUI is running.
-   
+
        remove-persistent-net-rules:
    	Remove udev rules that will keep network interface names persistent
    	after hardware changes and reboots. Those rules will be created again
    	the next time the image runs.
-   
+
        remove-swap-entry:
    	Remove swap entry from /etc/fstab. If swap is the last partition
    	then the partition will be removed when shrinking is performed. If the
    	swap partition is not the last partition in the disk or if you are not
    	going to shrink the image you should probably disable this.
-   
+
        use-persistent-block-device-names:
    	Scan fstab & grub configuration files and replace all non-persistent
    	device references with UUIDs.
-   
+
    Disabled system preparation operations:
        cleanup-mail:
    	Remove all files under /var/mail and /var/spool/mail
-   
+
        remove-user-accounts:
    	Remove all user accounts with id greater than 1000
-   
-   
+
+
    cleaning up...
 
 If we want the image to have all normal user accounts and all mail files
