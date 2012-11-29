@@ -42,10 +42,10 @@ to your sources. You can use the following commands:
 
 .. code-block:: console
 
-   cd /etc/apt/sources.list.d
-   echo "deb http://apt.dev.grnet.gr precise main" | \
+   $ cd /etc/apt/sources.list.d
+   $ echo "deb http://apt.dev.grnet.gr precise main" | \
    sudo tee -a  apt.dev.grnet.gr.list
-   echo "deb-src http://apt.dev.grnet.gr precise main" | \
+   $ echo "deb-src http://apt.dev.grnet.gr precise main" | \
    sudo tee -a apt.dev.grnet.gr.list
 
 You will also need to import the repo's GPG key. You can use the ``curl`` tool

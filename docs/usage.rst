@@ -157,7 +157,7 @@ Wizard mode
 When *snf-mkimage* runs in *wizard* mode, the user is just asked to provide the
 following basic information:
 
- * Name: A short name for image (ex. "Slackware")
+ * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image (ex. "Slackware Linux 14.0 with KDE")
  * Account: An *~okeanos* account email
  * Token: A token corresponding to the account defined previously
