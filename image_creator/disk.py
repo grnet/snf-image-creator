@@ -67,6 +67,7 @@ class Disk(object):
         self._devices = []
         self.source = source
         self.out = output
+        self.meta = {}
 
     def _add_cleanup(self, job, *args):
         self._cleanup_jobs.append((job, args))
@@ -79,7 +80,7 @@ class Disk(object):
 
     def _dir_to_disk(self):
         if self.source == '/':
-            return bundle_volume(self.out)
+            return bundle_volume(self.out, self.meta)
         raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
@@ -165,16 +166,16 @@ class DiskDevice(object):
     as created by the device-mapper.
     """
 
-    def __init__(self, device, output, bootable=True):
+    def __init__(self, device, output, bootable=True, meta={}):
         """Create a new DiskDevice."""
 
         self.real_device = device
         self.out = output
         self.bootable = bootable
+        self.meta = meta
         self.progress_bar = None
         self.guestfs_device = None
         self.size = 0
-        self.meta = {}
 
         self.g = guestfs.GuestFS()
         self.g.add_drive_opts(self.real_device, readonly=0)

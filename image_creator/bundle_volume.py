@@ -35,6 +35,7 @@ import os
 import re
 import parted
 import uuid
+from collections import namedtuple
 
 from image_creator.util import get_command
 from image_creator.util import FatalError
@@ -43,46 +44,66 @@ findfs = get_command('findfs')
 truncate = get_command('truncate')
 dd = get_command('dd')
 
+
+def fstable(f):
+    if not os.path.isfile(f):
+        raise FatalError("Unable to open: `%s'. File is missing." % f)
+
+    Entry = namedtuple('Entry', 'dev mpoint fs opts freq passno')
+
+    with open(f) as table:
+        for line in iter(table):
+            entry = line.split('#')[0].strip().split()
+            if len(entry) != 6:
+                continue
+            yield Entry(*entry)
+
+
 def get_root_partition():
-    if not os.path.isfile('/etc/fstab'):
-        raise FatalError("Unable to open `/etc/fstab'. File is missing.")
+    for entry in fstable('/etc/fstab'):
+        if entry.mpoint == '/':
+            return entry.dev
 
-    with open('/etc/fstab') as fstab:
-        for line in iter(fstab):
-            entry = line.split('#')[0].strip().split()
-            if len(entry) != 6:
-                continue
+    raise FatalError("Unable to find root device in /etc/fstab")
 
-            if entry[1] == "/":
-                return entry[0]
 
-        raise FatalError("Unable to find root device in /etc/fstab")
-
-def mnt_mounted():
-    if not os.path.isfile('/etc/mtab'):
-        raise FatalError("Unable to open `/etc/fstab'. File is missing.")
-
-    with open('/etc/mtab') as mtab:
-        for line in iter(mtab):
-            entry = line.split('#')[0].strip().split()
-            if len(entry) != 6:
-                continue
-
-            if entry[1] == '/mnt':
-                return True
-
+def is_mpoint(path):
+    for entry in fstable('/proc/mounts'):
+        if entry.mpoint == path:
+            return True
     return False
 
 
-def part_to_dev(part):
-    return re.split('[0-9]', part)[0]
+def mpoint(device):
+    for entry in fstable('/proc/mounts'):
+        if not entry.dev.startswith('/'):
+            continue
 
-def part_to_num(part):
-    return re.split('[^0-9]+', part)[-1]
+        if os.path.realpath(entry.dev) == os.path.realpath(device):
+            return entry.mpoint
 
-def bundle_volume(out):
+    return ""
 
-    if mnt_mounted():
+
+def create_EBRs(src, dest):
+
+    # The Extended boot records precede the logical partitions they describe
+    extended = src.getExtendedPartition()
+    if not extended:
+        return
+
+    logical = src.getLogicalPartitions()
+    start = extended.geometry.start
+    for l in range(len(logical)):
+        end = l.geometry.start - 1
+        dd('if=%s' % src.path, 'of=%s' % dest, 'count=%d' % (end - start + 1),
+            'conv=notrunc', 'seek=%d' % start, 'skip=%d' % start)
+        start = l.geometry.end + 1
+
+
+def bundle_volume(out, meta):
+
+    if is_mpoint('/mnt'):
         raise FatalError('The directory /mnt where the image will be hosted'
             'is mounted. Please unmount it and start over again.')
 
@@ -97,24 +118,98 @@ def bundle_volume(out):
     if not re.match('/dev/[hsv]d[a-z][1-9]*$', root_part):
         raise FatalError("Don't know how to handle root device: %s" % root_dev)
 
-    device = parted.Device(part_to_dev(root_part))
+    part_to_dev = lambda p: re.split('[0-9]', p)[0]
 
-    image = '/mnt/%s.diskdump' % uuid.uuid4().hex
+    root_dev = part_to_dev(root_part)
+
+    out.success('%s' % root_dev)
+
+    src_dev = parted.Device(root_dev)
+
+    img = '/mnt/%s.diskdump' % uuid.uuid4().hex
+    disk_size = src_dev.getLength() * src_dev.sectorSize
 
     # Create sparse file to host the image
-    truncate("-s", "%d" % (device.getLength() * device.sectorSize), image)
+    truncate("-s", "%d" % disk_size, img)
 
-    disk = parted.Disk(device)
-    if disk.type != 'msdos':
+    src_disk = parted.Disk(src_dev)
+    if src_disk.type != 'msdos':
         raise FatalError('For now we can only handle msdos partition tables')
 
     # Copy the MBR and the space between the MBR and the first partition.
     # In Grub version 1 Stage 1.5 is located there.
-    first_sector = disk.getPrimaryPartitions()[0].geometry.start
+    first_sector = src_disk.getPrimaryPartitions()[0].geometry.start
 
-    dd('if=%s' % device.path, 'of=%s' % image, 'bs=%d' % device.sectorSize,
+    dd('if=%s' % src_dev.path, 'of=%s' % img, 'bs=%d' % src_dev.sectorSize,
         'count=%d' % first_sector, 'conv=notrunc')
 
-    return image
+    # Create the Extended boot records (EBRs) in the image
+    create_EBRs(src_disk, img)
+
+    img_dev = parted.Device(img)
+    img_disk = parted.Disk(img_dev)
+
+    Partition = namedtuple('Partition', 'num start end type fs mpoint')
+
+    partitions = []
+    for p in src_disk.partitions:
+        g = p.geometry
+        f = p.fileSystem
+        partitions.append(Partition(p.number, g.start, g.end, p.type,
+            f.type if f is not None else '', mpoint(p.path)))
+
+    last = partitions[-1]
+    new_end = src_dev.getLength()
+    if last.fs == 'linux-swap(v1)':
+        size = (last.end - last.start + 1) * src_dev.sectorSize
+        MB = 2 ** 20
+        meta['SWAP'] = "%d:%s" % (last.num, ((size + MB - 1) // MB))
+        img_disk.deletePartition(img_disk.getPartitionBySector(last.start))
+        if last.type == parted.PARTITION_LOGICAL and last.num == 5:
+            img_disk.deletePartition(img_disk.getExtendedPartition())
+        partitions.remove(last)
+        last = partitions[-1]
+
+        # Leave 2048 blocks at the end
+        new_end = last.end + 2048
+
+    if last.mpoint:
+        stat = statvfs(last.mpoint)
+        occupied_blocks = stat.f_blocks - stat.f_bavail
+        new_size = (occupied * stat.f_frsize) // src_dev.sectorSize
+        # Add 10% just to be on the safe side
+        last.end = last.start + (new_size * 11) // 10
+
+        # Alighn to 2048
+        last.end = ((last.end + 2047) // 2048) * 2048
+
+        # Leave 2048 blocks at the end.
+        new_end = new_size + 2048
+
+        img_disk.setPartitionGeometry(
+            img_disk.getPartitionBySector(last.start),
+            parted.Constraint(device=img_dev), start=last.star, end=last.end)
+
+        if last.type == parted.PARTITION_LOGICAL:
+            # Fix the extended partition
+            ext = disk.getExtendedPartition()
+
+            img_disk.setPartitionGeometry(ext,
+                parted.Constraint(device=img_dev), ext.geometry.start,
+                end=last.end)
+
+    # Check if we have the available space on the filesystem hosting /mnt
+    # for the image.
+    out.output("Examining available space in /mnt ... ", False)
+    stat = os.statvfs('/mnt')
+    image_size = (new_end + 1) * src_dev.sectorSize
+    available = stat.f_bavail * stat.f_frsize
+
+    if available <= image_size:
+        raise FatalError('Not enough space in /mnt to host the image')
+
+    out.success("sufficient")
+
+    return img
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
