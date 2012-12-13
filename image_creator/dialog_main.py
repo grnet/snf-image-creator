@@ -142,7 +142,8 @@ def select_file(d, media):
                 break
 
         (code, media) = d.fselect(root, 10, 60, extra_button=1,
-            title="Please select an input media.", extra_label="Running System")
+            title="Please select an input media.",
+            extra_label="Running System")
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d, "You canceled the media selection dialog box."):
                 sys.exit(0)
