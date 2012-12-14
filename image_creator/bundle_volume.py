@@ -44,6 +44,7 @@ findfs = get_command('findfs')
 truncate = get_command('truncate')
 dd = get_command('dd')
 
+MB = 2 ** 20
 
 def fstable(f):
     if not os.path.isfile(f):
@@ -94,11 +95,12 @@ def create_EBRs(src, dest):
 
     logical = src.getLogicalPartitions()
     start = extended.geometry.start
-    for l in range(len(logical)):
-        end = l.geometry.start - 1
-        dd('if=%s' % src.path, 'of=%s' % dest, 'count=%d' % (end - start + 1),
-            'conv=notrunc', 'seek=%d' % start, 'skip=%d' % start)
-        start = l.geometry.end + 1
+    for i in range(len(logical)):
+        end = logical[i].geometry.start - 1
+        dd('if=%s' % src.device.path, 'of=%s' % dest,
+            'count=%d' % (end - start + 1), 'conv=notrunc', 'seek=%d' % start,
+            'skip=%d' % start)
+        start = logical[i].geometry.end + 1
 
 
 def bundle_volume(out, meta):
@@ -111,7 +113,7 @@ def bundle_volume(out, meta):
     root_part = get_root_partition()
 
     if root_part.startswith("UUID=") or root_part.startswith("LABEL="):
-        root_part = findfs(root_part)
+        root_part = findfs(root_part).stdout.strip()
     elif not root_part.startswith("/"):
         raise FatalError("Unable to find a block device for: %s" % root_dev)
 
@@ -149,6 +151,9 @@ def bundle_volume(out, meta):
     img_dev = parted.Device(img)
     img_disk = parted.Disk(img_dev)
 
+    is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
+    is_logical = lambda p: p.type == parted.PARTITION_LOGICAL
+
     Partition = namedtuple('Partition', 'num start end type fs mpoint')
 
     partitions = []
@@ -162,11 +167,16 @@ def bundle_volume(out, meta):
     new_end = src_dev.getLength()
     if last.fs == 'linux-swap(v1)':
         size = (last.end - last.start + 1) * src_dev.sectorSize
-        MB = 2 ** 20
         meta['SWAP'] = "%d:%s" % (last.num, ((size + MB - 1) // MB))
+        
         img_disk.deletePartition(img_disk.getPartitionBySector(last.start))
-        if last.type == parted.PARTITION_LOGICAL and last.num == 5:
+        img_disk.commit()
+
+        if is_logical(last) and last.num == 5:
             img_disk.deletePartition(img_disk.getExtendedPartition())
+            img_disk.commit()
+            partitions.remove(filter(is_extended, partitions)[0])
+
         partitions.remove(last)
         last = partitions[-1]
 
@@ -174,21 +184,24 @@ def bundle_volume(out, meta):
         new_end = last.end + 2048
 
     if last.mpoint:
-        stat = statvfs(last.mpoint)
+        stat = os.statvfs(last.mpoint)
         occupied_blocks = stat.f_blocks - stat.f_bavail
-        new_size = (occupied * stat.f_frsize) // src_dev.sectorSize
+        new_size = (occupied_blocks * stat.f_frsize) // src_dev.sectorSize
+
         # Add 10% just to be on the safe side
-        last.end = last.start + (new_size * 11) // 10
-
+        part_end = last.start + (new_size * 11) // 10
         # Alighn to 2048
-        last.end = ((last.end + 2047) // 2048) * 2048
-
+        part_end = ((part_end + 2047) // 2048) * 2048
+        last = last._replace(end=part_end)
+        partitions[-1] = last
+        
         # Leave 2048 blocks at the end.
         new_end = new_size + 2048
 
         img_disk.setPartitionGeometry(
             img_disk.getPartitionBySector(last.start),
-            parted.Constraint(device=img_dev), start=last.star, end=last.end)
+            parted.Constraint(device=img_dev), start=last.start, end=last.end)
+        img_disk.commit()
 
         if last.type == parted.PARTITION_LOGICAL:
             # Fix the extended partition
@@ -197,6 +210,7 @@ def bundle_volume(out, meta):
             img_disk.setPartitionGeometry(ext,
                 parted.Constraint(device=img_dev), ext.geometry.start,
                 end=last.end)
+            img_disk.commit()
 
     # Check if we have the available space on the filesystem hosting /mnt
     # for the image.
