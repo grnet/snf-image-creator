@@ -66,6 +66,8 @@ options multiple times to enable or disable multiple *syspreps*.
 Running *snf-image-creator* with *--print-sysprep* on a raw file that hosts a
 debian system, we get the following output:
 
+.. _sysprep:
+
 .. code-block:: console
 
    $ snf-image-creator --print-sysprep debian_desktop.img
@@ -78,50 +80,50 @@ debian system, we get the following output:
    Launching helper VM... done
    Inspecting Operating System... found a(n) debian system
    Mounting the media read-only... done
-   
+
    Enabled system preparation operations:
        cleanup-cache:
    	Remove all regular files under /var/cache
-   
+
        cleanup-log:
    	Empty all files under /var/log
-   
+
        cleanup-passwords:
    	Remove all passwords and lock all user accounts
-   
+
        cleanup-tmp:
    	Remove all files under /tmp and /var/tmp
-   
+
        cleanup-userdata:
    	Delete sensitive userdata
-   
+
        fix-acpid:
    	Replace acpid powerdown action scripts to immediately shutdown the
    	system without checking if a GUI is running.
-   
+
        remove-persistent-net-rules:
    	Remove udev rules that will keep network interface names persistent
    	after hardware changes and reboots. Those rules will be created again
    	the next time the image runs.
-   
+
        remove-swap-entry:
    	Remove swap entry from /etc/fstab. If swap is the last partition
    	then the partition will be removed when shrinking is performed. If the
    	swap partition is not the last partition in the disk or if you are not
    	going to shrink the image you should probably disable this.
-   
+
        use-persistent-block-device-names:
    	Scan fstab & grub configuration files and replace all non-persistent
    	device references with UUIDs.
-   
+
    Disabled system preparation operations:
        cleanup-mail:
    	Remove all files under /var/mail and /var/spool/mail
-   
+
        remove-user-accounts:
    	Remove all user accounts with id greater than 1000
-   
-   
+
+
    cleaning up...
 
 If we want the image to have all normal user accounts and all mail files
@@ -157,7 +159,7 @@ Wizard mode
 When *snf-mkimage* runs in *wizard* mode, the user is just asked to provide the
 following basic information:
 
- * Name: A short name for image (ex. "Slackware")
+ * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image (ex. "Slackware Linux 14.0 with KDE")
  * Account: An *~okeanos* account email
  * Token: A token corresponding to the account defined previously
@@ -202,6 +204,13 @@ disk from the Internet:
 
    $ wget http://ubuntureleases.tsl.gr/12.04.1/ubuntu-12.04.1-server-amd64.iso
 
+Verify that it has been downloaded correctly:
+
+.. code-block:: console
+
+   $ echo 'a8c667e871f48f3a662f3fbf1c3ddb17  ubuntu-12.04.1-server-amd64.iso' > check.md5
+   $ md5sum -c check.md5
+
 Create a 2G sparce file to host the new system:
 
 .. code-block:: console
@@ -213,11 +222,23 @@ And install the Ubuntu system on this file:
 .. code-block:: console
 
    $ sudo kvm -boot d -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio \
-     -cdrom ubuntu-12.04.1-server-amd64.iso
+     -m 1000 -cdrom ubuntu-12.04.1-server-amd64.iso
 
-After the installation finishes, become root, activate the virtual environment
-you have installed snf-image-creator in, and use *snf-mkimage* to create and
-upload the image:
+.. note::
+
+   During the installation, you will be asked about the partition scheme. Since
+   snf-image-creator does not support LVM partitions, you are advised to create
+   regular partitions.
+
+When the installation is complete, you can close the QEMU window. You
+will be able to boot your installed OS and make any changes you want to it
+(e.g. install openssh-server) using the following command::
+
+   $ sudo kvm -m 1000 -drive file=linuxmint.raw,format=raw,cache=none,if=virtio
+
+After you're done, become root, activate the virtual environment you have
+installed snf-image-creator in, and use *snf-mkimage* to create and upload the
+image:
 
 .. code-block:: console
 
