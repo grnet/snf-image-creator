@@ -34,7 +34,9 @@
 from image_creator.util import get_command
 from image_creator.util import FatalError
 from image_creator.gpt import GPTPartitionTable
-from image_creator.bundle_volume import bundle_volume
+
+import image_creator.bundle_volume
+
 import stat
 import os
 import tempfile
@@ -78,9 +80,28 @@ class Disk(object):
         self._add_cleanup(losetup, '-d', loop)
         return loop
 
+    def _map_partition(self, dev, index, start, end):
+        name = "%sp%d" % (os.path.basename(dev), index)
+        tablefd, table = tempfile.mkstemp()
+        try:
+            size = end - start + 1
+            os.write(tablefd, "0 %d linear %s %d" % (start, dev, size))
+            dmsetup('create', name, table)
+        finally:
+            os.unlink(table)
+
+    def _unmap_partition(self, dev, index):
+        name = "%sp%d" % (os.path.basename(dev), index)
+        if not os.path.exists("/dev/mapper/%s" % name):
+            return
+
+        dmsetup('remove', name)
+        time.sleep(0.5)
+
     def _dir_to_disk(self):
         if self.source == '/':
-            return bundle_volume(self.out, self.meta)
+            bundle = BundleVolume(self.out, self.meta)
+            return _losetup(bundle.create_image())
         raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
@@ -108,7 +129,7 @@ class Disk(object):
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
             self.out.success('looks like a directory')
-            return self._losetup(self._dir_to_disk())
+            return self._dir_to_disk()
         elif stat.S_ISREG(mode):
             self.out.success('looks like an image file')
             sourcedev = self._losetup(self.source)
