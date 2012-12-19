@@ -58,7 +58,7 @@ class BundleVolume():
         self.out = out
         self.meta = meta
 
-        self.out.output('Searching for root device...', False)
+        self.out.output('Searching for root device ...', False)
         root = self._get_root_partition()
 
         if root.startswith("UUID=") or root.startswith("LABEL="):
@@ -72,9 +72,9 @@ class BundleVolume():
 
         self.disk = re.split('[0-9]', self.root)[0]
 
-        out.success('%s' % root_dev)
+        out.success('%s' % self.root)
 
-    def _read_fstable(f):
+    def _read_fstable(self, f):
         if not os.path.isfile(f):
             raise FatalError("Unable to open: `%s'. File is missing." % f)
 
@@ -83,23 +83,23 @@ class BundleVolume():
                 entry = line.split('#')[0].strip().split()
                 if len(entry) != 6:
                     continue
-                yield FileSystemEntry(*entry)
+                yield self._FileSystemEntry(*entry)
 
-    def _get_root_partition():
+    def _get_root_partition(self):
         for entry in self._read_fstable('/etc/fstab'):
             if entry.mpoint == '/':
                 return entry.dev
 
         raise FatalError("Unable to find root device in /etc/fstab")
 
-    def _is_mpoint(path):
-        for entry in fstable('/proc/mounts'):
+    def _is_mpoint(self, path):
+        for entry in self._read_fstable('/proc/mounts'):
             if entry.mpoint == path:
                 return True
         return False
 
-    def _mount_options(device):
-        for entry in fstable('/proc/mounts'):
+    def _mount_options(self, device):
+        for entry in self._read_fstable('/proc/mounts'):
             if not entry.dev.startswith('/'):
                 continue
 
@@ -108,7 +108,7 @@ class BundleVolume():
 
         return
 
-    def _create_partition_table(src_disk, dest_file):
+    def _create_partition_table(self, src_disk, dest_file):
 
         if src_disk.type != 'msdos':
             raise FatalError('Only msdos partition tables are supported')
@@ -133,128 +133,116 @@ class BundleVolume():
         start = extended.geometry.start
         for i in range(len(logical)):
             end = logical[i].geometry.start - 1
-            dd('if=%s' % src.device.path, 'of=%s' % dest,
+            dd('if=%s' % src_disk.device.path, 'of=%s' % dest_file,
                'count=%d' % (end - start + 1), 'conv=notrunc',
                'seek=%d' % start, 'skip=%d' % start)
             start = logical[i].geometry.end + 1
 
-    def _shrink_partitions(src_disk, image_file):
+    def _shrink_partitions(self, src_disk, image_file):
 
         partitions = []
         new_end = 0
 
         image_dev = parted.Device(image_file)
-        try:
-            image_disk = parted.Disk(image_dev)
-            try:
-                is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
-                is_logical = lambda p: p.type == parted.PARTITION_LOGICAL
+        image_disk = parted.Disk(image_dev)
 
-                partitions = []
-                for p in src_disk.partitions:
-                    g = p.geometry
-                    f = p.fileSystem
-                    partitions.append(self._Partition(p.number, g.start, g.end,
-                                      p.type, f.type if f is not None else '',
-                                      mount_options(p.path)))
+        is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
+        is_logical = lambda p: p.type == parted.PARTITION_LOGICAL
 
-                last = partitions[-1]
-                new_end = src_disk.device.getLength()
-                if last.fs == 'linux-swap(v1)':
-                    MB = 2 ** 20
-                    size = (last.end - last.start + 1) * \
-                        src_disk.device.sectorSize
-                    meta['SWAP'] = "%d:%s" % (last.num, (size + MB - 1) // MB)
+        partitions = []
+        for p in src_disk.partitions:
+            g = p.geometry
+            f = p.fileSystem
+            partitions.append(self._Partition(p.number, g.start, g.end,
+                              p.type, f.type if f is not None else '',
+                              self._mount_options(p.path)))
 
-                    img_disk.deletePartition(
-                        image_disk.getPartitionBySector(last.start))
-                    img_disk.commit()
+        last = partitions[-1]
+        new_end = src_disk.device.getLength()
+        if last.fs == 'linux-swap(v1)':
+            MB = 2 ** 20
+            size = (last.end - last.start + 1) * src_disk.device.sectorSize
+            self.meta['SWAP'] = "%d:%s" % (last.num, (size + MB - 1) // MB)
 
-                    if is_logical(last) and last.num == 5:
-                        extended = image_disk.getExtendedPartition()
-                        image_disk.deletePartition(extended)
-                        image_disk.commit()
-                        partitions.remove(filter(is_extended, partitions)[0])
+            image_disk.deletePartition(
+                image_disk.getPartitionBySector(last.start))
+            image_disk.commit()
 
-                    partitions.remove(last)
-                    last = partitions[-1]
+            if is_logical(last) and last.num == 5:
+                extended = image_disk.getExtendedPartition()
+                image_disk.deletePartition(extended)
+                image_disk.commit()
+                partitions.remove(filter(is_extended, partitions)[0])
 
-                    # Leave 2048 blocks at the end
-                    new_end = last.end + 2048
+            partitions.remove(last)
+            last = partitions[-1]
 
-                if last.mpoint:
-                    stat = os.statvfs(last.mpoint)
-                    # Shrink the last partition. The new size should be the
-                    # size of the occupied blocks
-                    blcks = stat.f_blocks - stat.f_bavail
-                    new_size = (blcks * stat.f_frsize) // src_dev.sectorSize
+            # Leave 2048 blocks at the end
+            new_end = last.end + 2048
 
-                    # Add 10% just to be on the safe side
-                    part_end = last.start + (new_size * 11) // 10
-                    # Alighn to 2048
-                    part_end = ((part_end + 2047) // 2048) * 2048
-                    last = last._replace(end=part_end)
-                    partitions[-1] = last
+        if last.mopts.mpoint:
+            stat = os.statvfs(last.mopts.mpoint)
+            # Shrink the last partition. The new size should be the
+            # size of the occupied blocks
+            blcks = stat.f_blocks - stat.f_bavail
+            new_size = (blcks * stat.f_frsize) // src_disk.device.sectorSize
 
-                    # Leave 2048 blocks at the end.
-                    new_end = new_size + 2048
+            # Add 10% just to be on the safe side
+            part_end = last.start + (new_size * 11) // 10
+            # Alighn to 2048
+            part_end = ((part_end + 2047) // 2048) * 2048
+            last = last._replace(end=part_end)
+            partitions[-1] = last
 
-                    image_disk.setPartitionGeometry(
-                        image_disk.getPartitionBySector(last.start),
-                        parted.Constraint(device=image_disk.device),
-                        start=last.start, end=last.end)
-                    image_disk.commit()
+            # Leave 2048 blocks at the end.
+            new_end = new_size + 2048
 
-                    if last.type == parted.PARTITION_LOGICAL:
-                        # Fix the extended partition
-                        extended = disk.getExtendedPartition()
+            image_disk.setPartitionGeometry(
+                image_disk.getPartitionBySector(last.start),
+                parted.Constraint(device=image_disk.device),
+                start=last.start, end=last.end)
+            image_disk.commit()
 
-                        image_disk.setPartitionGeometry(extended,
-                            parted.Constraint(device=img_dev),
-                            ext.geometry.start, end=last.end)
-                        image_disk.commit()
-            finally:
-                image_disk.destroy()
-        finally:
-            image_dev.destroy()
+            if last.type == parted.PARTITION_LOGICAL:
+                # Fix the extended partition
+                extended = disk.getExtendedPartition()
+
+                image_disk.setPartitionGeometry(extended,
+                    parted.Constraint(device=img_dev),
+                    ext.geometry.start, end=last.end)
+                image_disk.commit()
 
         # Check if the available space is enough to host the image
         location = os.path.dirname(image_file)
         size = (new_end + 1) * src_disk.device.sectorSize
-        self.out.output("Examining available space in %s" % location, False)
+        self.out.output("Examining available space in %s..." % location, False)
         stat = os.statvfs(location)
         available = stat.f_bavail * stat.f_frsize
         if available <= size:
             raise FatalError('Not enough space in %s to host the image' % \
                              location)
-        out.success("sufficient")
+        self.out.success("sufficient")
 
         return partitions
 
-    def _fill_partitions(src_disk, image, partitions):
+    def _fill_partitions(self, src_disk, image, partitions):
         pass
 
-    def create_image():
+    def create_image(self):
 
         image_file = '/mnt/%s.diskdump' % uuid.uuid4().hex
 
         src_dev = parted.Device(self.disk)
-        try:
-            size = src_dev.getLength() * src_dev.sectorSize
 
-            # Create sparse file to host the image
-            truncate("-s", "%d" % disk_size, image_file)
+        size = src_dev.getLength() * src_dev.sectorSize
 
-            src_disk = parted.Disk(src_dev)
-            try:
-                self._create_partition_table(src_disk, image_file)
-                partitions = self._shrink_partitions(src_disk, image_file)
-                self.fill_partitions(src_disk, image_file, partitions)
+        # Create sparse file to host the image
+        truncate("-s", "%d" % size, image_file)
 
-            finally:
-                src_disk.destroy()
-        finally:
-            src_dev.destroy()
+        src_disk = parted.Disk(src_dev)
+        self._create_partition_table(src_disk, image_file)
+        partitions = self._shrink_partitions(src_disk, image_file)
+        self._fill_partitions(src_disk, image_file, partitions)
 
         return image_file
 

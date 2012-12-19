@@ -34,8 +34,7 @@
 from image_creator.util import get_command
 from image_creator.util import FatalError
 from image_creator.gpt import GPTPartitionTable
-
-import image_creator.bundle_volume
+from image_creator.bundle_volume import BundleVolume
 
 import stat
 import os
@@ -101,7 +100,7 @@ class Disk(object):
     def _dir_to_disk(self):
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
-            return _losetup(bundle.create_image())
+            return self._losetup(bundle.create_image())
         raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
