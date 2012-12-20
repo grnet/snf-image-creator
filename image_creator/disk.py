@@ -79,24 +79,6 @@ class Disk(object):
         self._add_cleanup(losetup, '-d', loop)
         return loop
 
-    def _map_partition(self, dev, index, start, end):
-        name = "%sp%d" % (os.path.basename(dev), index)
-        tablefd, table = tempfile.mkstemp()
-        try:
-            size = end - start + 1
-            os.write(tablefd, "0 %d linear %s %d" % (start, dev, size))
-            dmsetup('create', name, table)
-        finally:
-            os.unlink(table)
-
-    def _unmap_partition(self, dev, index):
-        name = "%sp%d" % (os.path.basename(dev), index)
-        if not os.path.exists("/dev/mapper/%s" % name):
-            return
-
-        dmsetup('remove', name)
-        time.sleep(0.5)
-
     def _dir_to_disk(self):
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
@@ -231,7 +213,7 @@ class DiskDevice(object):
         self.progressbar.success('done')
         self.progressbar = None
 
-        self.out.output('Inspecting Operating System...', False)
+        self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
         if len(roots) == 0:
             raise FatalError("No operating system found")
