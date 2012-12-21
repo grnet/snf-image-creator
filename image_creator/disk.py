@@ -381,7 +381,7 @@ class DiskDevice(object):
                     'num': partition['part_num'],
                     'start': partition['part_start'] / sector_size,
                     'end': partition['part_end'] / sector_size,
-                    'id': part_get_(partition['part_num']),
+                    'id': part_get_id(partition['part_num']),
                     'bootable': part_get_bootable(partition['part_num'])
                 })
 
@@ -390,7 +390,7 @@ class DiskDevice(object):
             # Recreate the extended partition
             extended = [p for p in partitions if self._is_extended(p)][0]
             part_del(extended['part_num'])
-            part_add('e', extended['part_start'], end)
+            part_add('e', extended['part_start'] / sector_size, end)
 
             # Create all the logical partitions back
             for l in logical:
