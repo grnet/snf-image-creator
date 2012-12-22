@@ -1,10 +1,10 @@
 Installation
 ^^^^^^^^^^^^
 
-This guide describes how to install snf-image-creator on an Ubuntu 12.04 LTS
-system. It is highly recommended to have virtualization capable hardware.
-snf-image-creator will work on processors that do not support virtualization
-but it will be extremely slow.
+This guide describes how to install snf-image-creator on your machine. It is
+highly recommended to have virtualization capable hardware. snf-image-creator
+will work on processors that do not support virtualization but it will be
+extremely slow.
 
 Dependencies
 ============
@@ -22,11 +22,14 @@ snf-image-creator depends on the following programs:
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
 
 The above dependencies are resolved differently, depending on the installation
-method you choose.
+method you choose. There are two installation methods available:
 
-There are two installation methods. The first uses official packages whereas
-the second installs snf-image-creator and its dependencies from source. Both
-methods are presented below.
+#. `Install snf-image-creator using official packages`_ (currently only for
+   Ubuntu 12.04, more OSes will be supported soon)
+#. `Install snf-image-creator from source`_ (provided you meet the above
+   dependencies)
+
+Both methods are presented below.
 
 Install snf-image-creator using official packages
 =================================================
