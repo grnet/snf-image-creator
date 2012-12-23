@@ -40,6 +40,7 @@ from collections import namedtuple
 
 import parted
 
+from image_creator.rsync import Rsync
 from image_creator.util import get_command
 from image_creator.util import FatalError
 
@@ -92,14 +93,14 @@ class BundleVolume():
         if not os.path.isfile(f):
             raise FatalError("Unable to open: `%s'. File is missing." % f)
 
-        FileSystemEntry = namedtuple('FileSystemEntry',
+        FileSystemTableEntry = namedtuple('FileSystemTableEntry',
                                      'dev mpoint fs opts freq passno')
         with open(f) as table:
             for line in iter(table):
                 entry = line.split('#')[0].strip().split()
                 if len(entry) != 6:
                     continue
-                yield FileSystemEntry(*entry)
+                yield FileSystemTableEntry(*entry)
 
     def _get_root_partition(self):
         for entry in self._read_fstable('/etc/fstab'):
@@ -202,7 +203,7 @@ class BundleVolume():
 
         mount_options = self._get_mount_options(
                 self.disk.getPartitionBySector(last.start).path)
-        if mount_options is not None: 
+        if mount_options is not None:
             stat = os.statvfs(mount_options.mpoint)
             # Shrink the last partition. The new size should be the size of the
             # occupied blocks
@@ -227,7 +228,6 @@ class BundleVolume():
 
             # Leave 2048 blocks at the end.
             new_end = new_size + 2048
-
 
             if last.type == parted.PARTITION_LOGICAL:
                 # Fix the extended partition
@@ -273,13 +273,46 @@ class BundleVolume():
         for entry in self._read_fstable('/proc/mounts'):
             if entry.mpoint.startswith(os.path.abspath(target)):
                     mpoints.append(entry.mpoint)
-       
+
         mpoints.sort()
         for mpoint in reversed(mpoints):
             umount(mpoint)
 
+    def _to_exclude(self):
+        excluded = ['/tmp']
+        local_filesystems = MKFS_OPTS.keys() + ['rootfs']
+        for entry in self._read_fstable('/proc/mounts'):
+            if entry.fs in local_filesystems:
+                continue
+
+            mpoint = entry.mpoint
+            if mpoint in excluded:
+                continue
+
+            descendants = filter(lambda p: p.startswith(mpoint + '/'),
+                    excluded)
+            if len(descendants):
+                for d in descendants:
+                    excluded.remove(d)
+                excluded.append(mpoint)
+                continue
+
+            dirname = mpoint
+            basename = ''
+            found_ancestor = False
+            while dirname != '/':
+                (dirname, basename) = os.path.split(dirname)
+                if dirname in excluded:
+                    found_ancestor = True
+                    break
+
+            if not found_ancestor:
+                excluded.append(mpoint)
+
+        return map(lambda d: d + "/*", excluded)
+
     def _create_filesystems(self, image):
-        
+
         partitions = self._get_partitions(parted.Disk(parted.Device(image)))
         filesystems = {}
         for p in self.disk.partitions:
@@ -299,7 +332,7 @@ class BundleVolume():
         mapped = {}
         try:
             for p in mounted:
-                i =  p.num
+                i = p.num
                 mapped[i] = self._map_partition(loop, i, p.start, p.end)
 
             # Create the file systems
@@ -315,6 +348,10 @@ class BundleVolume():
                 absmpoints = self._mount(target,
                     [(mapped[i], filesystems[i].mpoint) for i in mapped.keys()]
                 )
+                exclude = self._to_exclude() + [image]
+                rsync = Rsync('/', target, exclude)
+                msg = "Copying host files into the image"
+                rsync.archive().run(self.out, msg)
 
             finally:
                 self._umount_all(target)
