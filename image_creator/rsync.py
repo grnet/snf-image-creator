@@ -55,7 +55,6 @@ class Rsync:
         dry_run = subprocess.Popen(cmd + ['-n', self.src, self.dest],
                                    shell=False, stdout=subprocess.PIPE,
                                    bufsize=0)
-        print "%r" % (cmd + ['-n', self.src, self.dest])
         total = 0
         for line in iter(dry_run.stdout.readline, b''):
             total += 1

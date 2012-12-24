@@ -349,7 +349,8 @@ class BundleVolume():
                     [(mapped[i], filesystems[i].mpoint) for i in mapped.keys()]
                 )
                 exclude = self._to_exclude() + [image]
-                rsync = Rsync('/', target, exclude)
+                rsync = Rsync('/', target,
+                              map(lambda p: os.path.relpath(p, '/'), exclude))
                 msg = "Copying host files into the image"
                 rsync.archive().run(self.out, msg)
 
