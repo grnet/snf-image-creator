@@ -82,7 +82,9 @@ class Disk(object):
     def _dir_to_disk(self):
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
-            return self._losetup(bundle.create_image())
+            image = bundle.create_image()
+            self._add_cleanup(os.unlink, image)
+            return self._losetup(image)
         raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
