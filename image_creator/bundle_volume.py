@@ -51,6 +51,7 @@ dmsetup = get_command('dmsetup')
 losetup = get_command('losetup')
 mount = get_command('mount')
 umount = get_command('umount')
+blkid = get_command('blkid')
 
 MKFS_OPTS = {
     'ext2': ['-F'],
@@ -279,7 +280,7 @@ class BundleVolume():
             umount(mpoint)
 
     def _to_exclude(self):
-        excluded = ['/tmp']
+        excluded = ['/tmp', '/var/tmp']
         local_filesystems = MKFS_OPTS.keys() + ['rootfs']
         for entry in self._read_fstable('/proc/mounts'):
             if entry.fs in local_filesystems:
@@ -311,15 +312,38 @@ class BundleVolume():
 
         return map(lambda d: d + "/*", excluded)
 
+    def _replace_uuids(self, target, new_uuid):
+
+        files = ['/etc/fstab',
+                 '/boot/grub/grub.cfg',
+                 '/boot/grub/menu.lst',
+                 '/boot/grub/grub.conf']
+
+        orig = dict(map(lambda p: (p.number, blkid( '-s', 'UUID', '-o',
+            'value', p.path).stdout.strip()), self.disk.partitions))
+
+        for f in map(lambda f: target + f, files):
+
+            if not os.path.exists(f):
+                continue
+
+            with open(f, 'r') as src:
+                lines = src.readlines()
+            with open(f, 'w') as dest:
+                for line in lines:
+                    for i, uuid in new_uuid.items():
+                        line = re.sub(orig[i], uuid, line)
+                    dest.write(line)
+
     def _create_filesystems(self, image):
 
-        partitions = self._get_partitions(parted.Disk(parted.Device(image)))
-        filesystems = {}
+        filesystem = {}
         for p in self.disk.partitions:
-            filesystems[p.number] = self._get_mount_options(p.path)
+            filesystem[p.number] = self._get_mount_options(p.path)
 
-        unmounted = filter(lambda p: filesystems[p.num] is None, partitions)
-        mounted = filter(lambda p: filesystems[p.num] is not None, partitions)
+        partitions = self._get_partitions(parted.Disk(parted.Device(image)))
+        unmounted = filter(lambda p: filesystem[p.num] is None, partitions)
+        mounted = filter(lambda p: filesystem[p.num] is not None, partitions)
 
         # For partitions that are not mounted right now, we can simply dd them
         # into the image.
@@ -335,24 +359,29 @@ class BundleVolume():
                 i = p.num
                 mapped[i] = self._map_partition(loop, i, p.start, p.end)
 
+            new_uuid = {}
             # Create the file systems
             for i, dev in mapped.iteritems():
-                fs = filesystems[i].fs
+                fs = filesystem[i].fs
                 self.out.output('Creating %s filesystem on partition %d ... ' %
                     (fs, i), False)
                 get_command('mkfs.%s' % fs)(*(MKFS_OPTS[fs] + [dev]))
                 self.out.success('done')
+                new_uuid[i] = blkid('-s', 'UUID', '-o', 'value', dev
+                    ).stdout.strip()
 
             target = tempfile.mkdtemp()
             try:
                 absmpoints = self._mount(target,
-                    [(mapped[i], filesystems[i].mpoint) for i in mapped.keys()]
+                    [(mapped[i], filesystem[i].mpoint) for i in mapped.keys()]
                 )
                 exclude = self._to_exclude() + [image]
                 rsync = Rsync('/', target,
                               map(lambda p: os.path.relpath(p, '/'), exclude))
                 msg = "Copying host files into the image"
                 rsync.archive().run(self.out, msg)
+
+                self._replace_uuids(target, new_uuid)
 
             finally:
                 self._umount_all(target)
@@ -372,6 +401,7 @@ class BundleVolume():
         truncate("-s", "%d" % disk_size, image)
 
         self._create_partition_table(image)
+
         end_sector = self._shrink_partitions(image)
 
         # Check if the available space is enough to host the image
