@@ -219,7 +219,7 @@ class BundleVolume():
             image_disk.setPartitionGeometry(
                 image_disk.getPartitionBySector(last.start),
                 parted.Constraint(device=image_disk.device),
-                start=last.start, end=last.end)
+                start=last.start, end=part_end)
             image_disk.commit()
 
             # Parted may have changed this for better alignment
@@ -228,7 +228,7 @@ class BundleVolume():
             partitions[-1] = last
 
             # Leave 2048 blocks at the end.
-            new_end = new_size + 2048
+            new_end = part_end + 2048
 
             if last.type == parted.PARTITION_LOGICAL:
                 # Fix the extended partition
@@ -239,6 +239,7 @@ class BundleVolume():
                     ext.geometry.start, end=last.end)
                 image_disk.commit()
 
+        image_dev.destroy()
         return new_end
 
     def _map_partition(self, dev, num, start, end):
@@ -416,6 +417,15 @@ class BundleVolume():
         self.out.success("sufficient")
 
         self._create_filesystems(image)
+
+        # Truncate image to the new size. I counldn't find a better way to do
+        # this. It seems that python's high level functions work in a different
+        # way.
+        fd = os.open(image, os.O_RDWR)
+        try:
+            os.ftruncate(fd, size)
+        finally:
+            os.close(fd)
 
         return image
 
