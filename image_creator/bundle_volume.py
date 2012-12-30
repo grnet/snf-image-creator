@@ -33,7 +33,6 @@
 
 import os
 import re
-import uuid
 import tempfile
 import time
 from collections import namedtuple
@@ -45,7 +44,6 @@ from image_creator.util import get_command
 from image_creator.util import FatalError
 
 findfs = get_command('findfs')
-truncate = get_command('truncate')
 dd = get_command('dd')
 dmsetup = get_command('dmsetup')
 losetup = get_command('losetup')
@@ -320,7 +318,7 @@ class BundleVolume():
                  '/boot/grub/menu.lst',
                  '/boot/grub/grub.conf']
 
-        orig = dict(map(lambda p: (p.number, blkid( '-s', 'UUID', '-o',
+        orig = dict(map(lambda p: (p.number, blkid('-s', 'UUID', '-o',
             'value', p.path).stdout.strip()), self.disk.partitions))
 
         for f in map(lambda f: target + f, files):
@@ -392,14 +390,16 @@ class BundleVolume():
                 self._unmap_partition(dev)
             losetup('-d', loop)
 
-    def create_image(self):
+    def create_image(self, image):
 
-        image = '/mnt/%s.diskdump' % uuid.uuid4().hex
-
-        disk_size = self.disk.device.getLength() * self.disk.device.sectorSize
+        size = self.disk.device.getLength() * self.disk.device.sectorSize
 
         # Create sparse file to host the image
-        truncate("-s", "%d" % disk_size, image)
+        fd = os.open(image, os.O_WRONLY | os.O_CREAT)
+        try:
+            os.ftruncate(fd, size)
+        finally:
+            os.close(fd)
 
         self._create_partition_table(image)
 

@@ -82,8 +82,14 @@ class Disk(object):
     def _dir_to_disk(self):
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
-            image = bundle.create_image()
-            self._add_cleanup(os.unlink, image)
+            image = '/var/tmp/%s.diskdump' % uuid.uuid4().hex
+
+            def check_unlink(path):
+                if os.path.exists(path):
+                    os.unlink(path)
+
+            self._add_cleanup(check_unlink, image)
+            bundle.create_image(image)
             return self._losetup(image)
         raise FatalError("Using a directory as media source is supported")
 
