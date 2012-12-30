@@ -205,15 +205,18 @@ class DiskDevice(object):
 
     def enable(self):
         """Enable a newly created DiskDevice"""
-        self.progressbar = self.out.Progress(100, "Launching helper VM",
-                                             "percent")
-        eh = self.g.set_event_callback(self.progress_callback,
-                                       guestfs.EVENT_PROGRESS)
+
+        self.out.output('Launching helper VM (may take a while) ...', False)
+        # self.progressbar = self.out.Progress(100, "Launching helper VM",
+        #                                     "percent")
+        # eh = self.g.set_event_callback(self.progress_callback,
+        #                               guestfs.EVENT_PROGRESS)
         self.g.launch()
         self.guestfs_enabled = True
-        self.g.delete_event_callback(eh)
-        self.progressbar.success('done')
-        self.progressbar = None
+        # self.g.delete_event_callback(eh)
+        # self.progressbar.success('done')
+        # self.progressbar = None
+        self.out.success('done')
 
         self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
@@ -244,11 +247,11 @@ class DiskDevice(object):
             # Close the guestfs handler if open
             self.g.close()
 
-    def progress_callback(self, ev, eh, buf, array):
-        position = array[2]
-        total = array[3]
-
-        self.progressbar.goto((position * 100) // total)
+#    def progress_callback(self, ev, eh, buf, array):
+#        position = array[2]
+#        total = array[3]
+#
+#        self.progressbar.goto((position * 100) // total)
 
     def mount(self, readonly=False):
         """Mount all disk partitions in a correct order."""
