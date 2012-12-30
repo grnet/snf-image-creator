@@ -34,6 +34,7 @@
 import sys
 import sh
 import hashlib
+import time
 
 
 class FatalError(Exception):
@@ -54,12 +55,29 @@ def get_command(command):
         return find_sbin_command(command, e)
 
 
+def try_fail_repeat(command, *args):
+
+    times = (0.1, 0.5, 1, 2)
+    i = iter(times)
+    while True:
+        try:
+            command(*args)
+            return
+        except sh.ErrorReturnCode:
+            try:
+                wait = i.next()
+            except StopIteration:
+                break
+            time.sleep(wait)
+
+    raise FatalError("Command: `%s %s' failed" % (command, " ".join(args)))
+
+
 class MD5:
     def __init__(self, output):
         self.out = output
 
     def compute(self, filename, size):
-
         MB = 2 ** 20
         BLOCKSIZE = 4 * MB  # 4MB
 

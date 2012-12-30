@@ -34,7 +34,6 @@
 import os
 import re
 import tempfile
-import time
 from collections import namedtuple
 
 import parted
@@ -42,6 +41,7 @@ import parted
 from image_creator.rsync import Rsync
 from image_creator.util import get_command
 from image_creator.util import FatalError
+from image_creator.util import try_fail_repeat
 
 findfs = get_command('findfs')
 dd = get_command('dd')
@@ -66,9 +66,11 @@ MKFS_OPTS = {
     }
 
 
-class BundleVolume():
+class BundleVolume(object):
+    """This class can be used to create an image out of the running system"""
 
     def __init__(self, out, meta):
+        """Create an instance of the BundleVolume class."""
         self.out = out
         self.meta = meta
 
@@ -256,8 +258,7 @@ class BundleVolume():
         if not os.path.exists(dev):
             return
 
-        dmsetup('remove', dev.split('/dev/mapper/')[1])
-        time.sleep(0.1)
+        try_fail_repeat(dmsetup, 'remove', dev.split('/dev/mapper/')[1])
 
     def _mount(self, target, devs):
 
@@ -276,7 +277,7 @@ class BundleVolume():
 
         mpoints.sort()
         for mpoint in reversed(mpoints):
-            umount(mpoint)
+            try_fail_repeat(umount, mpoint)
 
     def _to_exclude(self):
         excluded = ['/tmp', '/var/tmp']
@@ -391,6 +392,9 @@ class BundleVolume():
             losetup('-d', loop)
 
     def create_image(self, image):
+        """Given an image filename, this method will create an image out of the
+        running system.
+        """
 
         size = self.disk.device.getLength() * self.disk.device.sectorSize
 

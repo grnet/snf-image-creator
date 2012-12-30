@@ -33,6 +33,7 @@
 
 from image_creator.util import get_command
 from image_creator.util import FatalError
+from image_creator.util import try_fail_repeat
 from image_creator.gpt import GPTPartitionTable
 from image_creator.bundle_volume import BundleVolume
 
@@ -43,7 +44,6 @@ import uuid
 import re
 import sys
 import guestfs
-import time
 from sendfile import sendfile
 
 
@@ -63,7 +63,8 @@ class Disk(object):
 
     def __init__(self, source, output):
         """Create a new Disk instance out of a source media. The source
-        media can be an image file, a block device or a directory."""
+        media can be an image file, a block device or a directory.
+        """
         self._cleanup_jobs = []
         self._devices = []
         self.source = source
@@ -76,7 +77,7 @@ class Disk(object):
     def _losetup(self, fname):
         loop = losetup('-f', '--show', fname)
         loop = loop.strip()  # remove the new-line char
-        self._add_cleanup(losetup, '-d', loop)
+        self._add_cleanup(try_fail_repeat, losetup, '-d', loop)
         return loop
 
     def _dir_to_disk(self):
@@ -144,11 +145,7 @@ class Disk(object):
             os.write(tablefd, "0 %d snapshot %s %s n 8" %
                               (int(size), sourcedev, cowdev))
             dmsetup('create', snapshot, table)
-            self._add_cleanup(dmsetup, 'remove', snapshot)
-            # Sometimes dmsetup remove fails with Device or resource busy,
-            # although everything is cleaned up and the snapshot is not
-            # used by anyone. Add a 2 seconds delay to be on the safe side.
-            self._add_cleanup(time.sleep, 2)
+            self._add_cleanup(try_fail_repeat, dmsetup, 'remove', snapshot)
 
         finally:
             os.unlink(table)
