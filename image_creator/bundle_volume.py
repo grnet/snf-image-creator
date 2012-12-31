@@ -378,8 +378,7 @@ class BundleVolume(object):
                 exclude = self._to_exclude() + [image]
                 rsync = Rsync('/', target,
                               map(lambda p: os.path.relpath(p, '/'), exclude))
-                msg = "Copying host files into the image"
-                rsync.archive().run(self.out, msg)
+                rsync.archive().run(self.out)
 
                 self._replace_uuids(target, new_uuid)
 
