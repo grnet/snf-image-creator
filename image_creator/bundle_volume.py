@@ -51,19 +51,17 @@ mount = get_command('mount')
 umount = get_command('umount')
 blkid = get_command('blkid')
 
-MKFS_OPTS = {
-    'ext2': ['-F'],
-    'ext3': ['-F'],
-    'ext4': ['-F'],
-    'reiserfs': ['-ff'],
-    'btrfs': [],
-    'minix': [],
-    'xfs': ['-f'],
-    'jfs': ['-f'],
-    'ntfs': ['-F'],
-    'msdos': [],
-    'vfat': []
-    }
+MKFS_OPTS = {'ext2': ['-F'],
+             'ext3': ['-F'],
+             'ext4': ['-F'],
+             'reiserfs': ['-ff'],
+             'btrfs': [],
+             'minix': [],
+             'xfs': ['-f'],
+             'jfs': ['-f'],
+             'ntfs': ['-F'],
+             'msdos': [],
+             'vfat': []}
 
 
 class BundleVolume(object):
@@ -95,7 +93,7 @@ class BundleVolume(object):
             raise FatalError("Unable to open: `%s'. File is missing." % f)
 
         FileSystemTableEntry = namedtuple('FileSystemTableEntry',
-                                     'dev mpoint fs opts freq passno')
+                                          'dev mpoint fs opts freq passno')
         with open(f) as table:
             for line in iter(table):
                 entry = line.split('#')[0].strip().split()
@@ -203,7 +201,7 @@ class BundleVolume(object):
             new_end = last.end + 2048
 
         mount_options = self._get_mount_options(
-                self.disk.getPartitionBySector(last.start).path)
+            self.disk.getPartitionBySector(last.start).path)
         if mount_options is not None:
             stat = os.statvfs(mount_options.mpoint)
             # Shrink the last partition. The new size should be the size of the
@@ -234,8 +232,8 @@ class BundleVolume(object):
                 # Fix the extended partition
                 extended = disk.getExtendedPartition()
 
-                image_disk.setPartitionGeometry(extended,
-                    parted.Constraint(device=img_dev),
+                image_disk.setPartitionGeometry(
+                    extended, parted.Constraint(device=img_dev),
                     ext.geometry.start, end=last.end)
                 image_disk.commit()
 
@@ -290,8 +288,8 @@ class BundleVolume(object):
             if mpoint in excluded:
                 continue
 
-            descendants = filter(lambda p: p.startswith(mpoint + '/'),
-                    excluded)
+            descendants = filter(
+                lambda p: p.startswith(mpoint + '/'), excluded)
             if len(descendants):
                 for d in descendants:
                     excluded.remove(d)
@@ -319,8 +317,11 @@ class BundleVolume(object):
                  '/boot/grub/menu.lst',
                  '/boot/grub/grub.conf']
 
-        orig = dict(map(lambda p: (p.number, blkid('-s', 'UUID', '-o',
-            'value', p.path).stdout.strip()), self.disk.partitions))
+        orig = dict(map(
+            lambda p: (
+                p.number,
+                blkid('-s', 'UUID', '-o', 'value', p.path).stdout.strip()),
+            self.disk.partitions))
 
         for f in map(lambda f: target + f, files):
 
@@ -364,22 +365,25 @@ class BundleVolume(object):
             for i, dev in mapped.iteritems():
                 fs = filesystem[i].fs
                 self.out.output('Creating %s filesystem on partition %d ... ' %
-                    (fs, i), False)
+                                (fs, i), False)
                 get_command('mkfs.%s' % fs)(*(MKFS_OPTS[fs] + [dev]))
                 self.out.success('done')
-                new_uuid[i] = blkid('-s', 'UUID', '-o', 'value', dev
-                    ).stdout.strip()
+                new_uuid[i] = blkid(
+                    '-s', 'UUID', '-o', 'value', dev).stdout.strip()
 
             target = tempfile.mkdtemp()
             try:
                 absmpoints = self._mount(target,
-                    [(mapped[i], filesystem[i].mpoint) for i in mapped.keys()]
-                )
+                                         [(mapped[i], filesystem[i].mpoint)
+                                         for i in mapped.keys()])
                 exclude = self._to_exclude() + [image]
                 rsync = Rsync('/', target,
                               map(lambda p: os.path.relpath(p, '/'), exclude))
                 rsync.archive().run(self.out)
 
+                # We need to replace the old UUID referencies with the new
+                # ones in grub configuration files and /etc/fstab for file
+                # systems that have been recreated.
                 self._replace_uuids(target, new_uuid)
 
             finally:

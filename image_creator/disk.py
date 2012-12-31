@@ -457,7 +457,7 @@ class DiskDevice(object):
                 while left > 0:
                     length = min(left, blocksize)
                     _, sent = sendfile(dst.fileno(), src.fileno(), offset,
-                        length)
+                                       length)
                     offset += sent
                     left -= sent
                     progressbar.goto((size - left) // MB)
