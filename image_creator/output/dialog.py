@@ -86,7 +86,7 @@ class GaugeOutput(Output):
         def __init__(self, size, title, bar_type='default'):
             self.output.size = size
             self.bar_type = bar_type
-            self.output.msg = "%s..." % title
+            self.output.msg = "%s ..." % title
             self.goto(0)
 
         def _postfix(self):

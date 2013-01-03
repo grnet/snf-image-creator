@@ -272,18 +272,18 @@ def create_image(session):
                                             "(1/4)  Calculating block hashes",
                                             "(2/4)  Uploading missing blocks")
 
-            out.output("(3/4)  Uploading metadata file...", False)
+            out.output("(3/4)  Uploading metadata file ...", False)
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                           remote_path="%s.%s" % (name, 'meta'))
             out.success('done')
-            out.output("(4/4)  Uploading md5sum file...", False)
+            out.output("(4/4)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                           remote_path="%s.%s" % (name, 'md5sum'))
             out.success('done')
             out.output()
 
-            out.output('Registering image with ~okeanos...', False)
+            out.output('Registering image with ~okeanos ...', False)
             kamaki.register(wizard['ImageName'], pithos_file, metadata)
             out.success('done')
             out.output()

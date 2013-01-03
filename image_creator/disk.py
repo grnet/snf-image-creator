@@ -114,7 +114,7 @@ class Disk(object):
         instance.
         """
 
-        self.out.output("Examining source media `%s'..." % self.source, False)
+        self.out.output("Examining source media `%s' ..." % self.source, False)
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
@@ -261,7 +261,7 @@ class DiskDevice(object):
 
         mount = self.g.mount_ro if readonly else self.g.mount
         msg = " read-only" if readonly else ""
-        self.out.output("Mounting the media%s..." % msg, False)
+        self.out.output("Mounting the media%s ..." % msg, False)
         mps = self.g.inspect_get_mountpoints(self.root)
 
         # Sort the keys to mount the fs in a correct order.
@@ -340,7 +340,7 @@ class DiskDevice(object):
 
         MB = 2 ** 20
 
-        self.out.output("Shrinking image (this may take a while)...", False)
+        self.out.output("Shrinking image (this may take a while) ...", False)
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
 

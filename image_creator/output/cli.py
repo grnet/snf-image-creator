@@ -116,7 +116,7 @@ class OutputWthProgress(SimpleOutput):
             self.start()
 
         def success(self, result):
-            self.output.output("\r%s...\033[K" % self.title, False)
+            self.output.output("\r%s ...\033[K" % self.title, False)
             self.output.success(result)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

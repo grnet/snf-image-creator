@@ -243,12 +243,12 @@ def image_creator():
         if options.outfile is not None:
             dev.dump(options.outfile)
 
-            out.output('Dumping metadata file...', False)
+            out.output('Dumping metadata file ...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
                 f.write(metastring)
             out.success('done')
 
-            out.output('Dumping md5sum file...', False)
+            out.output('Dumping md5sum file ...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
                 f.write('%s %s\n' % (checksum,
                                      os.path.basename(options.outfile)))
@@ -275,7 +275,7 @@ def image_creator():
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
-                out.output("(4/4)  Uploading md5sum file...", False)
+                out.output("(4/4)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
@@ -285,7 +285,7 @@ def image_creator():
                 out.output()
 
             if options.register:
-                out.output('Registering image with ~okeanos...', False)
+                out.output('Registering image with ~okeanos ...', False)
                 kamaki.register(options.register, uploaded_obj, metadata)
                 out.success('done')
                 out.output()

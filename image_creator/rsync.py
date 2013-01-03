@@ -107,7 +107,7 @@ class Rsync:
         self._out.success("%d" % total)
 
         progress = self._out.Progress(total,
-                                     "Copying host files into the image ... ")
+                                      "Copying host files into the image")
         run = subprocess.Popen(cmd + [src, dest], shell=False,
                                stdout=subprocess.PIPE, bufsize=0)
         try:
