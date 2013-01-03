@@ -41,32 +41,60 @@ from image_creator.util import FatalError
 class Rsync:
     """Wrapper class for the rsync command"""
 
-    def __init__(self, src, dest, exclude=[]):
-        """Create an instance by defining a source, a destinationa and a number
-        of exclude patterns.
-        """
-        self.src = src
-        self.dest = dest
-        self.exclude = exclude
-        self.options = ['-v']
+    def __init__(self, output):
+        """Create an instance """
+        self._out = output
+        self._exclude = []
+        self._options = ['-v']
 
     def archive(self):
         """Enable the archive option"""
-        self.options.append('-a')
+        self._options.append('-a')
         return self
 
-    def run(self, out):
+    def xattrs(self):
+        """Preserve extended attributes"""
+        self._options.append('-X')
+        return self
+
+    def hard_links(self):
+        """Preserve hard links"""
+        self._options.append('-H')
+        return self
+
+    def acls(self):
+        """Preserve ACLs"""
+        self._options.append('-A')
+        return self
+
+    def sparse(self):
+        """Handle sparse files efficiently"""
+        self._options.append('-S')
+        return self
+
+    def exclude(self, pattern):
+        """Add an exclude pattern"""
+        self._exclude.append(pattern)
+        return self
+
+    def reset(self):
+        """Reset all rsync options"""
+        self._exclude = []
+        self._options = ['-v']
+
+    def run(self, src, dest):
         """Run the actual command"""
         cmd = []
         cmd.append('rsync')
-        cmd.extend(self.options)
-        for i in self.exclude:
+        cmd.extend(self._options)
+        for i in self._exclude:
             cmd.extend(['--exclude', i])
 
-        out.output("Calculating total number of host files ...", False)
-        dry_run = subprocess.Popen(cmd + ['-n', self.src, self.dest],
-                                   shell=False, stdout=subprocess.PIPE,
-                                   bufsize=0)
+        self._out.output("Calculating total number of host files ...", False)
+
+        # If you don't specify a destination, rsync will list the source files.
+        dry_run = subprocess.Popen(cmd + [src], shell=False,
+                                   stdout=subprocess.PIPE, bufsize=0)
         try:
             total = 0
             for line in iter(dry_run.stdout.readline, b''):
@@ -76,10 +104,11 @@ class Rsync:
             if dry_run.returncode != 0:
                 raise FatalError("rsync failed")
 
-        out.success("%d" % total)
+        self._out.success("%d" % total)
 
-        progress = out.Progress(total, "Copying files into the image ... ")
-        run = subprocess.Popen(cmd + [self.src, self.dest], shell=False,
+        progress = self._out.Progress(total,
+                                     "Copying host files into the image ... ")
+        run = subprocess.Popen(cmd + [src, dest], shell=False,
                                stdout=subprocess.PIPE, bufsize=0)
         try:
             t = time.time()

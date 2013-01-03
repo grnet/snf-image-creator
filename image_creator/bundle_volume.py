@@ -377,9 +377,15 @@ class BundleVolume(object):
                                          [(mapped[i], filesystem[i].mpoint)
                                          for i in mapped.keys()])
                 exclude = self._to_exclude() + [image]
-                rsync = Rsync('/', target,
-                              map(lambda p: os.path.relpath(p, '/'), exclude))
-                rsync.archive().run(self.out)
+
+                rsync = Rsync(self.out)
+
+                # Excluded paths need to be relative to the source
+                for excl in map(lambda p: os.path.relpath(p, '/'), exclude):
+                    rsync.exclude(excl)
+
+                rsync.archive().hard_links().xattrs().sparse().acls()
+                rsync.run('/', target)
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file
