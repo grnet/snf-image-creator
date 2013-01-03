@@ -36,6 +36,7 @@
 import dialog
 import sys
 import os
+import stat
 import textwrap
 import signal
 import optparse
@@ -139,11 +140,13 @@ def select_file(d, media):
                 d.msgbox("The file `%s' you choose does not exist." % media,
                          width=SMALL_WIDTH)
             else:
-                break
+                mode = os.stat(media).st_mode
+                if not stat.S_ISDIR(mode):
+                    break
 
         (code, media) = d.fselect(root, 10, 60, extra_button=1,
                                   title="Please select an input media.",
-                                  extra_label="Running System")
+                                  extra_label="Bundle Host")
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d, "You canceled the media selection dialog box."):
                 sys.exit(0)
@@ -151,7 +154,7 @@ def select_file(d, media):
                 media = None
                 continue
         elif code == d.DIALOG_EXTRA:
-            media = '/'
+            return '/'
 
     return media
 
