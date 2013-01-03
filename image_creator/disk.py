@@ -292,16 +292,17 @@ class DiskDevice(object):
             raise FatalError(msg)
 
         is_extended = lambda p: \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
+            in (0x5, 0xf)
         is_logical = lambda p: \
-            self.meta['PARTITION_TABLE'] != 'msdos' and p['part_num'] > 4
+            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
 
         partitions = self.g.part_list(self.guestfs_device)
         last_partition = partitions[-1]
 
         if is_logical(last_partition):
             # The disk contains extended and logical partitions....
-            extended = [p for p in partitions if is_extended(p)][0]
+            extended = filter(is_extended, partitions)[0]
             last_primary = [p for p in partitions if p['part_num'] <= 4][-1]
 
             # check if extended is the last primary partition
@@ -325,7 +326,8 @@ class DiskDevice(object):
             self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
         is_extended = lambda p: \
             self.meta['PARTITION_TABLE'] == 'msdos' and \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
+            in (0x5, 0xf)
 
         part_add = lambda ptype, start, stop: \
             self.g.part_add(self.guestfs_device, ptype, start, stop)
@@ -375,10 +377,8 @@ class DiskDevice(object):
         self.g.resize2fs_M(part_dev)
 
         out = self.g.tune2fs_l(part_dev)
-        block_size = int(
-            filter(lambda x: x[0] == 'Block size', out)[0][1])
-        block_cnt = int(
-            filter(lambda x: x[0] == 'Block count', out)[0][1])
+        block_size = int(filter(lambda x: x[0] == 'Block size', out)[0][1])
+        block_cnt = int(filter(lambda x: x[0] == 'Block count', out)[0][1])
 
         start = last_part['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
@@ -394,16 +394,16 @@ class DiskDevice(object):
                     'num': partition['part_num'],
                     'start': partition['part_start'] / sector_size,
                     'end': partition['part_end'] / sector_size,
-                    'id': part_get_(partition['part_num']),
+                    'id': part_get_id(partition['part_num']),
                     'bootable': part_get_bootable(partition['part_num'])
                 })
 
             logical[-1]['end'] = end  # new end after resize
 
             # Recreate the extended partition
-            extended = [p for p in partitions if self._is_extended(p)][0]
+            extended = filter(is_extended, partitions)[0]
             part_del(extended['part_num'])
-            part_add('e', extended['part_start'], end)
+            part_add('e', extended['part_start'] / sector_size, end)
 
             # Create all the logical partitions back
             for l in logical:
