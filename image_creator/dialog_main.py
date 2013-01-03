@@ -133,7 +133,7 @@ def image_creator(d, media, out):
 
 
 def select_file(d, media):
-    root = os.sep
+    default = os.getcwd() + os.sep
     while 1:
         if media is not None:
             if not os.path.exists(media):
@@ -143,8 +143,9 @@ def select_file(d, media):
                 mode = os.stat(media).st_mode
                 if not stat.S_ISDIR(mode):
                     break
+                default = media
 
-        (code, media) = d.fselect(root, 10, 60, extra_button=1,
+        (code, media) = d.fselect(default, 10, 60, extra_button=1,
                                   title="Please select an input media.",
                                   extra_label="Bundle Host")
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
