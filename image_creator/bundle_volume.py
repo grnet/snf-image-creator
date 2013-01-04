@@ -211,7 +211,7 @@ class BundleVolume(object):
 
             # Add 10% just to be on the safe side
             part_end = last.start + (new_size * 11) // 10
-            # Alighn to 2048
+            # Align to 2048
             part_end = ((part_end + 2047) // 2048) * 2048
 
             image_disk.setPartitionGeometry(
