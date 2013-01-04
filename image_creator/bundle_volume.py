@@ -418,9 +418,17 @@ class BundleVolume(object):
 
         end_sector = self._shrink_partitions(image)
 
+        size = (end_sector + 1) * self.disk.device.sectorSize
+
+        # Truncate image to the new size.
+        fd = os.open(image, os.O_RDWR)
+        try:
+            os.ftruncate(fd, size)
+        finally:
+            os.close(fd)
+
         # Check if the available space is enough to host the image
         dirname = os.path.dirname(image)
-        size = (end_sector + 1) * self.disk.device.sectorSize
         self.out.output("Examining available space in %s ..." % dirname, False)
         stat = os.statvfs(dirname)
         available = stat.f_bavail * stat.f_frsize
@@ -430,15 +438,6 @@ class BundleVolume(object):
         self.out.success("sufficient")
 
         self._create_filesystems(image)
-
-        # Truncate image to the new size. I counldn't find a better way to do
-        # this. It seems that python's high level functions work in a different
-        # way.
-        fd = os.open(image, os.O_RDWR)
-        try:
-            os.ftruncate(fd, size)
-        finally:
-            os.close(fd)
 
         return image
 
