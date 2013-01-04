@@ -82,7 +82,7 @@ class Rsync:
         self._exclude = []
         self._options = ['-v']
 
-    def run(self, src, dest):
+    def run(self, src, dest, slabel='source', dlabel='destination'):
         """Run the actual command"""
         cmd = []
         cmd.append('rsync')
@@ -90,7 +90,8 @@ class Rsync:
         for i in self._exclude:
             cmd.extend(['--exclude', i])
 
-        self._out.output("Calculating total number of host files ...", False)
+        self._out.output("Calculating total number of %s files ..." % slabel,
+                         False)
 
         # If you don't specify a destination, rsync will list the source files.
         dry_run = subprocess.Popen(cmd + [src], shell=False,
@@ -106,8 +107,8 @@ class Rsync:
 
         self._out.success("%d" % total)
 
-        progress = self._out.Progress(total,
-                                      "Copying host files into the image")
+        progress = self._out.Progress(total, "Copying %s files to %s" %
+                                      (slabel, dlabel))
         run = subprocess.Popen(cmd + [src, dest], shell=False,
                                stdout=subprocess.PIPE, bufsize=0)
         try:

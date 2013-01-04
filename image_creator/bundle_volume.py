@@ -385,7 +385,7 @@ class BundleVolume(object):
                     rsync.exclude(excl)
 
                 rsync.archive().hard_links().xattrs().sparse().acls()
-                rsync.run('/', target)
+                rsync.run('/', target, 'host', 'tmp image')
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file
