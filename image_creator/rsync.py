@@ -124,12 +124,19 @@ class Rsync:
             progress.success('done')
 
         finally:
-            run.poll()
-            if run.returncode is None:
-                run.send_signal(signal.SIGHUP)
+            def handler(signum, frame):
+                run.terminate()
+                time.sleep(1)
+                run.poll()
+                if run.returncode is None:
+                    run.kill()
+                run.wait()
+
+            signal.signal(signal.SIGALRM, handler)
+            signal.alarm(2)
             run.communicate()
+            signal.alarm(0)
             if run.returncode != 0:
                 raise FatalError("rsync failed")
-
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
