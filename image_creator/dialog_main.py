@@ -133,6 +133,10 @@ def image_creator(d, media, out, tmp):
 
 
 def select_file(d, media):
+
+    if media == '/':
+        return '/'
+
     default = os.getcwd() + os.sep
     while 1:
         if media is not None:

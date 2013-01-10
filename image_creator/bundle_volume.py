@@ -389,7 +389,7 @@ class BundleVolume(object):
                     rsync.exclude(excl)
 
                 rsync.archive().hard_links().xattrs().sparse().acls()
-                rsync.run('/', target, 'host', 'tmp image')
+                rsync.run('/', target, 'host', 'temporary image')
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file
@@ -433,9 +433,9 @@ class BundleVolume(object):
 
         # Check if the available space is enough to host the image
         dirname = os.path.dirname(image)
-        self.out.output("Examining available space in %s ..." % dirname, False)
+        self.out.output("Examining available space ..." % dirname, False)
         if free_space(dirname) <= size:
-            raise FatalError('Not enough space in %s to host the image' %
+            raise FatalError('Not enough space under %s to host the image' %
                              dirname)
         self.out.success("sufficient")
 
