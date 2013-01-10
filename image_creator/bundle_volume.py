@@ -42,6 +42,7 @@ from image_creator.rsync import Rsync
 from image_creator.util import get_command
 from image_creator.util import FatalError
 from image_creator.util import try_fail_repeat
+from image_creator.util import free_space
 
 findfs = get_command('findfs')
 dd = get_command('dd')
@@ -67,10 +68,11 @@ MKFS_OPTS = {'ext2': ['-F'],
 class BundleVolume(object):
     """This class can be used to create an image out of the running system"""
 
-    def __init__(self, out, meta):
+    def __init__(self, out, meta, tmp=None):
         """Create an instance of the BundleVolume class."""
         self.out = out
         self.meta = meta
+        self.tmp = tmp
 
         self.out.output('Searching for root device ...', False)
         root = self._get_root_partition()
@@ -279,6 +281,8 @@ class BundleVolume(object):
 
     def _to_exclude(self):
         excluded = ['/tmp', '/var/tmp']
+        if self.tmp is not None:
+            excluded.append(self.tmp)
         local_filesystems = MKFS_OPTS.keys() + ['rootfs']
         for entry in self._read_fstable('/proc/mounts'):
             if entry.fs in local_filesystems:
@@ -430,9 +434,7 @@ class BundleVolume(object):
         # Check if the available space is enough to host the image
         dirname = os.path.dirname(image)
         self.out.output("Examining available space in %s ..." % dirname, False)
-        stat = os.statvfs(dirname)
-        available = stat.f_bavail * stat.f_frsize
-        if available <= size:
+        if free_space(dirname) <= size:
             raise FatalError('Not enough space in %s to host the image' %
                              dirname)
         self.out.success("sufficient")

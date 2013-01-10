@@ -55,13 +55,13 @@ from image_creator.dialog_util import SMALL_WIDTH, WIDTH, confirm_exit, \
     Reset, update_background_title
 
 
-def image_creator(d, media, out):
+def image_creator(d, media, out, tmp):
 
     d.setBackgroundTitle('snf-image-creator')
 
     gauge = GaugeOutput(d, "Initialization", "Initializing...")
     out.add(gauge)
-    disk = Disk(media, out)
+    disk = Disk(media, out, tmp)
 
     def signal_handler(signum, frame):
         gauge.cleanup()
@@ -183,6 +183,9 @@ def main():
     parser.add_option("-l", "--logfile", type="string", dest="logfile",
                       default=None, help="log all messages to FILE",
                       metavar="FILE")
+    parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
+                      help="create large temporary image files under DIR",
+                      metavar="DIR")
 
     options, args = parser.parse_args(sys.argv[1:])
 
@@ -196,7 +199,9 @@ def main():
             raise FatalError("You must run %s as root" %
                              parser.get_prog_name())
 
-        media = select_file(d, args[0] if len(args) == 1 else None)
+        if options.tmp is not None and not os.path.isdir(options.tmp):
+            raise FatalError("The directory `%s' specified with --tmpdir is "
+                             "not valid" % options.tmp)
 
         logfile = None
         if options.logfile is not None:
@@ -206,6 +211,9 @@ def main():
                 raise FatalError(
                     "Unable to open logfile `%s' for writing. Reason: %s" %
                     (options.logfile, e.strerror))
+
+        media = select_file(d, args[0] if len(args) == 1 else None)
+
         try:
             log = SimpleOutput(False, logfile) if logfile is not None \
                 else Output()
@@ -214,7 +222,7 @@ def main():
                     out = CompositeOutput([log])
                     out.output("Starting %s v%s..." %
                                (parser.get_prog_name(), version))
-                    ret = image_creator(d, media, out)
+                    ret = image_creator(d, media, out, options.tmp)
                     sys.exit(ret)
                 except Reset:
                     log.output("Resetting everything...")

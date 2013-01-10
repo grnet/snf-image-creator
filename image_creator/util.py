@@ -35,6 +35,7 @@ import sys
 import sh
 import hashlib
 import time
+import os
 
 
 class FatalError(Exception):
@@ -71,6 +72,11 @@ def try_fail_repeat(command, *args):
             time.sleep(wait)
 
     raise FatalError("Command: `%s %s' failed" % (command, " ".join(args)))
+
+
+def free_space(dirname):
+    stat = os.statvfs(dirname)
+    return stat.f_bavail * stat.f_frsize
 
 
 class MD5:

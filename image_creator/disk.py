@@ -34,6 +34,7 @@
 from image_creator.util import get_command
 from image_creator.util import FatalError
 from image_creator.util import try_fail_repeat
+from image_creator.util import free_space
 from image_creator.gpt import GPTPartitionTable
 from image_creator.bundle_volume import BundleVolume
 
@@ -53,6 +54,9 @@ losetup = get_command('losetup')
 blockdev = get_command('blockdev')
 
 
+TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
+
+
 class Disk(object):
     """This class represents a hard disk hosting an Operating System
 
@@ -61,7 +65,7 @@ class Disk(object):
     the Linux kernel.
     """
 
-    def __init__(self, source, output):
+    def __init__(self, source, output, tmp=None):
         """Create a new Disk instance out of a source media. The source
         media can be an image file, a block device or a directory.
         """
@@ -70,6 +74,26 @@ class Disk(object):
         self.source = source
         self.out = output
         self.meta = {}
+        self.tmp = tempfile.mkdtemp(prefix='.snf_image_creator.',
+                                    dir=self._get_tmp_dir(tmp))
+
+        self._add_cleanup(os.removedirs, self.tmp)
+
+    def _get_tmp_dir(self, default=None):
+        if default is not None:
+            return default
+
+        space = map(free_space, TMP_CANDIDATES)
+
+        max_idx = 0
+        max_val = space[0]
+        for i, val in zip(range(len(space)), space):
+            if val > max_val:
+                max_val = val
+                max_idx = i
+
+        # Return the candidate path with more available space
+        return TMP_CANDIDATES[max_idx]
 
     def _add_cleanup(self, job, *args):
         self._cleanup_jobs.append((job, args))
@@ -83,7 +107,7 @@ class Disk(object):
     def _dir_to_disk(self):
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
-            image = '/var/tmp/%s.diskdump' % uuid.uuid4().hex
+            image = '%s/%s.diskdump' % (self.tmp, uuid.uuid4().hex)
 
             def check_unlink(path):
                 if os.path.exists(path):
@@ -132,7 +156,7 @@ class Disk(object):
         # Take a snapshot and return it to the user
         self.out.output("Snapshotting media source...", False)
         size = blockdev('--getsz', sourcedev)
-        cowfd, cow = tempfile.mkstemp()
+        cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
         # Create cow sparse file
