@@ -58,7 +58,7 @@ found, before extracting the image. Both can be disabled by specifying
 *--no-sysprep* and *--no-shrink* respectively.
 
 If *--print-sysprep* is defined, the program will exit after outputing a
-list of enabled and disabled system preparation operation appliable to this
+list of enabled and disabled system preparation operation applicable to this
 media source. The user can enable or disable specific *syspreps* when creating
 an image, using *-{enable,disable}-sysprep* options. You can specify those
 options multiple times to enable or disable multiple *syspreps*.
@@ -211,7 +211,7 @@ Verify that it has been downloaded correctly:
    $ echo 'a8c667e871f48f3a662f3fbf1c3ddb17  ubuntu-12.04.1-server-amd64.iso' > check.md5
    $ md5sum -c check.md5
 
-Create a 2G sparce file to host the new system:
+Create a 2G sparse file to host the new system:
 
 .. code-block:: console
 
@@ -234,7 +234,7 @@ When the installation is complete, you can close the QEMU window. You
 will be able to boot your installed OS and make any changes you want to it
 (e.g. install openssh-server) using the following command::
 
-   $ sudo kvm -m 1000 -drive file=linuxmint.raw,format=raw,cache=none,if=virtio
+   $ sudo kvm -boot d -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio
 
 After you're done, become root, activate the virtual environment you have
 installed snf-image-creator in, and use *snf-mkimage* to create and upload the
@@ -287,7 +287,7 @@ to the user to do it.
 Swap partitions
 ---------------
 
-If you want your image to have a swap partitions, make sure this is the last
+If you want your image to have a swap partition, make sure this is the last
 partition on the disk. If snf-image-creator detects a swap partition in the end
 of the input media, it will remove the partition when shrinking and will save
 enough information to be able to recreate it during image deployment. This will

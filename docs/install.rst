@@ -1,10 +1,9 @@
 Installation
 ^^^^^^^^^^^^
 
-This guide describes how to install snf-image-creator on an Ubuntu 12.04 LTS
-system. It is highly recommended to have virtualization capable hardware.
-snf-image-creator will work on processors that do not support virtualization
-but it will be extremely slow.
+This guide describes how to install snf-image-creator on your machine. It is
+highly recommended to have virtualization capable hardware. snf-image-creator
+will work on processors that do not support virtualization but it will be slow.
 
 Dependencies
 ============
@@ -15,18 +14,21 @@ snf-image-creator depends on the following programs:
  * Python setuptools [http://pypi.python.org/pypi/setuptools]
  * Python Dialog [http://pythondialog.sourceforge.net/]
  * Python bindings for libguestfs [http://libguestfs.org/]
+ * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
  * Kamaki [https://code.grnet.gr/projects/kamaki]
  * Python sh (previously pbs) [https://github.com/amoffat/sh]
  * ANSI colors for Python [http://pypi.python.org/pypi/ansicolors]
  * progress [http://pypi.python.org/pypi/progress]
- * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
 
 The above dependencies are resolved differently, depending on the installation
-method you choose.
+method you choose. There are two installation methods available:
 
-There are two installation methods. The first uses official packages whereas
-the second installs snf-image-creator and its dependencies from source. Both
-methods are presented below.
+#. `Install snf-image-creator using official packages`_ (currently only for
+   Ubuntu 12.04, more OSes will be supported soon)
+#. `Install snf-image-creator from source`_ (provided you meet the above
+   dependencies)
+
+Both methods are presented below.
 
 Install snf-image-creator using official packages
 =================================================
@@ -81,7 +83,7 @@ snf-image-creator, along with its dependencies, with the following command:
 
    $ sudo apt-get install snf-image-creator
 
-The installation might take a while. Please note that at some point during the
+The installation may take a while. Please note that at some point during the
 installation you will be prompted to create/update a "supermin appliance". This
 is a setting regarding libguestfs and you can safely choose "Yes".
 
@@ -92,14 +94,14 @@ This method provides you with the cutting edge of snf-image-creator, which
 gives you access to all the latest features. Keep in mind, however,
 that you may experience instability issues.
 
-The first four dependencies (python2, setuptools, Python-Dialog, and
-libguestfs) need to be installed manually by the user. In an Ubuntu 12.04 LTS
-system this can be achieved by installing packages provided by the
+The first five dependencies (python2, setuptools, Python-Dialog, libguestfs and
+python-sendfile) need to be installed manually by the user. In an Ubuntu 12.04
+LTS system this can be achieved by installing packages provided by the
 distribution, using the following command:
 
 .. code-block:: console
 
-   $ apt-get install python-setuptools python-guestfs python-dialog
+   $ apt-get install python-setuptools python-guestfs python-dialog python-sendfile
 
 The rest of the dependencies will be automatically resolved by setuptools.
 Note that at some point during the installation, you will be prompted to
@@ -190,8 +192,8 @@ Install snf-image-creator the same way:
 
    $ cd ~
    $ git clone https://code.grnet.gr/git/snf-image-creator
-   $ git checkout stable-0.1
    $ cd snf-image-creator
+   $ git checkout stable-0.1
    $ ./setup.py build
 
 And from within the virtual environment execute:
