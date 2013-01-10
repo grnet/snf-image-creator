@@ -211,7 +211,7 @@ Verify that it has been downloaded correctly:
    $ echo 'a8c667e871f48f3a662f3fbf1c3ddb17  ubuntu-12.04.1-server-amd64.iso' > check.md5
    $ md5sum -c check.md5
 
-Create a 2G sparce file to host the new system:
+Create a 2G sparse file to host the new system:
 
 .. code-block:: console
 
