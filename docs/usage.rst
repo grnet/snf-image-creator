@@ -234,7 +234,7 @@ When the installation is complete, you can close the QEMU window. You
 will be able to boot your installed OS and make any changes you want to it
 (e.g. install openssh-server) using the following command::
 
-   $ sudo kvm -m 1000 -drive file=linuxmint.raw,format=raw,cache=none,if=virtio
+   $ sudo kvm -boot d -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio
 
 After you're done, become root, activate the virtual environment you have
 installed snf-image-creator in, and use *snf-mkimage* to create and upload the
