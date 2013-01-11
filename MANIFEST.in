@@ -1,1 +1,3 @@
 include image_creator/help/*.rst
+include README.rst
+include COPYRIGHT
