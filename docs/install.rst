@@ -15,7 +15,8 @@ snf-image-creator depends on the following programs:
  * Python Dialog [http://pythondialog.sourceforge.net/]
  * Python bindings for libguestfs [http://libguestfs.org/]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
- * Kamaki [https://code.grnet.gr/projects/kamaki]
+ * pyparted [https://fedorahosted.org/pyparted/]
+ * ./kamaki [https://code.grnet.gr/projects/kamaki]
  * Python sh (previously pbs) [https://github.com/amoffat/sh]
  * ANSI colors for Python [http://pypi.python.org/pypi/ansicolors]
  * progress [http://pypi.python.org/pypi/progress]
@@ -23,111 +24,93 @@ snf-image-creator depends on the following programs:
 The above dependencies are resolved differently, depending on the installation
 method you choose. There are two installation methods available:
 
-#. `Install snf-image-creator using official packages`_ (currently only for
-   Ubuntu 12.04, more OSes will be supported soon)
-#. `Install snf-image-creator from source`_ (provided you meet the above
-   dependencies)
+#. `Installation using official packages <#install-snf-image-creator-using-official-packages>`_ (currently only for Ubuntu 12.04 LTS and 12.10).
 
-Both methods are presented below.
+#. `Installation from source <#install-snf-image-creator-using-official-packages>`_
 
 Install snf-image-creator using official packages
 =================================================
 
-This method of installing snf-image-creator has all the advantages of Ubuntu's
-APT installation:
+For Ubuntu systems, you can use our official packages found in the Lauchpad
+PPA: *ppa:grnet/synnefo*
 
-* Automatic resolution of dependencies
-* Simple installation of consequent updates
+.. note::
+   This method of installing snf-image-creator has all the advantages of
+   Ubuntu's APT installation, like automatic dependencies resolution and simple
+   update process.
 
-In order to proceed with the installation, you must first add GRNET's dev repo
-to your sources. You can use the following commands:
-
-.. code-block:: console
-
-   $ cd /etc/apt/sources.list.d
-   $ echo "deb http://apt.dev.grnet.gr precise main" | \
-   sudo tee -a  apt.dev.grnet.gr.list
-   $ echo "deb-src http://apt.dev.grnet.gr precise main" | \
-   sudo tee -a apt.dev.grnet.gr.list
-
-You will also need to import the repo's GPG key. You can use the ``curl`` tool
-for this.
+In order to proceed with the installation, you must first add the synnefo PPA
+repository in your system:
 
 .. code-block:: console
 
-   $ sudo apt-get install curl
-
-Use the following command to import the GPG key:
-
-.. code-block:: console
-
-   $ sudo curl https://dev.grnet.gr/files/apt-grnetdev.pub | sudo apt-key add -
-
-You can verify that the repo has been added successfully if snf-image-creator
-exists as a package. First do an update of your sources:
-
-.. code-block:: console
-
+   $ sudo apt-add-repository ppa:grnet/synnefo
    $ sudo apt-get update
 
-then check if snf-image-creator exists with the following command:
+If *apt-add-repository* is missing, install *software-properties-common* first:
+
+.. code-block:: console
+
+   $ sudo apt-get install software-properties-common
+
+The snf-image-creator package should now be listed calling:
 
 .. code-block:: console
 
    $ apt-cache showpkg snf-image-creator
 
-If GRNET's dev repo has been added successfully, you can install
-snf-image-creator, along with its dependencies, with the following command:
+You can now install the package by issuing:
 
 .. code-block:: console
 
    $ sudo apt-get install snf-image-creator
 
-The installation may take a while. Please note that at some point during the
-installation you will be prompted to create/update a "supermin appliance". This
-is a setting regarding libguestfs and you can safely choose "Yes".
+.. note::
+   If you are asked during the installation to create/update a
+   "supermin appliance", choose "Yes".
 
 Install snf-image-creator from source
 =====================================
 
-This method provides you with the cutting edge of snf-image-creator, which
-gives you access to all the latest features. Keep in mind, however,
-that you may experience instability issues.
+Manually install the following dependencies:
 
-The first five dependencies (python2, setuptools, Python-Dialog, libguestfs and
-python-sendfile) need to be installed manually by the user. In an Ubuntu 12.04
-LTS system this can be achieved by installing packages provided by the
-distribution, using the following command:
+ * Python 2 [http://www.python.org/]
+ * Python setuptools [http://pypi.python.org/pypi/setuptools]
+ * Python Dialog [http://pythondialog.sourceforge.net/]
+ * Python bindings for libguestfs [http://libguestfs.org/]
+ * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
+ * pyparted [https://fedorahosted.org/pyparted/]
 
+In Ubuntu you can do this using:
+ 
 .. code-block:: console
 
-   $ apt-get install python-setuptools python-guestfs python-dialog python-sendfile
+   $ apt-get install python-setuptools python-guestfs python-dialog \
+     python-sendfile python-parted
 
-The rest of the dependencies will be automatically resolved by setuptools.
-Note that at some point during the installation, you will be prompted to
-create/update a "supermin appliance". This is a setting regarding libguestfs
-and you can safely choose "Yes".
+.. note::
 
-In order to download the source files, git needs to be installed. You can do
-so with the following command:
+   If during the installation you get prompted to create/update a
+   "supermin appliance", choose "Yes".
 
-.. code-block:: console
-
-   $ apt-get install git
 
 Python Virtual Environment
 --------------------------
 
 Since snf-image-creator and the rest of its dependencies won't be installed
 using packages, it's better to work in an isolated python virtual environment
-(virtualenv). Installing the Virtual Python Environment builder in Ubuntu can
-be accomplished using the following command:
+(virtualenv).
+
+Install the Virtual Python Environment builder:
+http://pypi.python.org/pypi/virtualenv.
+
+For Ubuntu use the following command:
 
 .. code-block:: console
 
    $ apt-get install python-virtualenv
 
-Now, create a new python virtual environment like this:
+Create a new python virtual environment:
 
 .. code-block:: console
 
@@ -139,65 +122,51 @@ and activate it by executing:
 
    $ source ~/image-creator-env/bin/activate
 
-You can later deactivate it using the following command:
+You may later deactivate it using:
 
 .. code-block:: console
 
    $ deactivate
 
-snf-common Installation
------------------------
-
-Install snf-common from source, by cloning it's repository:
-
-.. code-block:: console
-
-   $ cd ~
-   $ git clone https://code.grnet.gr/git/synnefo
-   $ cd synnefo/snf-common
-   $ python setup.py build
-
-Then, make sure you are within the activated virtual environment before you
-execute:
-
-.. code-block:: console
-
-   $ python setup.py install
-
 kamaki Installation
 -------------------
 
-Install kamaki from source, by cloning it's repository:
-
-.. code-block:: console
-
-   $ cd ~
-   $ git clone https://code.grnet.gr/git/kamaki
-   $ cd kamaki
-   $ ./setup.py build
-
-As above, make sure you are within the activated virtual environment before you
-execute:
-
-.. code-block:: console
-
-   $ ./setup.py install
+Refer to `./kamaki documentation <http://docs.dev.grnet.gr/kamaki/latest/installation.html>`_
+for instructions. You may install kamaki from source inside the virtualenv or
+use binary packages if they are available for your distribution.
 
 snf-image-creator Installation
 ------------------------------
 
-Install snf-image-creator the same way:
+Download the latest snf-image-creator source package from
+`here <https://code.grnet.gr/projects/snf-image-creator/files>`_ and install it
+inside the virtualenv using the following commands:
 
 .. code-block:: console
 
-   $ cd ~
+   $ tar -xf snf_image_creator-<VERSION>.tar.gz
+   $ cd snf_image_creator-<VERSION>
+   $ python ./setup install
+
+Alternatively, you can install the bleeding edge version of the software by
+cloning its git repository:
+
+.. code-block:: console
+
    $ git clone https://code.grnet.gr/git/snf-image-creator
    $ cd snf-image-creator
-   $ git checkout stable-0.1
-   $ ./setup.py build
+   $ python ./setup.py install
 
-And from within the virtual environment execute:
+To do the latter, you'll need to have git (http://git-scm.com/) installed.
+For ubuntu this can be done using:
 
 .. code-block:: console
 
-   $ ./setup.py install
+   $ apt-get install git
+
+.. warning::
+
+   Keep in mind that the bleeding edge version may be unstable or even
+   unusable.
+
+

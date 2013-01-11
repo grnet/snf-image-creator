@@ -2,14 +2,14 @@ Overview
 ^^^^^^^^
 
 snf-image-creator is a simple command-line tool for creating OS images. The
-original media, the image is created from, can be a block device or a regular
-file that represents a hard disk.
+original media, the image is created from, can be a block device, a regular
+file that represents a hard disk or a host system itself.
 
 Snapshotting
 ============
 
-snf-image-creator works on snapshots of the original media. Any changes made by
-the program do not affect the original media.
+snf-image-creator works on snapshots. Any changes made by the program do not
+affect the original media.
 
 Image Preparation
 =================
