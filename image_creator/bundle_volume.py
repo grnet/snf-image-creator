@@ -433,7 +433,7 @@ class BundleVolume(object):
 
         # Check if the available space is enough to host the image
         dirname = os.path.dirname(image)
-        self.out.output("Examining available space ..." % dirname, False)
+        self.out.output("Examining available space ...", False)
         if free_space(dirname) <= size:
             raise FatalError('Not enough space under %s to host the image' %
                              dirname)
