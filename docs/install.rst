@@ -89,10 +89,8 @@ In Ubuntu you can do this using:
      python-sendfile python-parted
 
 .. note::
-
-   If during the installation you get prompted to create/update a
+   If you are asked during the installation to create/update a
    "supermin appliance", choose "Yes".
-
 
 Python Virtual Environment
 --------------------------
@@ -165,8 +163,6 @@ For ubuntu this can be done using:
    $ apt-get install git
 
 .. warning::
-
    Keep in mind that the bleeding edge version may be unstable or even
    unusable.
-
 
