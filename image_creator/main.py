@@ -79,7 +79,7 @@ def parse_options(input_args):
                       help="overwrite output files if they exist")
 
     parser.add_option("-s", "--silent", dest="silent", default=False,
-                      help="silent mode, only output errors",
+                      help="output only errors",
                       action="store_true")
 
     parser.add_option("-u", "--upload", dest="upload", type="string",
@@ -93,15 +93,15 @@ def parse_options(input_args):
                       metavar="IMAGENAME")
 
     parser.add_option("-a", "--account", dest="account", type="string",
-                      default=account, help="Use this ACCOUNT when "
+                      default=account, help="use this ACCOUNT when "
                       "uploading/registering images [Default: %s]" % account)
 
     parser.add_option("-m", "--metadata", dest="metadata", default=[],
-                      help="Add custom KEY=VALUE metadata to the image",
+                      help="add custom KEY=VALUE metadata to the image",
                       action="append", metavar="KEY=VALUE")
 
     parser.add_option("-t", "--token", dest="token", type="string",
-                      default=token, help="Use this token when "
+                      default=token, help="use this token when "
                       "uploading/registering images [Default: %s]" % token)
 
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
@@ -118,11 +118,15 @@ def parse_options(input_args):
                       metavar="SYSPREP")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
-                      help="don't perform system preparation",
+                      help="don't perform any system preparation operation",
                       action="store_false")
 
     parser.add_option("--no-shrink", dest="shrink", default=True,
                       help="don't shrink any partition", action="store_false")
+
+    parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
+                      help="create large temporary image files under DIR",
+                      metavar="DIR")
 
     options, args = parser.parse_args(input_args)
 
@@ -144,6 +148,10 @@ def parse_options(input_args):
     if options.upload and options.token is None:
         raise FatalError("Image uploading cannot be performed. No ~okeanos "
                          "token is specified. User -t to set a token.")
+
+    if options.tmp is not None and not os.path.isdir(options.tmp):
+        raise FatalError("The directory `%s' specified with --tmpdir is not "
+                         "valid." % options.tmp)
 
     meta = {}
     for m in options.metadata:
@@ -187,7 +195,7 @@ def image_creator():
                 raise FatalError("Output file %s exists "
                                  "(use --force to overwrite it)." % filename)
 
-    disk = Disk(options.source, out)
+    disk = Disk(options.source, out, options.tmp)
 
     def signal_handler(signum, frame):
         disk.cleanup()
@@ -243,12 +251,12 @@ def image_creator():
         if options.outfile is not None:
             dev.dump(options.outfile)
 
-            out.output('Dumping metadata file...', False)
+            out.output('Dumping metadata file ...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
                 f.write(metastring)
             out.success('done')
 
-            out.output('Dumping md5sum file...', False)
+            out.output('Dumping md5sum file ...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
                 f.write('%s %s\n' % (checksum,
                                      os.path.basename(options.outfile)))
@@ -275,7 +283,7 @@ def image_creator():
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
-                out.output("(4/4)  Uploading md5sum file...", False)
+                out.output("(4/4)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
@@ -285,7 +293,7 @@ def image_creator():
                 out.output()
 
             if options.register:
-                out.output('Registering image with ~okeanos...', False)
+                out.output('Registering image with ~okeanos ...', False)
                 kamaki.register(options.register, uploaded_obj, metadata)
                 out.success('done')
                 out.output()

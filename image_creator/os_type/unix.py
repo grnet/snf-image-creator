@@ -42,7 +42,9 @@ class Unix(OSBase):
     sensitive_userdata = [
         '.bash_history',
         '.gnupg',
-        '.ssh'
+        '.ssh',
+        '.kamakirc',
+        '.kamaki.history'
     ]
 
     def __init__(self, rootdev, ghandler, output):

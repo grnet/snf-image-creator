@@ -33,7 +33,11 @@
 
 from image_creator.util import get_command
 from image_creator.util import FatalError
+from image_creator.util import try_fail_repeat
+from image_creator.util import free_space
 from image_creator.gpt import GPTPartitionTable
+from image_creator.bundle_volume import BundleVolume
+
 import stat
 import os
 import tempfile
@@ -41,7 +45,6 @@ import uuid
 import re
 import sys
 import guestfs
-import time
 from sendfile import sendfile
 
 
@@ -49,6 +52,9 @@ dd = get_command('dd')
 dmsetup = get_command('dmsetup')
 losetup = get_command('losetup')
 blockdev = get_command('blockdev')
+
+
+TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
 
 
 class Disk(object):
@@ -59,13 +65,35 @@ class Disk(object):
     the Linux kernel.
     """
 
-    def __init__(self, source, output):
+    def __init__(self, source, output, tmp=None):
         """Create a new Disk instance out of a source media. The source
-        media can be an image file, a block device or a directory."""
+        media can be an image file, a block device or a directory.
+        """
         self._cleanup_jobs = []
         self._devices = []
         self.source = source
         self.out = output
+        self.meta = {}
+        self.tmp = tempfile.mkdtemp(prefix='.snf_image_creator.',
+                                    dir=self._get_tmp_dir(tmp))
+
+        self._add_cleanup(os.removedirs, self.tmp)
+
+    def _get_tmp_dir(self, default=None):
+        if default is not None:
+            return default
+
+        space = map(free_space, TMP_CANDIDATES)
+
+        max_idx = 0
+        max_val = space[0]
+        for i, val in zip(range(len(space)), space):
+            if val > max_val:
+                max_val = val
+                max_idx = i
+
+        # Return the candidate path with more available space
+        return TMP_CANDIDATES[max_idx]
 
     def _add_cleanup(self, job, *args):
         self._cleanup_jobs.append((job, args))
@@ -73,12 +101,22 @@ class Disk(object):
     def _losetup(self, fname):
         loop = losetup('-f', '--show', fname)
         loop = loop.strip()  # remove the new-line char
-        self._add_cleanup(losetup, '-d', loop)
+        self._add_cleanup(try_fail_repeat, losetup, '-d', loop)
         return loop
 
     def _dir_to_disk(self):
-        raise FatalError("Using a directory as media source is not supported "
-                         "yet!")
+        if self.source == '/':
+            bundle = BundleVolume(self.out, self.meta)
+            image = '%s/%s.diskdump' % (self.tmp, uuid.uuid4().hex)
+
+            def check_unlink(path):
+                if os.path.exists(path):
+                    os.unlink(path)
+
+            self._add_cleanup(check_unlink, image)
+            bundle.create_image(image)
+            return self._losetup(image)
+        raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
         """Cleanup internal data. This needs to be called before the
@@ -100,12 +138,12 @@ class Disk(object):
         instance.
         """
 
-        self.out.output("Examining source media `%s'..." % self.source, False)
+        self.out.output("Examining source media `%s' ..." % self.source, False)
         sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
             self.out.success('looks like a directory')
-            return self._losetup(self._dir_to_disk())
+            return self._dir_to_disk()
         elif stat.S_ISREG(mode):
             self.out.success('looks like an image file')
             sourcedev = self._losetup(self.source)
@@ -118,7 +156,7 @@ class Disk(object):
         # Take a snapshot and return it to the user
         self.out.output("Snapshotting media source...", False)
         size = blockdev('--getsz', sourcedev)
-        cowfd, cow = tempfile.mkstemp()
+        cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
         # Create cow sparse file
@@ -131,11 +169,7 @@ class Disk(object):
             os.write(tablefd, "0 %d snapshot %s %s n 8" %
                               (int(size), sourcedev, cowdev))
             dmsetup('create', snapshot, table)
-            self._add_cleanup(dmsetup, 'remove', snapshot)
-            # Sometimes dmsetup remove fails with Device or resource busy,
-            # although everything is cleaned up and the snapshot is not
-            # used by anyone. Add a 2 seconds delay to be on the safe side.
-            self._add_cleanup(time.sleep, 2)
+            self._add_cleanup(try_fail_repeat, dmsetup, 'remove', snapshot)
 
         finally:
             os.unlink(table)
@@ -163,16 +197,16 @@ class DiskDevice(object):
     as created by the device-mapper.
     """
 
-    def __init__(self, device, output, bootable=True):
+    def __init__(self, device, output, bootable=True, meta={}):
         """Create a new DiskDevice."""
 
         self.real_device = device
         self.out = output
         self.bootable = bootable
+        self.meta = meta
         self.progress_bar = None
         self.guestfs_device = None
         self.size = 0
-        self.meta = {}
 
         self.g = guestfs.GuestFS()
         self.g.add_drive_opts(self.real_device, readonly=0)
@@ -198,17 +232,20 @@ class DiskDevice(object):
 
     def enable(self):
         """Enable a newly created DiskDevice"""
-        self.progressbar = self.out.Progress(100, "Launching helper VM",
-                                             "percent")
-        eh = self.g.set_event_callback(self.progress_callback,
-                                       guestfs.EVENT_PROGRESS)
+
+        self.out.output('Launching helper VM (may take a while) ...', False)
+        # self.progressbar = self.out.Progress(100, "Launching helper VM",
+        #                                     "percent")
+        # eh = self.g.set_event_callback(self.progress_callback,
+        #                               guestfs.EVENT_PROGRESS)
         self.g.launch()
         self.guestfs_enabled = True
-        self.g.delete_event_callback(eh)
-        self.progressbar.success('done')
-        self.progressbar = None
+        # self.g.delete_event_callback(eh)
+        # self.progressbar.success('done')
+        # self.progressbar = None
+        self.out.success('done')
 
-        self.out.output('Inspecting Operating System...', False)
+        self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
         if len(roots) == 0:
             raise FatalError("No operating system found")
@@ -237,18 +274,18 @@ class DiskDevice(object):
             # Close the guestfs handler if open
             self.g.close()
 
-    def progress_callback(self, ev, eh, buf, array):
-        position = array[2]
-        total = array[3]
-
-        self.progressbar.goto((position * 100) // total)
+#    def progress_callback(self, ev, eh, buf, array):
+#        position = array[2]
+#        total = array[3]
+#
+#        self.progressbar.goto((position * 100) // total)
 
     def mount(self, readonly=False):
         """Mount all disk partitions in a correct order."""
 
         mount = self.g.mount_ro if readonly else self.g.mount
         msg = " read-only" if readonly else ""
-        self.out.output("Mounting the media%s..." % msg, False)
+        self.out.output("Mounting the media%s ..." % msg, False)
         mps = self.g.inspect_get_mountpoints(self.root)
 
         # Sort the keys to mount the fs in a correct order.
@@ -279,16 +316,17 @@ class DiskDevice(object):
             raise FatalError(msg)
 
         is_extended = lambda p: \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
+            in (0x5, 0xf)
         is_logical = lambda p: \
-            self.meta['PARTITION_TABLE'] != 'msdos' and p['part_num'] > 4
+            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
 
         partitions = self.g.part_list(self.guestfs_device)
         last_partition = partitions[-1]
 
         if is_logical(last_partition):
             # The disk contains extended and logical partitions....
-            extended = [p for p in partitions if is_extended(p)][0]
+            extended = filter(is_extended, partitions)[0]
             last_primary = [p for p in partitions if p['part_num'] <= 4][-1]
 
             # check if extended is the last primary partition
@@ -312,7 +350,8 @@ class DiskDevice(object):
             self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
         is_extended = lambda p: \
             self.meta['PARTITION_TABLE'] == 'msdos' and \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) == 5
+            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
+            in (0x5, 0xf)
 
         part_add = lambda ptype, start, stop: \
             self.g.part_add(self.guestfs_device, ptype, start, stop)
@@ -327,7 +366,7 @@ class DiskDevice(object):
 
         MB = 2 ** 20
 
-        self.out.output("Shrinking image (this may take a while)...", False)
+        self.out.output("Shrinking image (this may take a while) ...", False)
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
 
@@ -362,10 +401,8 @@ class DiskDevice(object):
         self.g.resize2fs_M(part_dev)
 
         out = self.g.tune2fs_l(part_dev)
-        block_size = int(
-            filter(lambda x: x[0] == 'Block size', out)[0][1])
-        block_cnt = int(
-            filter(lambda x: x[0] == 'Block count', out)[0][1])
+        block_size = int(filter(lambda x: x[0] == 'Block size', out)[0][1])
+        block_cnt = int(filter(lambda x: x[0] == 'Block count', out)[0][1])
 
         start = last_part['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
@@ -381,16 +418,16 @@ class DiskDevice(object):
                     'num': partition['part_num'],
                     'start': partition['part_start'] / sector_size,
                     'end': partition['part_end'] / sector_size,
-                    'id': part_get_(partition['part_num']),
+                    'id': part_get_id(partition['part_num']),
                     'bootable': part_get_bootable(partition['part_num'])
                 })
 
             logical[-1]['end'] = end  # new end after resize
 
             # Recreate the extended partition
-            extended = [p for p in partitions if self._is_extended(p)][0]
+            extended = filter(is_extended, partitions)[0]
             part_del(extended['part_num'])
-            part_add('e', extended['part_start'], end)
+            part_add('e', extended['part_start'] / sector_size, end)
 
             # Create all the logical partitions back
             for l in logical:
@@ -444,7 +481,7 @@ class DiskDevice(object):
                 while left > 0:
                     length = min(left, blocksize)
                     _, sent = sendfile(dst.fileno(), src.fileno(), offset,
-                        length)
+                                       length)
                     offset += sent
                     left -= sent
                     progressbar.goto((size - left) // MB)

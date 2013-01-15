@@ -175,6 +175,13 @@ class WizardYesNoPage(WizardPage):
 
 
 def wizard(session):
+    init_account = Kamaki.get_account()
+    if init_account is None:
+        init_account = ""
+
+    init_token = Kamaki.get_token()
+    if init_token is None:
+        init_token = ""
 
     name = WizardInputPage("ImageName", "Please provide a name for the image:",
                            title="Image Name", init=session['device'].distro)
@@ -186,11 +193,11 @@ def wizard(session):
     account = WizardInputPage("account",
                               "Please provide your ~okeanos account e-mail:",
                               title="~okeanos account information",
-                              init=Kamaki.get_account())
+                              init=init_account)
     token = WizardInputPage("token",
                             "Please provide your ~okeanos account token:",
                             title="~okeanos account token",
-                            init=Kamaki.get_token())
+                            init=init_token)
 
     msg = "All necessary information has been gathered. Confirm and Proceed."
     proceed = WizardYesNoPage(msg, title="Confirmation")
@@ -218,6 +225,10 @@ def create_image(session):
     snapshot = session['snapshot']
     image_os = session['image_os']
     wizard = session['wizard']
+
+    # Save Kamaki credentials
+    Kamaki.save_account(wizard['account'])
+    Kamaki.save_token(wizard['token'])
 
     with_progress = OutputWthProgress(True)
     out = disk.out
@@ -261,18 +272,18 @@ def create_image(session):
                                             "(1/4)  Calculating block hashes",
                                             "(2/4)  Uploading missing blocks")
 
-            out.output("(3/4)  Uploading metadata file...", False)
+            out.output("(3/4)  Uploading metadata file ...", False)
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                           remote_path="%s.%s" % (name, 'meta'))
             out.success('done')
-            out.output("(4/4)  Uploading md5sum file...", False)
+            out.output("(4/4)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                           remote_path="%s.%s" % (name, 'md5sum'))
             out.success('done')
             out.output()
 
-            out.output('Registering image with ~okeanos...', False)
+            out.output('Registering image with ~okeanos ...', False)
             kamaki.register(wizard['ImageName'], pithos_file, metadata)
             out.success('done')
             out.output()
