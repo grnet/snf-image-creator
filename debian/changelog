@@ -1,3 +1,9 @@
+snf-image-creator (0.2-0ubuntu3) precise; urgency=low
+
+  * Add python-setuptools as build dependency
+
+ -- Nikos Skalkotos <skalkoto@grnet.gr>  Tue, 15 Jan 2013 12:34:04 +0200
+
 snf-image-creator (0.2-0ubuntu2) precise; urgency=low
 
   * Add missing python-setuptools dependency
