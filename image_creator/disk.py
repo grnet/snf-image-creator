@@ -480,8 +480,15 @@ class DiskDevice(object):
                 progressbar.next()
                 while left > 0:
                     length = min(left, blocksize)
-                    _, sent = sendfile(dst.fileno(), src.fileno(), offset,
-                                       length)
+                    sent = sendfile(dst.fileno(), src.fileno(), offset, length)
+
+                    # Workaround for python-sendfile API change. In
+                    # python-sendfile 1.2.x (py-sendfile) the returning value
+                    # of sendfile is a tuple, where in version 2.x (pysendfile)
+                    # it is just a sigle integer.
+                    if isinstance(sent, tuple):
+                        sent = sent[1]
+
                     offset += sent
                     left -= sent
                     progressbar.goto((size - left) // MB)
