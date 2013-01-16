@@ -1,7 +1,7 @@
 Installation
 ^^^^^^^^^^^^
 
-This guide describes how to install snf-image-creator on your machine. It is
+This guide describes how to install snf-image-creator on a Linux system. It is
 highly recommended to have virtualization capable hardware. snf-image-creator
 will work on processors that do not support virtualization but it will be slow.
 
@@ -26,21 +26,15 @@ method you choose. There are two installation methods available:
 
 #. `Installation using official packages <#install-snf-image-creator-using-official-packages>`_ (currently only for Ubuntu 12.04 LTS and 12.10).
 
-#. `Installation from source <#install-snf-image-creator-using-official-packages>`_
+#. `Installation from source <#install-snf-image-creator-from-source>`_
 
 Install snf-image-creator using official packages
 =================================================
 
-For Ubuntu systems, you can use our official packages found in the Lauchpad
-PPA: *ppa:grnet/synnefo*
+For Ubuntu systems, you can use our official packages found in *grnet/synnefo*
+Lauchpad PPA.
 
-.. note::
-   This method of installing snf-image-creator has all the advantages of
-   Ubuntu's APT installation, like automatic dependencies resolution and simple
-   update process.
-
-In order to proceed with the installation, you must first add the synnefo PPA
-repository in your system:
+Add the synnefo PPA in your system:
 
 .. code-block:: console
 
@@ -53,17 +47,24 @@ If *apt-add-repository* is missing, install *software-properties-common* first:
 
    $ sudo apt-get install software-properties-common
 
-The snf-image-creator package should now be listed calling:
+After the synnefo repository is set up, you should be able to list
+snf-image-creator by calling:
 
 .. code-block:: console
 
    $ apt-cache showpkg snf-image-creator
 
-You can now install the package by issuing:
+Install the package by issuing:
 
 .. code-block:: console
 
    $ sudo apt-get install snf-image-creator
+
+If you are using Ubuntu 12.10, also install libguestfs-tools:
+
+.. code-block:: console
+
+   $ sudo apt-get install libguestfs-tools
 
 .. note::
    If you are asked during the installation to create/update a
@@ -88,6 +89,12 @@ In Ubuntu you can do this using:
    $ apt-get install python-setuptools python-guestfs python-dialog \
      python-sendfile python-parted
 
+If you are using Ubuntu 12.10 you also need to install libguestfs-tools:
+
+.. code-block:: console
+
+   $ sudo apt-get install libguestfs-tools
+
 .. note::
    If you are asked during the installation to create/update a
    "supermin appliance", choose "Yes".
@@ -108,7 +115,7 @@ For Ubuntu use the following command:
 
    $ apt-get install python-virtualenv
 
-Create a new python virtual environment:
+Then create a new python virtual environment:
 
 .. code-block:: console
 
@@ -130,8 +137,9 @@ kamaki Installation
 -------------------
 
 Refer to `./kamaki documentation <http://docs.dev.grnet.gr/kamaki/latest/installation.html>`_
-for instructions. You may install kamaki from source inside the virtualenv or
-use binary packages if they are available for your distribution.
+for instructions. You may install kamaki from source inside the virtualenv
+you've crated above or by using binary packages if they are available for your
+distribution.
 
 snf-image-creator Installation
 ------------------------------

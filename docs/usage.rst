@@ -51,21 +51,21 @@ snf-image-creator receives the following options:
    --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
-the image you create, provide a resulting filename using the *-o* option. To
-upload the image to *pithos+*, provide valid credentials  using *-a* and *-t*
-and a filename using *-u*. If you also want to register the image with
-*~okeanos*, in addition to *-u* provide a registration name using *-r*.
+the image you create, provide a filename using the *-o* option. To upload the
+image to *pithos+*, provide valid credentials using *-a* and *-t* and a
+filename using *-u*. If you also want to register the image with *~okeanos*, in
+addition to *-u* provide a registration name using *-r*.
 
-By default snf-image-creator will perform a number of system preparation
-operations on the snapshot of the media and will shrink the last partition
-found, before extracting the image. Both can be disabled by specifying
+By default, before extracting the image, snf-image-creator will perform a
+number of system preparation operations on the snapshot of the media and will
+shrink the last partition found. Both actions can be disabled by specifying
 *--no-sysprep* and *--no-shrink* respectively.
 
 If *--print-sysprep* is defined, the program will exit after printing a
 list of enabled and disabled system preparation operation applicable to this
-media source. The user can enable or disable specific *syspreps* when creating
-an image, using *-{enable,disable}-sysprep* options. You may specify those
-options multiple times to enable or disable multiple *syspreps*.
+input media. The user can enable or disable specific *syspreps*, using
+*-{enable,disable}-sysprep* options. The user may specify those options
+multiple times.
 
 Running *snf-image-creator* with *--print-sysprep* on a raw file that hosts a
 debian system, we print the following output:
@@ -176,10 +176,10 @@ following basic information:
  * Description: An one-line description for the image
    (ex. "Slackware Linux 14.0 with KDE")
  * Account: An *~okeanos* account email
- * Token: A token corresponding to the account defined previously
+ * Token: A token corresponding to the account given above
 
 After confirming, the image will be extracted, uploaded to *pithos+* and
-registered to *~okeanos*. The user will also be given the choice to keep a
+registered with *~okeanos*. The user will also be given the choice to keep a
 local copy of it.
 
 For most users the functionality this mode provides should be sufficient.
@@ -188,7 +188,7 @@ Expert mode
 -----------
 
 Expert mode allows the user to have better control on the image creation
-process. In the picture below the main menu can be seen:
+process. The main menu can be seen in the picture below:
 
 .. image:: /snapshots/main_menu.png
 
@@ -255,7 +255,7 @@ And install the Ubuntu system on this file:
    During the installation, you will be asked about the partition scheme. Don't 
    use LVM partitions. They are not supported by snf-image-creator.
 
-You will be able to boot your installed OS and make any changes you want to it
+You will be able to boot your installed OS and make any changes you want
 (e.g. install openssh-server) using the following command::
 
    $ sudo kvm -m 1G -boot c -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio
@@ -274,7 +274,7 @@ in *Wizard* or *Expert* mode. Choose *Wizard*.
 .. image:: /snapshots/01_wizard.png
 
 Then you will be asked to provide a name, a description, an *~okeanos* account
-and the token corresponding to this account. After that you will be asked to
+and the token corresponding to this account. Finally, you'll be asked to
 confirm the provided data.
 
 .. image:: /snapshots/06_confirm.png
@@ -293,16 +293,16 @@ Ethernet cards on the VM instances are para-virtualized and need special
 version 2.6.25 and are shipped with all the popular Linux distributions. The
 problem is that if the driver for the para-virtualized disk I/O controller is
 built as module, it needs to be preloaded using an initial ramdisk, otherwise
-the VM will not be able to boot.
+the VM won't be able to boot.
 
-Many popular linux distributions, like Ubuntu and Debian, will automatically
+Many popular Linux distributions, like Ubuntu and Debian, will automatically
 create a generic initial ramdisk file that contains many different modules,
 including the VirtIO drivers. Others that target more experienced users, like
 Slackware, won't do that [#f1]_. *snf-image-creator* cannot resolve this kind
 of problems and it's left to the user to do so. Please refer to your
 distribution's documentation for more information on this. You can always check
 if a system can boot with para-virtualized disk controller by launching it with
-kvm using the *if=virtio* option (take a look at the kvm command in the
+kvm using the *if=virtio* option (see the kvm command in the
 `Creating a new image`_ section).
 
 Image partition schemes and shrinking
@@ -329,17 +329,17 @@ The tmpdir option
 
  * During image shrinking, the input media snapshot file may reach the size of
    the original media.
- * When bundling the host system, the size of temporary image file may reach
-   the size of all disk files.
+ * When bundling the host system, the temporary image file may became as large
+   as the rest of the disk files altogether.
 
-The */tmp* directory is not a good place for hosting large files. In many systems
+*/tmp* directory is not a good place for hosting large files. In many systems
 the contents of */tmp* are stored in volatile memory and the size they may occupy
 is limited. By default, *snf-image-creator* will use a heuristic approach to
 determine where to store large temporary files. It will examine the free space
 under */var/tmp*, the user's home directory and */mnt* and will pick the one
-with the most free space. The user may overwrite this behaviour and indicate a
-directory using the *tmpdir* option. This option is present in both
-*snf-image-creator* and *snf-mkimage*.
+with the most available space. The user may overwrite this behaviour and
+indicate a different directory using the *tmpdir* option. This option is
+supported by both *snf-image-creator* and *snf-mkimage*.
 
 .. rubric:: Footnotes
 

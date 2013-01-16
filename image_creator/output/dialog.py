@@ -67,7 +67,7 @@ class GaugeOutput(Output):
         time.sleep(0.4)
 
     def warn(self, msg, new_line=True):
-        self.d.gauge_update(self.index, "%s Warning: %s" % (self.msg, msg),
+        self.d.gauge_update(self.percent, "%s Warning: %s" % (self.msg, msg),
                             update_text=True)
         time.sleep(0.4)
 
