@@ -45,6 +45,7 @@ import uuid
 import re
 import sys
 import guestfs
+import shutil
 from sendfile import sendfile
 
 
@@ -77,7 +78,7 @@ class Disk(object):
         self.tmp = tempfile.mkdtemp(prefix='.snf_image_creator.',
                                     dir=self._get_tmp_dir(tmp))
 
-        self._add_cleanup(os.removedirs, self.tmp)
+        self._add_cleanup(shutil.rmtree, self.tmp)
 
     def _get_tmp_dir(self, default=None):
         if default is not None:
