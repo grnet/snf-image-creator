@@ -16,6 +16,7 @@ snf-image-creator depends on the following programs:
  * Python bindings for libguestfs [http://libguestfs.org/]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
  * pyparted [https://fedorahosted.org/pyparted/]
+ * rsync [http://rsync.samba.org/]
  * ./kamaki [https://code.grnet.gr/projects/kamaki]
  * Python sh (previously pbs) [https://github.com/amoffat/sh]
  * ANSI colors for Python [http://pypi.python.org/pypi/ansicolors]
@@ -81,13 +82,14 @@ Manually install the following dependencies:
  * Python bindings for libguestfs [http://libguestfs.org/]
  * Python interface to sendfile [http://pypi.python.org/pypi/pysendfile]
  * pyparted [https://fedorahosted.org/pyparted/]
+ * rsync [http://rsync.samba.org/]
 
 In Ubuntu you can do this using:
  
 .. code-block:: console
 
    $ apt-get install python-setuptools python-guestfs python-dialog \
-     python-sendfile python-parted
+     python-sendfile python-parted rsync
 
 If you are using Ubuntu 12.10 you also need to install libguestfs-tools:
 
