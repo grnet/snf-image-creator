@@ -88,7 +88,7 @@ In Ubuntu you can do this using:
  
 .. code-block:: console
 
-   $ apt-get install python-setuptools python-guestfs python-dialog \
+   $ sudo apt-get install python-setuptools python-guestfs python-dialog \
      python-sendfile python-parted rsync
 
 If you are using Ubuntu 12.10 you also need to install libguestfs-tools:
@@ -115,7 +115,7 @@ For Ubuntu use the following command:
 
 .. code-block:: console
 
-   $ apt-get install python-virtualenv
+   $ sudo apt-get install python-virtualenv
 
 Then create a new python virtual environment:
 
@@ -140,7 +140,7 @@ kamaki Installation
 
 Refer to `./kamaki documentation <http://docs.dev.grnet.gr/kamaki/latest/installation.html>`_
 for instructions. You may install kamaki from source inside the virtualenv
-you've crated above or by using binary packages if they are available for your
+you've created above or by using binary packages if they are available for your
 distribution.
 
 snf-image-creator Installation
@@ -154,7 +154,7 @@ inside the virtualenv using the following commands:
 
    $ tar -xf snf_image_creator-<VERSION>.tar.gz
    $ cd snf_image_creator-<VERSION>
-   $ python ./setup install
+   $ python ./setup.py install
 
 Alternatively, you can install the bleeding edge version of the software by
 cloning its git repository:
@@ -170,7 +170,7 @@ For ubuntu this can be done using:
 
 .. code-block:: console
 
-   $ apt-get install git
+   $ sudo apt-get install git
 
 .. warning::
    Keep in mind that the bleeding edge version may be unstable or even
