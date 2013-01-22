@@ -1,2 +1,1 @@
-docs/*.rst
-docs/snapshots/*
+docs/_build/html
