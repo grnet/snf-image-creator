@@ -25,15 +25,18 @@ snf-image-creator depends on the following programs:
 The above dependencies are resolved differently, depending on the installation
 method you choose. There are two installation methods available:
 
-#. `Installation using official packages <#install-snf-image-creator-using-official-packages>`_ (currently only for Ubuntu 12.04 LTS and 12.10).
+#. `Installation using packages <#install-snf-image-creator-using-packages>`_ (currently only for Ubuntu and Arch Linux).
 
 #. `Installation from source <#install-snf-image-creator-from-source>`_
 
-Install snf-image-creator using official packages
-=================================================
+Install snf-image-creator using packages
+========================================
 
-For Ubuntu systems, you can use our official packages found in *grnet/synnefo*
-Lauchpad PPA.
+Ubuntu
+------
+
+For *Ubuntu 12.04 LTS* and *12.10* systems, you can use our official packages
+found in *grnet/synnefo* Lauchpad PPA.
 
 Add the synnefo PPA in your system:
 
@@ -70,6 +73,50 @@ If you are using Ubuntu 12.10, also install libguestfs-tools:
 .. note::
    If you are asked during the installation to create/update a
    "supermin appliance", choose "Yes".
+
+.. warning::
+   In *Ubuntu 12.10* the current package of libguestfs (1.18-2) is broken. Take
+   a look at the open `bug report <https://bugs.launchpad.net/ubuntu/quantal/+source/libguestfs/+bug/1086974>`_.
+   Until version 1.18-2ubunut1 is out, you may workaround this problem by
+   creating a symlink like this:
+
+   *sudo ln -s /usr/lib/guestfs /usr/lib/x86_64-linux-gnu/guestfs*
+
+Arch Linux
+----------
+
+For *Arch Linux* there are **unofficial** packages in AUR:
+https://aur.archlinux.org/packages/snf-image-creator/ kindly provided by
+Axilleas Pipinellis <axilleas@archlinux.info>.
+
+.. note::
+    Those packages are not maintained by the Synnefo development team.
+
+    Please direct package-specific questions to Axilleas Pipinellis <axilleas@archlinux.info>,
+    Cc: the Synnefo development team <synnefo-devel@googlegroups.com>
+
+To install the package you may use *yaourt*. Create and install
+the *yaourt* package:
+
+.. code-block:: console
+
+   $ wget https://aur.archlinux.org/packages/pa/package-query/package-query.tar.gz
+   $ tar -xvf package-query.tar.gz
+   $ cd package-query
+   $ makepkg -s
+   $ pacman -U package-query-<VERSION>-<ARCH>.pkg.tar.xz
+   $ cd ..
+   $ wget https://aur.archlinux.org/packages/ya/yaourt/yaourt.tar.gz
+   $ tar -xvf yaourt.tar.gz
+   $ cd yaourt
+   $ makepkg -s
+   $ pacman -U yaourt-<VERSION>-<ARCH>.pkg.tar.xz
+
+Install *snf-image-creator* using yaourt:
+
+.. code-block:: console
+
+   $ yaourt -Sa snf-image-creator
 
 Install snf-image-creator from source
 =====================================
