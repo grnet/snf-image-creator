@@ -17,11 +17,19 @@ Contents:
    install
    usage
 
+Contact
+=======
 
-Indices and tables
-==================
+For questions or bug reports you can contact the Synnefo team at the following
+mailing lists:
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+ * Users list: synnefo@googlegroups.com
+ * Developers list: synnefo-devel@googlegroups.com
+
+..
+ Indices and tables
+ ==================
+ * :ref:`genindex`
+ * :ref:`modindex`
+ * :ref:`search`
 

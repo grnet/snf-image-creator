@@ -312,7 +312,7 @@ class BundleVolume(object):
             if not found_ancestor:
                 excluded.append(mpoint)
 
-        return map(lambda d: d + "/*", excluded)
+        return excluded
 
     def _replace_uuids(self, target, new_uuid):
 
@@ -380,16 +380,27 @@ class BundleVolume(object):
                 absmpoints = self._mount(target,
                                          [(mapped[i], filesystem[i].mpoint)
                                          for i in mapped.keys()])
-                exclude = self._to_exclude() + [image]
+                excluded = self._to_exclude()
 
                 rsync = Rsync(self.out)
 
                 # Excluded paths need to be relative to the source
-                for excl in map(lambda p: os.path.relpath(p, '/'), exclude):
+                for excl in map(lambda p: os.path.relpath(p, '/'),
+                                excluded + [image]):
                     rsync.exclude(excl)
 
                 rsync.archive().hard_links().xattrs().sparse().acls()
                 rsync.run('/', target, 'host', 'temporary image')
+
+                # Create missing mountpoints. Since they are mountpoints, we
+                # cannot determine the ownership and the mode of the real
+                # directory. Make them inherit those properties from their
+                # parent dir
+                for excl in excluded:
+                   dirname = os.path.dirname(excl)
+                   stat = os.stat(dirname)
+                   os.mkdir(target + excl, stat.st_mode)
+                   os.chown(target + excl, stat.st_uid, stat.st_gid)
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file

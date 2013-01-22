@@ -217,7 +217,7 @@ system that runs the program. This is done either by specifying / as input
 media or by using the *Bundle Host* button in the media selection dialog of
 snf-mkimage. During this operation, the files of the disk are copied into a
 temporary image file, which means that the file system that will host the
-temporary image needs to have a lot of free space (see `the tmpdir option`_
+temporary image needs to have a lot of free space (see `large temporary files`_
 for more information).
 
 Creating a new image
@@ -281,8 +281,22 @@ confirm the provided data.
 
 Choosing *YES* will create and upload the image to your *~okeanos* account.
 
-Some caveats on image creation
-==============================
+Limitations
+===========
+
+Supported operating systems
+---------------------------
+
+*snf-image-creator* can only fully function on input media hosting *Linux*
+systems. The program will detect the needed metadata and you may use it to
+upload and register other *Unix* or *Windows* images, but you cannot use it to
+shrink them or perform system preparation operations.
+
+Logical Volumes
+---------------
+
+The program cannot work on LVM partitions [#f1]_. The input media may only
+contain primary or logical partitions.
 
 Para-virtualized drivers
 ------------------------
@@ -298,12 +312,15 @@ the VM won't be able to boot.
 Many popular Linux distributions, like Ubuntu and Debian, will automatically
 create a generic initial ramdisk file that contains many different modules,
 including the VirtIO drivers. Others that target more experienced users, like
-Slackware, won't do that [#f1]_. *snf-image-creator* cannot resolve this kind
+Slackware, won't do that [#f2]_. *snf-image-creator* cannot resolve this kind
 of problems and it's left to the user to do so. Please refer to your
 distribution's documentation for more information on this. You can always check
 if a system can boot with para-virtualized disk controller by launching it with
 kvm using the *if=virtio* option (see the kvm command in the
 `Creating a new image`_ section).
+
+Some caveats on image creation
+==============================
 
 Image partition schemes and shrinking
 -------------------------------------
@@ -322,8 +339,8 @@ Keep this in mind when creating images. It's always better to have your swap
 partition placed as the last partition on the disk and have your largest
 partition (*/* or */home*) just before that.
 
-The tmpdir option
------------------
+Large temporary files
+---------------------
 
 *snf-image-creator* may create large temporary files when running:
 
@@ -343,4 +360,5 @@ supported by both *snf-image-creator* and *snf-mkimage*.
 
 .. rubric:: Footnotes
 
-.. [#f1] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd
+.. [#f1] http://sourceware.org/lvm2/
+.. [#f2] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd
