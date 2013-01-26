@@ -385,8 +385,7 @@ class BundleVolume(object):
                 rsync = Rsync(self.out)
 
                 # Excluded paths need to be relative to the source
-                for excl in map(lambda p: os.path.relpath(p, '/'),
-                                excluded + [image]):
+                for excl in map(lambda p: p[1:], excluded + [image]):
                     rsync.exclude(excl)
 
                 rsync.archive().hard_links().xattrs().sparse().acls()
