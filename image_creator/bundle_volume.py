@@ -170,7 +170,7 @@ class BundleVolume(object):
 
     def _shrink_partitions(self, image):
 
-        new_end = self.disk.device.getLength()
+        new_end = self.disk.device.length
 
         image_dev = parted.Device(image)
         image_disk = parted.Disk(image_dev)
@@ -420,7 +420,7 @@ class BundleVolume(object):
         running system.
         """
 
-        size = self.disk.device.getLength() * self.disk.device.sectorSize
+        size = self.disk.device.length * self.disk.device.sectorSize
 
         # Create sparse file to host the image
         fd = os.open(image, os.O_WRONLY | os.O_CREAT)
