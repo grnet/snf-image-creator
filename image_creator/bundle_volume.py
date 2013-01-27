@@ -239,7 +239,7 @@ class BundleVolume(object):
                     ext.geometry.start, end=last.end)
                 image_disk.commit()
 
-        image_dev.destroy()
+        # image_dev.destroy()
         return new_end
 
     def _map_partition(self, dev, num, start, end):
