@@ -1,0 +1,20 @@
+2013-01-22, v0.2.2
+	* Fix bugs in bundle_host and cleanup functions
+
+2013-01-16, v0.2.1
+	* Fix bug in dialog
+	* Support python-sendfile 2.x
+
+2013-01-14, v0.2
+	* Add support for bundling the host system
+	* Add new tmpdir option for specifying a temporary directory
+	* Add .kamakirc as sensitive userdatat in cleanup_userdata sysprep
+	* Fix typos & bugs
+
+2012-12-03, v0.1.1
+	* Fix bugs in dialog wizard
+	* Fix typos
+
+2012-11-05, v0.1
+	* Initial Version
+
