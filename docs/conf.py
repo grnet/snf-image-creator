@@ -41,7 +41,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'snf-image-creator'
-copyright = u'2012, GRNET'
+copyright = u'2012, 2013 GRNET S.A. All rights reserved'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -213,8 +213,12 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'snf-image-creator', u'snf-image-creator Documentation',
-     [u'GRNET'], 1)
+    ('man/snf-image-creator', 'snf-image-creator',
+     'Command line image creator for Synnefo',
+     'GRNET Development Team <synnefo-devel@googlegroups.com>', 1),
+    ('man/snf-mkimage', 'snf-mkimage',
+     'Dialog-based image creator for Synnefo',
+     'GRNET Development Team <synnefo-devel@googlegroups.com>', 1)
 ]
 
 # If true, show URL addresses after external links.
