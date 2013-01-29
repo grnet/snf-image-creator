@@ -222,9 +222,13 @@ class BundleVolume(object):
             # Align to 2048
             part_end = ((part_end + 2047) // 2048) * 2048
 
+            # Make sure the partition starts where the old partition started.
+            constraint = parted.Constraint(device=image_disk.device)
+            constraint.startRange = parted.Geometry(device=image_disk.device,
+                                                    start=last.start, length=1)
+
             image_disk.setPartitionGeometry(
-                image_disk.getPartitionBySector(last.start),
-                parted.Constraint(device=image_disk.device),
+                image_disk.getPartitionBySector(last.start), constraint,
                 start=last.start, end=part_end)
             image_disk.commitToDevice()
 
