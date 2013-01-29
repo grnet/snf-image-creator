@@ -350,9 +350,11 @@ class BundleVolume(object):
         # For partitions that are not mounted right now, we can simply dd them
         # into the image.
         for p in unmounted:
+            self.out.output('Cloning partition %d ... ' % p.num, False)
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
                'count=%d' % (p.end - p.start + 1), 'conv=notrunc',
                'seek=%d' % p.start, 'skip=%d' % p.start)
+            self.out.success("done")
 
         loop = str(losetup('-f', '--show', image)).strip()
         mapped = {}
@@ -393,10 +395,10 @@ class BundleVolume(object):
                 # directory. Make them inherit those properties from their
                 # parent dir
                 for excl in excluded:
-                   dirname = os.path.dirname(excl)
-                   stat = os.stat(dirname)
-                   os.mkdir(target + excl, stat.st_mode)
-                   os.chown(target + excl, stat.st_uid, stat.st_gid)
+                    dirname = os.path.dirname(excl)
+                    stat = os.stat(dirname)
+                    os.mkdir(target + excl, stat.st_mode)
+                    os.chown(target + excl, stat.st_uid, stat.st_gid)
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file
