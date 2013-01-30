@@ -25,7 +25,7 @@ snf-image-creator depends on the following programs:
 The above dependencies are resolved differently, depending on the installation
 method you choose. There are two installation methods available:
 
-#. `Installation using packages <#install-snf-image-creator-using-packages>`_ (currently only for Ubuntu and Arch Linux).
+#. `Installation using packages <#install-snf-image-creator-using-packages>`_
 
 #. `Installation from source <#install-snf-image-creator-from-source>`_
 
@@ -81,6 +81,46 @@ If you are using Ubuntu 12.10, also install libguestfs-tools:
    creating a symlink like this:
 
    *sudo ln -s /usr/lib/guestfs /usr/lib/x86_64-linux-gnu/guestfs*
+
+Fedora
+------
+
+For *Fedora 17* you can use our official packages hosted at the *synnefo*
+repository of the openSUSE Build Service.
+
+Add the *synnefo* repository for *Fedora 17* to *yum*:
+
+.. code-block:: console
+
+   $ cd /etc/yum.repos.d
+   $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_17/home:GRNET:synnefo.repo
+
+To list the *snf-image-creator* package use the following command:
+
+.. code-block:: console
+
+   $ yum info snf-image-creator
+
+Install the package by issuing:
+
+.. code-block:: console
+
+   $ yum install snf-image-creator
+
+CentOS
+------
+
+For *CentOS 6* you can use our official packages hosted at the *synnefo*
+repository of the openSUSE Build Service.
+
+Add the *synnefo* repository for *CentOS 6* to the yum repositories list:
+
+.. code-block:: console
+
+   $ cd /etc/yum.repos.d
+   $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_CentOS-6/home:GRNET:synnefo.repo
+
+Check the `Fedora <#fedora>`_ instructions on how to install the software.
 
 Arch Linux
 ----------

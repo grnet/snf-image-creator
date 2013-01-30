@@ -34,6 +34,7 @@
 import os
 import re
 import tempfile
+import uuid
 from collections import namedtuple
 
 import parted
@@ -43,6 +44,7 @@ from image_creator.util import get_command
 from image_creator.util import FatalError
 from image_creator.util import try_fail_repeat
 from image_creator.util import free_space
+from image_creator.gpt import GPTPartitionTable
 
 findfs = get_command('findfs')
 dd = get_command('dd')
@@ -128,16 +130,22 @@ class BundleVolume(object):
 
     def _create_partition_table(self, image):
 
-        if self.disk.type != 'msdos':
-            raise FatalError('Only msdos partition tables are supported')
-
         # Copy the MBR and the space between the MBR and the first partition.
-        # In Grub version 1 Stage 1.5 is located there.
+        # In msdos partitons tables Grub Stage 1.5 is located there.
+        # In gpt partition tables the Primary GPT Header is there.
         first_sector = self.disk.getPrimaryPartitions()[0].geometry.start
 
         dd('if=%s' % self.disk.device.path, 'of=%s' % image,
            'bs=%d' % self.disk.device.sectorSize,
            'count=%d' % first_sector, 'conv=notrunc')
+
+        if self.disk.type == 'gpt':
+            # Copy the Secondary GPT Header
+            table = GPTPartitionTable(self.disk.device.path)
+            dd('if=%s' % self.disk.device.path, 'of=%s' % image,
+            'bs=%d' % self.disk.device.sectorSize, 'conv=notrunc',
+            'seek=%d' % table.primary.last_usable_lba,
+            'skip=%d' % table.primary.last_usable_lba)
 
         # Create the Extended boot records (EBRs) in the image
         extended = self.disk.getExtendedPartition()
@@ -170,10 +178,9 @@ class BundleVolume(object):
 
     def _shrink_partitions(self, image):
 
-        new_end = self.disk.device.getLength()
+        new_end = self.disk.device.length
 
-        image_dev = parted.Device(image)
-        image_disk = parted.Disk(image_dev)
+        image_disk = parted.Disk(parted.Device(image))
 
         is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
         is_logical = lambda p: p.type == parted.PARTITION_LOGICAL
@@ -188,19 +195,18 @@ class BundleVolume(object):
 
             image_disk.deletePartition(
                 image_disk.getPartitionBySector(last.start))
-            image_disk.commit()
+            image_disk.commitToDevice()
 
             if is_logical(last) and last.num == 5:
                 extended = image_disk.getExtendedPartition()
                 image_disk.deletePartition(extended)
-                image_disk.commit()
+                image_disk.commitToDevice()
                 partitions.remove(filter(is_extended, partitions)[0])
 
             partitions.remove(last)
             last = partitions[-1]
 
-            # Leave 2048 blocks at the end
-            new_end = last.end + 2048
+            new_end = last.end
 
         mount_options = self._get_mount_options(
             self.disk.getPartitionBySector(last.start).path)
@@ -216,34 +222,31 @@ class BundleVolume(object):
             # Align to 2048
             part_end = ((part_end + 2047) // 2048) * 2048
 
+            # Make sure the partition starts where the old partition started.
+            constraint = parted.Constraint(device=image_disk.device)
+            constraint.startRange = parted.Geometry(device=image_disk.device,
+                                                    start=last.start, length=1)
+
             image_disk.setPartitionGeometry(
-                image_disk.getPartitionBySector(last.start),
-                parted.Constraint(device=image_disk.device),
+                image_disk.getPartitionBySector(last.start), constraint,
                 start=last.start, end=part_end)
-            image_disk.commit()
+            image_disk.commitToDevice()
 
             # Parted may have changed this for better alignment
             part_end = image_disk.getPartitionBySector(last.start).geometry.end
             last = last._replace(end=part_end)
             partitions[-1] = last
 
-            # Leave 2048 blocks at the end.
-            new_end = part_end + 2048
+            new_end = part_end
 
             if last.type == parted.PARTITION_LOGICAL:
                 # Fix the extended partition
-                extended = disk.getExtendedPartition()
+                image_disk.minimizeExtendedPartition()
 
-                image_disk.setPartitionGeometry(
-                    extended, parted.Constraint(device=img_dev),
-                    ext.geometry.start, end=last.end)
-                image_disk.commit()
-
-        image_dev.destroy()
-        return new_end
+        return (new_end, self._get_partitions(image_disk))
 
     def _map_partition(self, dev, num, start, end):
-        name = os.path.basename(dev)
+        name = os.path.basename(dev) + "_" + uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
             size = end - start + 1
@@ -321,14 +324,13 @@ class BundleVolume(object):
                  '/boot/grub/menu.lst',
                  '/boot/grub/grub.conf']
 
-        orig = dict(map(
-            lambda p: (
-                p.number,
-                blkid('-s', 'UUID', '-o', 'value', p.path).stdout.strip()),
-            self.disk.partitions))
+        orig = {}
+        for p in self.disk.partitions:
+            if p.number in new_uuid.keys():
+                orig[p.number] = \
+                    blkid('-s', 'UUID', '-o', 'value', p.path).stdout.strip()
 
         for f in map(lambda f: target + f, files):
-
             if not os.path.exists(f):
                 continue
 
@@ -340,22 +342,23 @@ class BundleVolume(object):
                         line = re.sub(orig[i], uuid, line)
                     dest.write(line)
 
-    def _create_filesystems(self, image):
+    def _create_filesystems(self, image, partitions):
 
         filesystem = {}
         for p in self.disk.partitions:
             filesystem[p.number] = self._get_mount_options(p.path)
 
-        partitions = self._get_partitions(parted.Disk(parted.Device(image)))
         unmounted = filter(lambda p: filesystem[p.num] is None, partitions)
         mounted = filter(lambda p: filesystem[p.num] is not None, partitions)
 
         # For partitions that are not mounted right now, we can simply dd them
         # into the image.
         for p in unmounted:
+            self.out.output('Cloning partition %d ... ' % p.num, False)
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
                'count=%d' % (p.end - p.start + 1), 'conv=notrunc',
                'seek=%d' % p.start, 'skip=%d' % p.start)
+            self.out.success("done")
 
         loop = str(losetup('-f', '--show', image)).strip()
         mapped = {}
@@ -385,8 +388,7 @@ class BundleVolume(object):
                 rsync = Rsync(self.out)
 
                 # Excluded paths need to be relative to the source
-                for excl in map(lambda p: os.path.relpath(p, '/'),
-                                excluded + [image]):
+                for excl in map(lambda p: p[1:], excluded + [image]):
                     rsync.exclude(excl)
 
                 rsync.archive().hard_links().xattrs().sparse().acls()
@@ -397,10 +399,10 @@ class BundleVolume(object):
                 # directory. Make them inherit those properties from their
                 # parent dir
                 for excl in excluded:
-                   dirname = os.path.dirname(excl)
-                   stat = os.stat(dirname)
-                   os.mkdir(target + excl, stat.st_mode)
-                   os.chown(target + excl, stat.st_uid, stat.st_gid)
+                    dirname = os.path.dirname(excl)
+                    stat = os.stat(dirname)
+                    os.mkdir(target + excl, stat.st_mode)
+                    os.chown(target + excl, stat.st_uid, stat.st_gid)
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file
@@ -420,7 +422,7 @@ class BundleVolume(object):
         running system.
         """
 
-        size = self.disk.device.getLength() * self.disk.device.sectorSize
+        size = self.disk.device.length * self.disk.device.sectorSize
 
         # Create sparse file to host the image
         fd = os.open(image, os.O_WRONLY | os.O_CREAT)
@@ -430,10 +432,17 @@ class BundleVolume(object):
             os.close(fd)
 
         self._create_partition_table(image)
+        end_sector, partitions = self._shrink_partitions(image)
 
-        end_sector = self._shrink_partitions(image)
-
-        size = (end_sector + 1) * self.disk.device.sectorSize
+        if self.disk.type == 'gpt':
+            old_size = size
+            size = (end_sector + 1) * self.disk.device.sectorSize
+            ptable = GPTPartitionTable(image)
+            size = ptable.shrink(size, old_size)
+        else:
+            # Alighn to 2048
+            end_sector = ((end_sector + 2047) // 2048) * 2048
+            size = (end_sector + 1) * self.disk.device.sectorSize
 
         # Truncate image to the new size.
         fd = os.open(image, os.O_RDWR)
@@ -450,7 +459,7 @@ class BundleVolume(object):
                              dirname)
         self.out.success("sufficient")
 
-        self._create_filesystems(image)
+        self._create_filesystems(image, partitions)
 
         return image
 

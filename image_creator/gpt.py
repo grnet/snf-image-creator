@@ -296,6 +296,7 @@ class GPTPartitionTable(object):
             d.write(self.mbr.pack())
             d.write(self.primary.pack())
             d.write('\x00' * (BLOCKSIZE - self.primary.size()))
+            d.write(self.part_entries)
             d.seek(self.secondary.part_entry_start * BLOCKSIZE)
             d.write(self.part_entries)
             d.seek(self.primary.backup_lba * BLOCKSIZE)
