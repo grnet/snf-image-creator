@@ -41,7 +41,7 @@ setup(
     name='snf_image_creator',
     version=image_creator.__version__,
     description='Command line tool for creating images',
-    long_description=open('README.rst').read(),
+    long_description=open('README').read(),
     url='https://code.grnet.gr/projects/snf-image-creator',
     author = "GRNET development team",
     author_email = "okeanos-dev@lists.grnet.gr",
