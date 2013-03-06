@@ -191,7 +191,7 @@ def wizard(session):
                             init=session['metadata']['DESCRIPTION'] if
                             'DESCRIPTION' in session['metadata'] else '')
     account = WizardInputPage("account",
-                              "Please provide your ~okeanos account e-mail:",
+                              "Please provide your ~okeanos account user id:",
                               title="~okeanos account information",
                               init=init_account)
     token = WizardInputPage("token",

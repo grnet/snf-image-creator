@@ -266,7 +266,7 @@ def kamaki_menu(session):
         token = session["token"] if "token" in session else "<none>"
         upload = session["upload"] if "upload" in session else "<none>"
 
-        choices = [("Account", "Change your ~okeanos username: %s" % account),
+        choices = [("Account", "Change your ~okeanos user id: %s" % account),
                    ("Token", "Change your ~okeanos token: %s" % token),
                    ("Upload", "Upload image to pithos+"),
                    ("Register", "Register the image to cyclades: %s" % upload)]
@@ -283,7 +283,7 @@ def kamaki_menu(session):
         if choice == "Account":
             default_item = "Account"
             (code, answer) = d.inputbox(
-                "Please provide your ~okeanos account e-mail address:",
+                "Please provide your ~okeanos account user id:",
                 init=session["account"] if "account" in session else '',
                 width=WIDTH)
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):

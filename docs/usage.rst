@@ -175,7 +175,7 @@ following basic information:
  * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image
    (ex. "Slackware Linux 14.0 with KDE")
- * Account: An *~okeanos* account email
+ * Account: An *~okeanos* account user id
  * Token: A token corresponding to the account given above
 
 After confirming, the image will be extracted, uploaded to *pithos+* and
