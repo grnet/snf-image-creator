@@ -210,7 +210,7 @@ class DiskDevice(object):
         self.size = 0
 
         self.g = guestfs.GuestFS()
-        self.g.add_drive_opts(self.real_device, readonly=0)
+        self.g.add_drive_opts(self.real_device, readonly=0, format="raw")
 
         # Before version 1.17.14 the recovery process, which is a fork of the
         # original process that called libguestfs, did not close its inherited
