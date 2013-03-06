@@ -1,3 +1,8 @@
+2013-03-06, v0.2.4
+	* Rename README.rst to README
+	* Enforce raw image format in libguestfs
+	* User user id instead of e-mail when authentication with synnefo
+
 2013-01-30, v0.2.3
 	* Add support for gpt partition tables in bundle volume
 	* Add AUTHORS ChangeLog and man pages
