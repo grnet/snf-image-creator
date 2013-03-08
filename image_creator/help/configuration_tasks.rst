@@ -24,19 +24,19 @@ All SSH keys found in the image are removed. For debian instance,
 where the key creation is not perfored automatically, the keys
 are recreated by this task.
 
-Tempory disable Remote Desktop (RDP) connections
-------------------------------------------------
-RDP connections are temporarily disabled during windows
+Temporary disable Remote Desktop (RDP) connections
+--------------------------------------------------
+RDP connections are temporarily disabled during Windows
 configuration. This is done because when sysprep runs, there is a
-small time interval where the new password is not applied yet and
-allowing RDP connections raises security conserns.
+small time interval where the new password is not applied yet thus
+allowing RDP connections which raises some security conserns.
 
 Perform SELinux file system relabeling
 --------------------------------------
 For redhat-based images, since the instance's disk is modified
-during during deployment, a full SELinux file system relabeling
-needs to be performed. This tasks triggeres a full file system
-relabel at the next boot.
+during deployment, a full SELinux file system relabeling needs to
+be performed. This tasks triggers a full file system relabel at
+the next boot.
 
 Hostname or Computer name assignment
 ------------------------------------
@@ -51,4 +51,4 @@ the USERS property.
 File Injection
 --------------
 The files specified by the PERSONALITY image property are
-injected into the instances hard disk.
+injected into the instance's hard disk.
