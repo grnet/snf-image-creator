@@ -131,7 +131,7 @@ class BundleVolume(object):
     def _create_partition_table(self, image):
 
         # Copy the MBR and the space between the MBR and the first partition.
-        # In msdos partitons tables Grub Stage 1.5 is located there.
+        # In msdos partition tables Grub Stage 1.5 is located there.
         # In gpt partition tables the Primary GPT Header is there.
         first_sector = self.disk.getPrimaryPartitions()[0].geometry.start
 
