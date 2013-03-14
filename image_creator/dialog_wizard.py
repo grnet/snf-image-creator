@@ -49,6 +49,10 @@ class WizardExit(Exception):
     pass
 
 
+class WizardInvalidData(Exception):
+    pass
+
+
 class Wizard:
     def __init__(self, session):
         self.session = session
@@ -65,6 +69,8 @@ class Wizard:
                 idx += self.pages[idx].run(self.session, idx, len(self.pages))
             except WizardExit:
                 return False
+            except WizardInvalidData:
+                continue
 
             if idx >= len(self.pages):
                 break
@@ -125,17 +131,21 @@ class WizardInputPage(WizardPage):
         self.name = name
         self.message = message
         self.title = kargs['title'] if 'title' in kargs else ''
-        self.init_value = kargs['init'] if 'init' in kargs else ''
-        self.allow_empty = kargs['empty'] if 'empty' in kargs else False
+        self.init = kargs['init'] if 'init' in kargs else ''
+        if 'validate' in kargs:
+            validate = kargs['validate']
+        else:
+            validate = lambda x: x
+
+        setattr(self, "validate", validate)
 
     def run(self, session, index, total):
         d = session['dialog']
         w = session['wizard']
 
-        init = w[self.name] if self.name in w else self.init_value
         while True:
             (code, answer) = \
-                d.inputbox(self.message, init=init,
+                d.inputbox(self.message, init=self.init,
                            width=PAGE_WIDTH, ok_label="Next", cancel="Back",
                            title="(%d/%d) %s" % (index + 1, total, self.title))
 
@@ -143,10 +153,8 @@ class WizardInputPage(WizardPage):
                 return self.PREV
 
             value = answer.strip()
-            if len(value) == 0 and self.allow_empty is False:
-                d.msgbox("The value cannot be empty!", width=PAGE_WIDTH)
-                continue
-            w[self.name] = value
+            self.init = value
+            w[self.name] = self.validate(value)
             break
 
         return self.NEXT
@@ -175,9 +183,6 @@ class WizardYesNoPage(WizardPage):
 
 
 def wizard(session):
-    init_account = Kamaki.get_account()
-    if init_account is None:
-        init_account = ""
 
     init_token = Kamaki.get_token()
     if init_token is None:
@@ -187,17 +192,27 @@ def wizard(session):
                            title="Image Name", init=session['device'].distro)
     descr = WizardInputPage("ImageDescription",
                             "Please provide a description for the image:",
-                            title="Image Description", empty=True,
+                            title="Image Description",
                             init=session['metadata']['DESCRIPTION'] if
                             'DESCRIPTION' in session['metadata'] else '')
+
+    def validate_account(token):
+        if len(token) == 0:
+            d.msgbox("The token cannot be empty", width=PAGE_WIDTH)
+            raise WizardInvalidData
+
+        account = Kamaki.get_account(token)
+        if account is None:
+            session['dialog'].msgbox("The token you provided in not valid!",
+                width=PAGE_WIDTH)
+            raise WizardInvalidData
+
+        return account
+
     account = WizardInputPage("account",
-                              "Please provide your ~okeanos account user id:",
-                              title="~okeanos account information",
-                              init=init_account)
-    token = WizardInputPage("token",
-                            "Please provide your ~okeanos account token:",
-                            title="~okeanos account token",
-                            init=init_token)
+        "Please provide your ~okeanos authentication token:",
+        title="~okeanos account token", init=init_token,
+        validate=validate_account)
 
     msg = "All necessary information has been gathered. Confirm and Proceed."
     proceed = WizardYesNoPage(msg, title="Confirmation")
@@ -207,7 +222,6 @@ def wizard(session):
     w.add_page(name)
     w.add_page(descr)
     w.add_page(account)
-    w.add_page(token)
     w.add_page(proceed)
 
     if w.run():
@@ -227,8 +241,7 @@ def create_image(session):
     wizard = session['wizard']
 
     # Save Kamaki credentials
-    Kamaki.save_account(wizard['account'])
-    Kamaki.save_token(wizard['token'])
+    Kamaki.save_token(wizard['account']['auth_token'])
 
     with_progress = OutputWthProgress(True)
     out = disk.out
@@ -262,7 +275,7 @@ def create_image(session):
         out.output()
         try:
             out.output("Uploading image to pithos:")
-            kamaki = Kamaki(wizard['account'], wizard['token'], out)
+            kamaki = Kamaki(wizard['account'], out)
 
             name = "%s-%s.diskdump" % (wizard['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))

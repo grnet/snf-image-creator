@@ -64,8 +64,6 @@ def parse_options(input_args):
     usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
 
-    account = os.environ["OKEANOS_USER"] if "OKEANOS_USER" in os.environ \
-        else None
     token = os.environ["OKEANOS_TOKEN"] if "OKEANOS_TOKEN" in os.environ \
         else None
 
@@ -92,16 +90,12 @@ def parse_options(input_args):
                       help="register the image with ~okeanos as IMAGENAME",
                       metavar="IMAGENAME")
 
-    parser.add_option("-a", "--account", dest="account", type="string",
-                      default=account, help="use this ACCOUNT when "
-                      "uploading/registering images [Default: %s]" % account)
-
     parser.add_option("-m", "--metadata", dest="metadata", default=[],
                       help="add custom KEY=VALUE metadata to the image",
                       action="append", metavar="KEY=VALUE")
 
     parser.add_option("-t", "--token", dest="token", type="string",
-                      default=token, help="use this token when "
+                      default=token, help="use this authentication token when "
                       "uploading/registering images [Default: %s]" % token)
 
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
@@ -140,26 +134,21 @@ def parse_options(input_args):
     if options.register and not options.upload:
         raise FatalError("You also need to set -u when -r option is set")
 
-    if options.upload and options.account is None:
-        raise FatalError("Image uploading cannot be performed. No ~okeanos "
-                         "account name is specified. Use -a to set an account "
-                         "name.")
-
     if options.upload and options.token is None:
-        raise FatalError("Image uploading cannot be performed. No ~okeanos "
-                         "token is specified. User -t to set a token.")
+        raise FatalError("Image uploading cannot be performed. "
+            "No authentication token is specified. Use -t to set a token")
 
     if options.tmp is not None and not os.path.isdir(options.tmp):
         raise FatalError("The directory `%s' specified with --tmpdir is not "
-                         "valid." % options.tmp)
+                         "valid" % options.tmp)
 
     meta = {}
     for m in options.metadata:
         try:
             key, value = m.split('=', 1)
         except ValueError:
-            raise FatalError("Metadata option: `%s' is not in "
-                             "KEY=VALUE format." % m)
+            raise FatalError("Metadata option: `%s' is not in KEY=VALUE "
+                             "format." % m)
         meta[key] = value
     options.metadata = meta
 
@@ -193,7 +182,16 @@ def image_creator():
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
                 raise FatalError("Output file %s exists "
-                                 "(use --force to overwrite it)." % filename)
+                                 "(use --force to overwrite it)" % filename)
+
+    # Check if the authentication token is valid. The earlier the better
+    try:
+        account = Kamaki.get_account(options.token)
+        if account is None:
+            raise FatalError("The authentication token you provided is not "
+                             "valid!")
+    except ClientError as e:
+        raise FatalError("Astakos client: %d %s" % (e.status, e.message))
 
     disk = Disk(options.source, out, options.tmp)
 
@@ -270,13 +268,11 @@ def image_creator():
             uploaded_obj = ""
             if options.upload:
                 out.output("Uploading image to pithos:")
-                kamaki = Kamaki(options.account, options.token, out)
+                kamaki = Kamaki(account, out)
                 with open(snapshot, 'rb') as f:
                     uploaded_obj = kamaki.upload(f, size, options.upload,
-                                                 "(1/4)  Calculating block "
-                                                 "hashes",
-                                                 "(2/4)  Uploading missing "
-                                                 "blocks")
+                        "(1/4)  Calculating block hashes",
+                        "(2/4)  Uploading missing blocks")
 
                 out.output("(3/4)  Uploading metadata file...", False)
                 kamaki.upload(StringIO.StringIO(metastring),

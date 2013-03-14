@@ -113,14 +113,8 @@ def upload_image(session):
     size = dev.size
 
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos login username before you "
+        d.msgbox("You need to provide your ~okeanos account before you "
                  "can upload images to pithos+", width=SMALL_WIDTH)
-        return False
-
-    if "token" not in session:
-        d.msgbox("You need to provide your ~okeanos account authentication "
-                 "token before you can upload images to pithos+",
-                 width=SMALL_WIDTH)
         return False
 
     while 1:
@@ -147,7 +141,7 @@ def upload_image(session):
                 md5 = MD5(out)
                 session['checksum'] = md5.compute(session['snapshot'], size)
 
-            kamaki = Kamaki(session['account'], session['token'], out)
+            kamaki = Kamaki(session['account'], out)
             try:
                 # Upload image file
                 with open(session['snapshot'], 'rb') as f:
@@ -197,12 +191,6 @@ def register_image(session):
                  width=SMALL_WIDTH)
         return False
 
-    if "token" not in session:
-        d.msgbox("You need to provide your ~okeanos account authentication "
-                 "token before you can register an images to cyclades",
-                 width=SMALL_WIDTH)
-        return False
-
     if "pithos_uri" not in session:
         d.msgbox("You need to upload the image to pithos+ before you can "
                  "register it to cyclades", width=SMALL_WIDTH)
@@ -233,7 +221,7 @@ def register_image(session):
         try:
             out.output("Registering image with Cyclades...")
             try:
-                kamaki = Kamaki(session['account'], session['token'], out)
+                kamaki = Kamaki(session['account'], out)
                 kamaki.register(name, session['pithos_uri'], metadata)
                 out.success('done')
             except ClientError as e:
@@ -253,21 +241,20 @@ def kamaki_menu(session):
     d = session['dialog']
     default_item = "Account"
 
-    account = Kamaki.get_account()
-    if account:
-        session['account'] = account
-
-    token = Kamaki.get_token()
-    if token:
-        session['token'] = token
+    if 'account' not in session:
+        token = Kamaki.get_token()
+        if token:
+            session['account'] = Kamaki.get_account(token)
+            if not session['account']:
+                del session['account']
+                Kamaki.save_token('')  # The token was not valid. Remove it
 
     while 1:
-        account = session["account"] if "account" in session else "<none>"
-        token = session["token"] if "token" in session else "<none>"
+        account = session["account"]['username'] if "account" in session else \
+            "<none>"
         upload = session["upload"] if "upload" in session else "<none>"
 
-        choices = [("Account", "Change your ~okeanos user id: %s" % account),
-                   ("Token", "Change your ~okeanos token: %s" % token),
+        choices = [("Account", "Change your ~okeanos account: %s" % account),
                    ("Upload", "Upload image to pithos+"),
                    ("Register", "Register the image to cyclades: %s" % upload)]
 
@@ -283,31 +270,23 @@ def kamaki_menu(session):
         if choice == "Account":
             default_item = "Account"
             (code, answer) = d.inputbox(
-                "Please provide your ~okeanos account user id:",
-                init=session["account"] if "account" in session else '',
-                width=WIDTH)
+                "Please provide your ~okeanos token:",
+                init=session["account"]['auth_token'] if "account" in session
+                else '', width=WIDTH)
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 continue
             if len(answer) == 0 and "account" in session:
                     del session["account"]
             else:
-                session["account"] = answer.strip()
-                Kamaki.save_account(session['account'])
-                default_item = "Token"
-        elif choice == "Token":
-            default_item = "Token"
-            (code, answer) = d.inputbox(
-                "Please provide your ~okeanos account authetication token:",
-                init=session["token"] if "token" in session else '',
-                width=WIDTH)
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                continue
-            if len(answer) == 0 and "token" in session:
-                del session["token"]
-            else:
-                session["token"] = answer.strip()
-                Kamaki.save_token(session['token'])
-                default_item = "Upload"
+                token = answer.strip()
+                session['account'] = Kamaki.get_account(token)
+                if session['account'] is not None:
+                    Kamaki.save_token(token)
+                    default_item = "Upload"
+                else:
+                    del session['account']
+                    d.msgbox("The token you provided is not valid!",
+                        width=SMALL_WIDTH)
         elif choice == "Upload":
             if upload_image(session):
                 default_item = "Register"
