@@ -274,7 +274,7 @@ def image_creator():
                         "(1/4)  Calculating block hashes",
                         "(2/4)  Uploading missing blocks")
 
-                out.output("(3/4)  Uploading metadata file...", False)
+                out.output("(3/4)  Uploading metadata file ...", False)
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
@@ -297,7 +297,7 @@ def image_creator():
             raise FatalError("Pithos client: %d %s" % (e.status, e.message))
 
     finally:
-        out.output('cleaning up...')
+        out.output('cleaning up ...')
         disk.cleanup()
 
     out.success("snf-image-creator exited without errors")
