@@ -77,8 +77,9 @@ class Kamaki(object):
         config = Config()
 
         pithos_url = config.get('store', 'url')
-        self.pithos_client = PithosClient(pithos_url,
-            self.account['auth_token'], self.account['uuid'], self.CONTAINER)
+        self.pithos_client = PithosClient(
+            pithos_url, self.account['auth_token'], self.account['uuid'],
+            self.CONTAINER)
 
         image_url = config.get('image', 'url')
         self.image_client = ImageClient(image_url, self.account['auth_token'])
@@ -103,15 +104,15 @@ class Kamaki(object):
         return "pithos://%s/%s/%s" % (self.account['uuid'], self.CONTAINER,
                                       path)
 
-    def register(self, name, location, metadata):
+    def register(self, name, location, metadata, public=False):
         """Register an image to ~okeanos"""
 
         # Convert all metadata to strings
         str_metadata = {}
         for (key, value) in metadata.iteritems():
             str_metadata[str(key)] = str(value)
-
-        params = {'is_public': 'true', 'disk_format': 'diskdump'}
+        is_public = 'true' if public else 'false'
+        params = {'is_public': is_public, 'disk_format': 'diskdump'}
         self.image_client.register(name, location, params, str_metadata)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

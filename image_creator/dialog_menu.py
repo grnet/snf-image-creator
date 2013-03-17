@@ -185,8 +185,10 @@ def register_image(session):
     d = session["dialog"]
     dev = session['device']
 
+    is_public = False
+
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos login username before you "
+        d.msgbox("You need to provide your ~okeanos credentians before you "
                  "can register an images to cyclades",
                  width=SMALL_WIDTH)
         return False
@@ -206,6 +208,15 @@ def register_image(session):
         if len(name) == 0:
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
+
+        ret = d.yesno("Make the image public?\\nA public image is accessible"
+                      "by every user of the service.", defaultno=1,
+                      width=WIDTH)
+        if ret not in (0, 1):
+            continue
+
+        is_public = True if ret == 0 else False
+
         break
 
     metadata = {}
@@ -214,15 +225,17 @@ def register_image(session):
         for key in session['task_metadata']:
             metadata[key] = 'yes'
 
+    img_type = "public" if is_public else "private"
     gauge = GaugeOutput(d, "Image Registration", "Registering image...")
     try:
         out = dev.out
         out.add(gauge)
         try:
-            out.output("Registering image with Cyclades...")
+            out.output("Registering %s image with Cyclades..." % img_type)
             try:
                 kamaki = Kamaki(session['account'], out)
-                kamaki.register(name, session['pithos_uri'], metadata)
+                kamaki.register(name, session['pithos_uri'], metadata,
+                                is_public)
                 out.success('done')
             except ClientError as e:
                 d.msgbox("Error in pithos+ client: %s" % e.message)
@@ -232,8 +245,8 @@ def register_image(session):
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image `%s' was successfully registered with Cyclades as `%s'" %
-             (session['upload'], name), width=SMALL_WIDTH)
+    d.msgbox("%s image `%s' was successfully registered with Cyclades as `%s'"
+             % (img_type.title(), session['upload'], name), width=SMALL_WIDTH)
     return True
 
 
@@ -286,7 +299,7 @@ def kamaki_menu(session):
                 else:
                     del session['account']
                     d.msgbox("The token you provided is not valid!",
-                        width=SMALL_WIDTH)
+                             width=SMALL_WIDTH)
         elif choice == "Upload":
             if upload_image(session):
                 default_item = "Register"

@@ -143,9 +143,9 @@ class BundleVolume(object):
             # Copy the Secondary GPT Header
             table = GPTPartitionTable(self.disk.device.path)
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
-            'bs=%d' % self.disk.device.sectorSize, 'conv=notrunc',
-            'seek=%d' % table.primary.last_usable_lba,
-            'skip=%d' % table.primary.last_usable_lba)
+               'bs=%d' % self.disk.device.sectorSize, 'conv=notrunc',
+               'seek=%d' % table.primary.last_usable_lba,
+               'skip=%d' % table.primary.last_usable_lba)
 
         # Create the Extended boot records (EBRs) in the image
         extended = self.disk.getExtendedPartition()

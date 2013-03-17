@@ -118,6 +118,10 @@ def parse_options(input_args):
     parser.add_option("--no-shrink", dest="shrink", default=True,
                       help="don't shrink any partition", action="store_false")
 
+    parser.add_option("--public", dest="public", default=False,
+                      help="register image to cyclades as public",
+                      action="store_true")
+
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
                       help="create large temporary image files under DIR",
                       metavar="DIR")
@@ -135,7 +139,8 @@ def parse_options(input_args):
         raise FatalError("You also need to set -u when -r option is set")
 
     if options.upload and options.token is None:
-        raise FatalError("Image uploading cannot be performed. "
+        raise FatalError(
+            "Image uploading cannot be performed. "
             "No authentication token is specified. Use -t to set a token")
 
     if options.tmp is not None and not os.path.isdir(options.tmp):
@@ -270,7 +275,8 @@ def image_creator():
                 out.output("Uploading image to pithos:")
                 kamaki = Kamaki(account, out)
                 with open(snapshot, 'rb') as f:
-                    uploaded_obj = kamaki.upload(f, size, options.upload,
+                    uploaded_obj = kamaki.upload(
+                        f, size, options.upload,
                         "(1/4)  Calculating block hashes",
                         "(2/4)  Uploading missing blocks")
 
@@ -289,8 +295,11 @@ def image_creator():
                 out.output()
 
             if options.register:
-                out.output('Registering image with ~okeanos ...', False)
-                kamaki.register(options.register, uploaded_obj, metadata)
+                img_type = 'public' if options.public else 'private'
+                out.output('Registering %s image with ~okeanos ...' % img_type,
+                           False)
+                kamaki.register(options.register, uploaded_obj, metadata,
+                                options.public)
                 out.success('done')
                 out.output()
         except ClientError as e:

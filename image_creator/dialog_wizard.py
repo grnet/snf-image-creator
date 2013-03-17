@@ -103,12 +103,12 @@ class WizardRadioListPage(WizardPage):
 
         choices = []
         for i in range(len(self.choices)):
-            default = 1 if i == self.default else 0
+            default = 1 if self.choices[i][0] == self.default else 0
             choices.append((self.choices[i][0], self.choices[i][1], default))
 
         while True:
             (code, answer) = \
-                d.radiolist(self.message, width=PAGE_WIDTH,
+                d.radiolist(self.message, height=10, width=PAGE_WIDTH,
                             ok_label="Next", cancel="Back", choices=choices,
                             title="(%d/%d) %s" % (index + 1, total, self.title)
                             )
@@ -116,11 +116,8 @@ class WizardRadioListPage(WizardPage):
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 return self.PREV
 
-            for i in range(len(choices)):
-                if self.choices[i] == answer:
-                    self.default = i
-                    w[name] = i
-                    break
+            w[self.name] = answer
+            self.default = answer
 
             return self.NEXT
 
@@ -190,11 +187,15 @@ def wizard(session):
 
     name = WizardInputPage("ImageName", "Please provide a name for the image:",
                            title="Image Name", init=session['device'].distro)
-    descr = WizardInputPage("ImageDescription",
-                            "Please provide a description for the image:",
-                            title="Image Description",
-                            init=session['metadata']['DESCRIPTION'] if
-                            'DESCRIPTION' in session['metadata'] else '')
+    descr = WizardInputPage(
+        "ImageDescription", "Please provide a description for the image:",
+        title="Image Description", init=session['metadata']['DESCRIPTION'] if
+        'DESCRIPTION' in session['metadata'] else '')
+    registration = WizardRadioListPage(
+        "ImageRegistration", "Please provide a registration type:",
+        [("Private", "Image is accessible only by this user"),
+         ("Public", "Everyone can create VMs from this image")],
+        title="Registration Type", default="Private")
 
     def validate_account(token):
         if len(token) == 0:
@@ -204,15 +205,14 @@ def wizard(session):
         account = Kamaki.get_account(token)
         if account is None:
             session['dialog'].msgbox("The token you provided in not valid!",
-                width=PAGE_WIDTH)
+                                     width=PAGE_WIDTH)
             raise WizardInvalidData
 
         return account
 
-    account = WizardInputPage("account",
-        "Please provide your ~okeanos authentication token:",
-        title="~okeanos account token", init=init_token,
-        validate=validate_account)
+    account = WizardInputPage(
+        "account", "Please provide your ~okeanos authentication token:",
+        title="~okeanos account", init=init_token, validate=validate_account)
 
     msg = "All necessary information has been gathered. Confirm and Proceed."
     proceed = WizardYesNoPage(msg, title="Confirmation")
@@ -221,6 +221,7 @@ def wizard(session):
 
     w.add_page(name)
     w.add_page(descr)
+    w.add_page(registration)
     w.add_page(account)
     w.add_page(proceed)
 
@@ -296,8 +297,11 @@ def create_image(session):
             out.success('done')
             out.output()
 
-            out.output('Registering image with ~okeanos ...', False)
-            kamaki.register(wizard['ImageName'], pithos_file, metadata)
+            is_public = True if w['ImageRegistration'] == "Public" else False
+            out.output('Registering %s image with ~okeanos ...' %
+                       w['ImageRegistration'].lower(), False)
+            kamaki.register(wizard['ImageName'], pithos_file, metadata,
+                            is_public)
             out.success('done')
             out.output()
 
@@ -306,8 +310,9 @@ def create_image(session):
     finally:
         out.remove(with_progress)
 
-    msg = "The image was successfully uploaded and registered with " \
-          "~okeanos. Would you like to keep a local copy of the image?"
+    msg = "The %s image was successfully uploaded and registered with " \
+          "~okeanos. Would you like to keep a local copy of the image?" \
+          % w['ImageRegistration'].lower()
     if not d.yesno(msg, width=PAGE_WIDTH):
         extract_image(session)
 
