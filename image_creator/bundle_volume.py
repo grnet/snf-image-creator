@@ -131,7 +131,7 @@ class BundleVolume(object):
     def _create_partition_table(self, image):
 
         # Copy the MBR and the space between the MBR and the first partition.
-        # In msdos partitons tables Grub Stage 1.5 is located there.
+        # In msdos partition tables Grub Stage 1.5 is located there.
         # In gpt partition tables the Primary GPT Header is there.
         first_sector = self.disk.getPrimaryPartitions()[0].geometry.start
 
@@ -143,9 +143,9 @@ class BundleVolume(object):
             # Copy the Secondary GPT Header
             table = GPTPartitionTable(self.disk.device.path)
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
-            'bs=%d' % self.disk.device.sectorSize, 'conv=notrunc',
-            'seek=%d' % table.primary.last_usable_lba,
-            'skip=%d' % table.primary.last_usable_lba)
+               'bs=%d' % self.disk.device.sectorSize, 'conv=notrunc',
+               'seek=%d' % table.primary.last_usable_lba,
+               'skip=%d' % table.primary.last_usable_lba)
 
         # Create the Extended boot records (EBRs) in the image
         extended = self.disk.getExtendedPartition()

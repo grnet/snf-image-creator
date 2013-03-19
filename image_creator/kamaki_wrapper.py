@@ -37,19 +37,14 @@ from kamaki.cli.config import Config
 from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
+from kamaki.clients.astakos import AstakosClient
 
 from image_creator.util import FatalError
-
-CONTAINER = "images"
 
 
 class Kamaki(object):
 
-    @staticmethod
-    def get_account():
-        config = Config()
-        return config.get('store', 'account') or \
-            config.get('global', 'account')
+    CONTAINER = "images"
 
     @staticmethod
     def get_token():
@@ -57,31 +52,37 @@ class Kamaki(object):
         return config.get('global', 'token')
 
     @staticmethod
-    def save_account(account):
-        config = Config()
-        config.set('store', 'account', account)
-        config.write()
-
-    @staticmethod
     def save_token(token):
         config = Config()
         config.set('global', 'token', token)
         config.write()
 
-    def __init__(self, account, token, output):
+    @staticmethod
+    def get_account(token):
+        config = Config()
+        astakos = AstakosClient(config.get('astakos', 'url'), token)
+        try:
+            account = astakos.info()
+        except ClientError as e:
+            if e.status == 401:  # Unauthorized: invalid token
+                return None
+            else:
+                raise
+        return account
+
+    def __init__(self, account, output):
         self.account = account
-        self.token = token
         self.out = output
 
         config = Config()
 
         pithos_url = config.get('store', 'url')
-        self.container = CONTAINER
-        self.pithos_client = PithosClient(pithos_url, self.token, self.account,
-                                          self.container)
+        self.pithos_client = PithosClient(
+            pithos_url, self.account['auth_token'], self.account['uuid'],
+            self.CONTAINER)
 
         image_url = config.get('image', 'url')
-        self.image_client = ImageClient(image_url, self.token)
+        self.image_client = ImageClient(image_url, self.account['auth_token'])
 
     def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
         """Upload a file to pithos"""
@@ -89,7 +90,7 @@ class Kamaki(object):
         path = basename(file_obj.name) if remote_path is None else remote_path
 
         try:
-            self.pithos_client.create_container(self.container)
+            self.pithos_client.create_container(self.CONTAINER)
         except ClientError as e:
             if e.status != 202:  # Ignore container already exists errors
                 raise e
@@ -100,17 +101,18 @@ class Kamaki(object):
         self.pithos_client.upload_object(path, file_obj, size, hash_cb,
                                          upload_cb)
 
-        return "pithos://%s/%s/%s" % (self.account, self.container, path)
+        return "pithos://%s/%s/%s" % (self.account['uuid'], self.CONTAINER,
+                                      path)
 
-    def register(self, name, location, metadata):
+    def register(self, name, location, metadata, public=False):
         """Register an image to ~okeanos"""
 
         # Convert all metadata to strings
         str_metadata = {}
         for (key, value) in metadata.iteritems():
             str_metadata[str(key)] = str(value)
-
-        params = {'is_public': 'true', 'disk_format': 'diskdump'}
+        is_public = 'true' if public else 'false'
+        params = {'is_public': is_public, 'disk_format': 'diskdump'}
         self.image_client.register(name, location, params, str_metadata)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

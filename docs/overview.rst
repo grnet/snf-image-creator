@@ -30,7 +30,7 @@ Creation
 The program can either dump the image file locally or use
 `./kamaki <https://code.grnet.gr/projects/kamaki>`_ to directly upload and
 register it on a `Synnefo <https://code.grnet.gr/projects/synnefo>`_
-deployment.
+deployment as private or public image.
 
 Image Format
 ============

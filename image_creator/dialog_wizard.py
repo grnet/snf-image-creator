@@ -49,11 +49,16 @@ class WizardExit(Exception):
     pass
 
 
+class WizardInvalidData(Exception):
+    pass
+
+
 class Wizard:
     def __init__(self, session):
         self.session = session
         self.pages = []
         self.session['wizard'] = {}
+        self.d = session['dialog']
 
     def add_page(self, page):
         self.pages.append(page)
@@ -65,18 +70,41 @@ class Wizard:
                 idx += self.pages[idx].run(self.session, idx, len(self.pages))
             except WizardExit:
                 return False
+            except WizardInvalidData:
+                continue
 
             if idx >= len(self.pages):
-                break
+                msg = "All necessary information has been gathered:\n\n"
+                for page in self.pages:
+                    msg += " * %s\n" % page.info
+                msg += "\nContinue with the image creation process?"
+
+                ret = self.d.yesno(
+                    msg, width=PAGE_WIDTH, height=8 + len(self.pages),
+                    ok_label="Yes", cancel="Back", extra_button=1,
+                    extra_label="Quit", title="Confirmation")
+
+                if ret == self.d.DIALOG_CANCEL:
+                    idx -= 1
+                elif ret == self.d.DIALOG_EXTRA:
+                    return False
+                elif ret == self.d.DIALOG_OK:
+                    return True
 
             if idx < 0:
                 return False
-        return True
 
 
-class WizardPage:
+class WizardPage(object):
     NEXT = 1
     PREV = -1
+
+    def __init__(self, **kargs):
+        validate = kargs['validate'] if 'validate' in kargs else lambda x: x
+        setattr(self, "validate", validate)
+
+        display = kargs['display'] if 'display' in kargs else lambda x: x
+        setattr(self, "display", display)
 
     def run(self, session, index, total):
         raise NotImplementedError
@@ -84,12 +112,14 @@ class WizardPage:
 
 class WizardRadioListPage(WizardPage):
 
-    def __init__(self, name, message, choices, **kargs):
+    def __init__(self, name, printable, message, choices, **kargs):
+        super(WizardRadioListPage, self).__init__(**kargs)
         self.name = name
+        self.printable = printable
         self.message = message
         self.choices = choices
         self.title = kargs['title'] if 'title' in kargs else ''
-        self.default = kargs['default'] if 'default' in kargs else 0
+        self.default = kargs['default'] if 'default' in kargs else ""
 
     def run(self, session, index, total):
         d = session['dialog']
@@ -97,118 +127,101 @@ class WizardRadioListPage(WizardPage):
 
         choices = []
         for i in range(len(self.choices)):
-            default = 1 if i == self.default else 0
+            default = 1 if self.choices[i][0] == self.default else 0
             choices.append((self.choices[i][0], self.choices[i][1], default))
 
-        while True:
-            (code, answer) = \
-                d.radiolist(self.message, width=PAGE_WIDTH,
-                            ok_label="Next", cancel="Back", choices=choices,
-                            title="(%d/%d) %s" % (index + 1, total, self.title)
-                            )
+        (code, answer) = d.radiolist(
+            self.message, height=10, width=PAGE_WIDTH, ok_label="Next",
+            cancel="Back", choices=choices,
+            title="(%d/%d) %s" % (index + 1, total, self.title))
 
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                return self.PREV
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return self.PREV
 
-            for i in range(len(choices)):
-                if self.choices[i] == answer:
-                    self.default = i
-                    w[name] = i
-                    break
+        w[self.name] = self.validate(answer)
+        self.default = answer
+        self.info = "%s: %s" % (self.printable, self.display(w[self.name]))
 
-            return self.NEXT
+        return self.NEXT
 
 
 class WizardInputPage(WizardPage):
 
-    def __init__(self, name, message, **kargs):
+    def __init__(self, name, printable, message, **kargs):
+        super(WizardInputPage, self).__init__(**kargs)
         self.name = name
+        self.printable = printable
         self.message = message
         self.title = kargs['title'] if 'title' in kargs else ''
-        self.init_value = kargs['init'] if 'init' in kargs else ''
-        self.allow_empty = kargs['empty'] if 'empty' in kargs else False
+        self.init = kargs['init'] if 'init' in kargs else ''
 
     def run(self, session, index, total):
         d = session['dialog']
         w = session['wizard']
 
-        init = w[self.name] if self.name in w else self.init_value
-        while True:
-            (code, answer) = \
-                d.inputbox(self.message, init=init,
-                           width=PAGE_WIDTH, ok_label="Next", cancel="Back",
-                           title="(%d/%d) %s" % (index + 1, total, self.title))
+        (code, answer) = d.inputbox(
+            self.message, init=self.init, width=PAGE_WIDTH, ok_label="Next",
+            cancel="Back", title="(%d/%d) %s" % (index + 1, total, self.title))
 
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                return self.PREV
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return self.PREV
 
-            value = answer.strip()
-            if len(value) == 0 and self.allow_empty is False:
-                d.msgbox("The value cannot be empty!", width=PAGE_WIDTH)
-                continue
-            w[self.name] = value
-            break
+        value = answer.strip()
+        self.init = value
+        w[self.name] = self.validate(value)
+        self.info = "%s: %s" % (self.printable, self.display(w[self.name]))
 
         return self.NEXT
 
 
-class WizardYesNoPage(WizardPage):
-
-    def __init__(self, message, **kargs):
-        self.message = message
-        self.title = kargs['title'] if 'title' in kargs else ''
-
-    def run(self, session, index, total):
-        d = session['dialog']
-
-        while True:
-            ret = d.yesno(self.message, width=PAGE_WIDTH, ok_label="Yes",
-                          cancel="Back", extra_button=1, extra_label="Quit",
-                          title="(%d/%d) %s" % (index + 1, total, self.title))
-
-            if ret == d.DIALOG_CANCEL:
-                return self.PREV
-            elif ret == d.DIALOG_EXTRA:
-                raise WizardExit
-            elif ret == d.DIALOG_OK:
-                return self.NEXT
-
-
 def wizard(session):
-    init_account = Kamaki.get_account()
-    if init_account is None:
-        init_account = ""
 
     init_token = Kamaki.get_token()
     if init_token is None:
         init_token = ""
 
-    name = WizardInputPage("ImageName", "Please provide a name for the image:",
-                           title="Image Name", init=session['device'].distro)
-    descr = WizardInputPage("ImageDescription",
-                            "Please provide a description for the image:",
-                            title="Image Description", empty=True,
-                            init=session['metadata']['DESCRIPTION'] if
-                            'DESCRIPTION' in session['metadata'] else '')
-    account = WizardInputPage("account",
-                              "Please provide your ~okeanos account user id:",
-                              title="~okeanos account information",
-                              init=init_account)
-    token = WizardInputPage("token",
-                            "Please provide your ~okeanos account token:",
-                            title="~okeanos account token",
-                            init=init_token)
+    name = WizardInputPage(
+        "ImageName", "Image Name", "Please provide a name for the image:",
+        title="Image Name", init=session['device'].distro)
 
-    msg = "All necessary information has been gathered. Confirm and Proceed."
-    proceed = WizardYesNoPage(msg, title="Confirmation")
+    descr = WizardInputPage(
+        "ImageDescription", "Image Description",
+        "Please provide a description for the image:",
+        title="Image Description", init=session['metadata']['DESCRIPTION'] if
+        'DESCRIPTION' in session['metadata'] else '')
+
+    registration = WizardRadioListPage(
+        "ImageRegistration", "Registration Type",
+        "Please provide a registration type:",
+        [("Private", "Image is accessible only by this user"),
+         ("Public", "Everyone can create VMs from this image")],
+        title="Registration Type", default="Private")
+
+    def validate_account(token):
+        if len(token) == 0:
+            d.msgbox("The token cannot be empty", width=PAGE_WIDTH)
+            raise WizardInvalidData
+
+        account = Kamaki.get_account(token)
+        if account is None:
+            session['dialog'].msgbox("The token you provided in not valid!",
+                                     width=PAGE_WIDTH)
+            raise WizardInvalidData
+
+        return account
+
+    account = WizardInputPage(
+        "Account", "Account",
+        "Please provide your ~okeanos authentication token:",
+        title="~okeanos account", init=init_token, validate=validate_account,
+        display=lambda account: account['username'])
 
     w = Wizard(session)
 
     w.add_page(name)
     w.add_page(descr)
+    w.add_page(registration)
     w.add_page(account)
-    w.add_page(token)
-    w.add_page(proceed)
 
     if w.run():
         create_image(session)
@@ -227,8 +240,7 @@ def create_image(session):
     wizard = session['wizard']
 
     # Save Kamaki credentials
-    Kamaki.save_account(wizard['account'])
-    Kamaki.save_token(wizard['token'])
+    Kamaki.save_token(wizard['Account']['auth_token'])
 
     with_progress = OutputWthProgress(True)
     out = disk.out
@@ -262,7 +274,7 @@ def create_image(session):
         out.output()
         try:
             out.output("Uploading image to pithos:")
-            kamaki = Kamaki(wizard['account'], wizard['token'], out)
+            kamaki = Kamaki(wizard['Account'], out)
 
             name = "%s-%s.diskdump" % (wizard['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))
@@ -283,8 +295,12 @@ def create_image(session):
             out.success('done')
             out.output()
 
-            out.output('Registering image with ~okeanos ...', False)
-            kamaki.register(wizard['ImageName'], pithos_file, metadata)
+            is_public = True if wizard['ImageRegistration'] == "Public" else \
+                False
+            out.output('Registering %s image with ~okeanos ...' %
+                       wizard['ImageRegistration'].lower(), False)
+            kamaki.register(wizard['ImageName'], pithos_file, metadata,
+                            is_public)
             out.success('done')
             out.output()
 
@@ -293,8 +309,9 @@ def create_image(session):
     finally:
         out.remove(with_progress)
 
-    msg = "The image was successfully uploaded and registered with " \
-          "~okeanos. Would you like to keep a local copy of the image?"
+    msg = "The %s image was successfully uploaded and registered with " \
+          "~okeanos. Would you like to keep a local copy of the image?" \
+          % wizard['ImageRegistration'].lower()
     if not d.yesno(msg, width=PAGE_WIDTH):
         extract_image(session)
 

@@ -1,3 +1,9 @@
+2013-03-19, v0.2.5
+	* Add support for private images
+	* Only use the token to authenticate to synnefo
+	* Show the user-provided info in the confirmation dialog of the wizard
+	* Fix minor typos & bugs
+
 2013-03-06, v0.2.4
 	* Rename README.rst to README
 	* Enforce raw image format in libguestfs
