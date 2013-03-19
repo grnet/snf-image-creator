@@ -301,9 +301,10 @@ def create_image(session):
             out.success('done')
             out.output()
 
-            is_public = True if w['ImageRegistration'] == "Public" else False
+            is_public = True if wizard['ImageRegistration'] == "Public" else \
+                False
             out.output('Registering %s image with ~okeanos ...' %
-                       w['ImageRegistration'].lower(), False)
+                       wizard['ImageRegistration'].lower(), False)
             kamaki.register(wizard['ImageName'], pithos_file, metadata,
                             is_public)
             out.success('done')
@@ -316,7 +317,7 @@ def create_image(session):
 
     msg = "The %s image was successfully uploaded and registered with " \
           "~okeanos. Would you like to keep a local copy of the image?" \
-          % w['ImageRegistration'].lower()
+          % wizard['ImageRegistration'].lower()
     if not d.yesno(msg, width=PAGE_WIDTH):
         extract_image(session)
 
