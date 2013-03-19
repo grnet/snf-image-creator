@@ -31,9 +31,6 @@ snf-image-creator receives the following options:
                          upload the image to pithos with name FILENAME
    -r IMAGENAME, --register=IMAGENAME
                          register the image with ~okeanos as IMAGENAME
-   -a ACCOUNT, --account=ACCOUNT
-                         use this ACCOUNT when uploading/registering images
-                         [Default: None]
    -m KEY=VALUE, --metadata=KEY=VALUE
                          add custom KEY=VALUE metadata to the image
    -t TOKEN, --token=TOKEN
@@ -48,13 +45,17 @@ snf-image-creator receives the following options:
                          media
    --no-sysprep          don't perform any system preparation operation
    --no-shrink           don't shrink the image
+   --public              register image to cyclades as public
    --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
 the image you create, provide a filename using the *-o* option. To upload the
-image to *pithos+*, provide valid credentials using *-a* and *-t* and a
+image to *pithos+*, provide a valid authentication token using *-t* and a
 filename using *-u*. If you also want to register the image with *~okeanos*, in
-addition to *-u* provide a registration name using *-r*.
+addition to *-u* provide a registration name using *-r*. All images are
+registered as *private*. Only the user that registers the image can create
+VM's out of it. If you want the image to be visible by other user too, use the
+*--public* option.
 
 By default, before extracting the image, snf-image-creator will perform a
 number of system preparation operations on the snapshot of the media and will
@@ -175,8 +176,8 @@ following basic information:
  * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image
    (ex. "Slackware Linux 14.0 with KDE")
- * Account: An *~okeanos* account user id
- * Token: A token corresponding to the account given above
+ * Registration Type: Private or Public
+ * Account: The authentication token for an *~okeanos* account
 
 After confirming, the image will be extracted, uploaded to *pithos+* and
 registered with *~okeanos*. The user will also be given the choice to keep a
@@ -201,9 +202,10 @@ In the *Customize* sub-menu the user can control:
 
 In the *Register* sub-menu the user can provide:
 
- * The credentials to login to *~okeanos*
+ * The credentials (authentication token) to authenticate on *~okeanos*
  * A *pithos+* filename for the uploaded *diskdump* image
- * A name for the image to be registered to *~okeanos* with
+ * A name for the image to be registered to *~okeanos* with, as well as the
+   registration type (*private* or *public*)
 
 By choosing the *Extract* menu entry, the user can dump the image to the local
 file system. Finally, if the user selects *Reset*, the system will ignore
@@ -228,13 +230,13 @@ disk from the Internet:
 
 .. code-block:: console
 
-   $ wget http://ubuntureleases.tsl.gr/12.04.1/ubuntu-12.04.1-server-amd64.iso
+   $ wget http://ubuntureleases.tsl.gr/12.04.2/ubuntu-12.04.2-server-amd64.iso
 
 Verify that it has been downloaded correctly:
 
 .. code-block:: console
 
-   $ echo 'a8c667e871f48f3a662f3fbf1c3ddb17  ubuntu-12.04.1-server-amd64.iso' > check.md5
+   $ echo 'a8c667e871f48f3a662f3fbf1c3ddb17  ubuntu-12.04.2-server-amd64.iso' > check.md5
    $ md5sum -c check.md5
 
 Create a 2G sparse file to host the new system:
@@ -248,7 +250,7 @@ And install the Ubuntu system on this file:
 .. code-block:: console
 
    $ sudo kvm -boot d -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio \
-     -m 1G -cdrom ubuntu-12.04.1-server-amd64.iso
+     -m 1G -cdrom ubuntu-12.04.2-server-amd64.iso
 
 .. warning::
 
@@ -271,13 +273,13 @@ image:
 In the first screen you will be asked to choose if you want to run the program
 in *Wizard* or *Expert* mode. Choose *Wizard*.
 
-.. image:: /snapshots/01_wizard.png
+.. image:: /snapshots/wizard.png
 
-Then you will be asked to provide a name, a description, an *~okeanos* account
-and the token corresponding to this account. Finally, you'll be asked to
-confirm the provided data.
+Then you will be asked to provide a name, a description, a registration type
+(*private* or *public*) and the authentication token corresponding to your
+*~okeanos* account. Finally, you'll be asked to confirm the provided data.
 
-.. image:: /snapshots/06_confirm.png
+.. image:: /snapshots/confirm.png
 
 Choosing *YES* will create and upload the image to your *~okeanos* account.
 

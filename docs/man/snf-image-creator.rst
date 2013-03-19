@@ -17,10 +17,6 @@ itself.
 Options
 -------
 
--a ACCOUNT, --account=ACCOUNT
-	use this ACCOUNT when uploading/registering images to a Synnefo
-	deployment
-
 --disable-sysprep=SYSPREP
 	prevent SYSPREP operation from running on the input media
 
@@ -44,6 +40,9 @@ Options
 
 -o FILE, --outfile=FILE
 	dump image to FILE
+
+--public
+	register image to cyclades as public
 
 --print-sysprep
 	print the enabled and disabled system preparation operations for this

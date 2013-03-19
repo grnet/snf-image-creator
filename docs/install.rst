@@ -45,11 +45,19 @@ Add the synnefo PPA in your system:
    $ sudo apt-add-repository ppa:grnet/synnefo
    $ sudo apt-get update
 
-If *apt-add-repository* is missing, install *software-properties-common* first:
+If *apt-add-repository* is missing, first install:
+
+*software-properties-common* (Ubuntu 12.10):
 
 .. code-block:: console
 
    $ sudo apt-get install software-properties-common
+
+Or *python-software-properties* (Ubuntu 12.04):
+
+.. code-block:: console
+
+   $ sudo apt-get install python-software-properties
 
 After the synnefo repository is set up, you should be able to list
 snf-image-creator by calling:
@@ -63,12 +71,6 @@ Install the package by issuing:
 .. code-block:: console
 
    $ sudo apt-get install snf-image-creator
-
-If you are using Ubuntu 12.10, also install libguestfs-tools:
-
-.. code-block:: console
-
-   $ sudo apt-get install libguestfs-tools
 
 .. note::
    If you are asked during the installation to create/update a
