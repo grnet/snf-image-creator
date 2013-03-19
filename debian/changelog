@@ -1,3 +1,9 @@
+snf-image-creator (0.2.6-0ubuntu1) precise; urgency=low
+
+  * New upstream version
+
+ -- Nikos Skalkotos <skalkoto@grnet.gr>  Tue, 19 Mar 2013 20:43:34 +0200
+
 snf-image-creator (0.2.5-0ubuntu1) precise; urgency=low
 
   * New upstream version
