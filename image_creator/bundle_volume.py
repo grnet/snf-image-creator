@@ -401,8 +401,20 @@ class BundleVolume(object):
                 for excl in excluded:
                     dirname = os.path.dirname(excl)
                     stat = os.stat(dirname)
-                    os.mkdir(target + excl, stat.st_mode)
+                    os.mkdir(target + excl)
+                    os.chmod(target + excl, stat.st_mode)
                     os.chown(target + excl, stat.st_uid, stat.st_gid)
+
+                # /tmp and /var/tmp are special cases. We exclude then even if
+                # they aren't mountpoints. Restore their permissions.
+                for excl in ('/tmp', '/var/tmp'):
+                    if self._is_mpoint(excl):
+                        os.chmod(target + excl, 041777)
+                        os.chown(target + excl, 0, 0)
+                    else:
+                        stat = os.stat(excl)
+                        os.chmod(target + excl, stat.st_mode)
+                        os.chown(target + excl, stat.st_uid, stat.st_gid)
 
                 # We need to replace the old UUID referencies with the new
                 # ones in grub configuration files and /etc/fstab for file

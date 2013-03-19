@@ -1,3 +1,7 @@
+2013-03-19, v0.2.6
+	* Fix a bug in host bundling mode where the permissions of /tmp and
+	  /var/tmp were not respected
+
 2013-03-19, v0.2.5
 	* Add support for private images
 	* Only use the token to authenticate to synnefo
