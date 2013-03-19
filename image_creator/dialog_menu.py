@@ -110,15 +110,21 @@ class metadata_monitor(object):
 def upload_image(session):
     d = session["dialog"]
     dev = session['device']
+    meta = session['metadata']
     size = dev.size
 
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos account before you "
+        d.msgbox("You need to provide your ~okeanos credentials before you "
                  "can upload images to pithos+", width=SMALL_WIDTH)
         return False
 
     while 1:
-        init = session["upload"] if "upload" in session else ''
+        if 'upload' in session:
+            init = session['upload']
+        elif 'OS' in meta:
+            init = "%s.diskdump" % meta['OS']
+        else:
+            init = ""
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
                                     width=WIDTH)
 
@@ -209,7 +215,7 @@ def register_image(session):
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
 
-        ret = d.yesno("Make the image public?\\nA public image is accessible"
+        ret = d.yesno("Make the image public?\\nA public image is accessible "
                       "by every user of the service.", defaultno=1,
                       width=WIDTH)
         if ret not in (0, 1):
@@ -283,7 +289,7 @@ def kamaki_menu(session):
         if choice == "Account":
             default_item = "Account"
             (code, answer) = d.inputbox(
-                "Please provide your ~okeanos token:",
+                "Please provide your ~okeanos authentication token:",
                 init=session["account"]['auth_token'] if "account" in session
                 else '', width=WIDTH)
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):

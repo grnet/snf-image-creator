@@ -77,12 +77,12 @@ class Wizard:
                 msg = "All necessary information has been gathered:\n\n"
                 for page in self.pages:
                     msg += " * %s\n" % page.info
-                msg += "\nConfirm and Proceed."
+                msg += "\nContinue with the image creation process?"
 
                 ret = self.d.yesno(
-                    msg, width=PAGE_WIDTH, height=12, ok_label="Yes",
-                    cancel="Back", extra_button=1, extra_label="Quit",
-                    title="Confirmation")
+                    msg, width=PAGE_WIDTH, height=8 + len(self.pages),
+                    ok_label="Yes", cancel="Back", extra_button=1,
+                    extra_label="Quit", title="Confirmation")
 
                 if ret == self.d.DIALOG_CANCEL:
                     idx -= 1
@@ -100,16 +100,10 @@ class WizardPage(object):
     PREV = -1
 
     def __init__(self, **kargs):
-        if 'validate' in kargs:
-            validate = kargs['validate']
-        else:
-            validate = lambda x: x
+        validate = kargs['validate'] if 'validate' in kargs else lambda x: x
         setattr(self, "validate", validate)
 
-        if 'display' in kargs:
-            display = kargs['display']
-        else:
-            display = lambda x: x
+        display = kargs['display'] if 'display' in kargs else lambda x: x
         setattr(self, "display", display)
 
     def run(self, session, index, total):
