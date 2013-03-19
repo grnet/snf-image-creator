@@ -670,6 +670,10 @@ def main_menu(session):
                 d.infobox("Resetting snf-image-creator. Please wait...",
                           width=SMALL_WIDTH)
                 raise Reset
+        elif choice == "Help":
+            d.msgbox("For help, check the online documentation:\n\nhttp://www"
+                     ".synnefo.org/docs/snf-image-creator/latest/",
+                     width=WIDTH, title="Help")
         elif choice in actions:
             actions[choice](session)
 
