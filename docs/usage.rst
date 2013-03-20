@@ -45,7 +45,7 @@ snf-image-creator receives the following options:
                          media
    --no-sysprep          don't perform any system preparation operation
    --no-shrink           don't shrink the image
-   --public              register image to cyclades as public
+   --public              register image with cyclades as public
    --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
@@ -202,10 +202,11 @@ In the *Customize* sub-menu the user can control:
 
 In the *Register* sub-menu the user can provide:
 
- * The credentials (authentication token) to authenticate on *~okeanos*
+ * The credentials (authentication token) to use when authenticating
+   to *~okeanos*
  * A *pithos+* filename for the uploaded *diskdump* image
- * A name for the image to be registered to *~okeanos* with, as well as the
-   registration type (*private* or *public*)
+ * A name for the image to use when registering it with *~okeanos*, as well as
+   the registration type (*private* or *public*)
 
 By choosing the *Extract* menu entry, the user can dump the image to the local
 file system. Finally, if the user selects *Reset*, the system will ignore

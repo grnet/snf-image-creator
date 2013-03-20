@@ -119,7 +119,7 @@ def parse_options(input_args):
                       help="don't shrink any partition", action="store_false")
 
     parser.add_option("--public", dest="public", default=False,
-                      help="register image to cyclades as public",
+                      help="register image with cyclades as public",
                       action="store_true")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
