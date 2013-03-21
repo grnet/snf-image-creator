@@ -42,7 +42,7 @@ Options
 	dump image to FILE
 
 --public
-	register image to cyclades as public
+	register image with cyclades as public
 
 --print-sysprep
 	print the enabled and disabled system preparation operations for this

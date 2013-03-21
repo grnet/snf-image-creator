@@ -1,3 +1,9 @@
+2013-03-21, v0.2.7
+	* Fix a bug in host bundling mode where some files were erroneously
+	  excluded from the image
+	* Fix a bug were snf-image-creator tried to verify the token even when
+	  -t option was not defined by the user
+
 2013-03-19, v0.2.6
 	* Fix a bug in host bundling mode where the permissions of /tmp and
 	  /var/tmp were not respected

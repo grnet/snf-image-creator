@@ -195,13 +195,13 @@ def register_image(session):
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos credentians before you "
-                 "can register an images to cyclades",
+                 "can register an images with cyclades",
                  width=SMALL_WIDTH)
         return False
 
     if "pithos_uri" not in session:
         d.msgbox("You need to upload the image to pithos+ before you can "
-                 "register it to cyclades", width=SMALL_WIDTH)
+                 "register it with cyclades", width=SMALL_WIDTH)
         return False
 
     while 1:
