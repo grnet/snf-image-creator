@@ -64,9 +64,6 @@ def parse_options(input_args):
     usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
 
-    token = os.environ["OKEANOS_TOKEN"] if "OKEANOS_TOKEN" in os.environ \
-        else None
-
     parser.add_option("-o", "--outfile", type="string", dest="outfile",
                       default=None, action="callback",
                       callback=check_writable_dir, help="dump image to FILE",
@@ -95,8 +92,8 @@ def parse_options(input_args):
                       action="append", metavar="KEY=VALUE")
 
     parser.add_option("-t", "--token", dest="token", type="string",
-                      default=token, help="use this authentication token when "
-                      "uploading/registering images [Default: %s]" % token)
+                      default=None, help="use this authentication token when "
+                      "uploading/registering images")
 
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
                       help="print the enabled and disabled system preparation "
@@ -190,13 +187,15 @@ def image_creator():
                                  "(use --force to overwrite it)" % filename)
 
     # Check if the authentication token is valid. The earlier the better
-    try:
-        account = Kamaki.get_account(options.token)
-        if account is None:
-            raise FatalError("The authentication token you provided is not "
-                             "valid!")
-    except ClientError as e:
-        raise FatalError("Astakos client: %d %s" % (e.status, e.message))
+    if options.token is not None:
+        try:
+            account = Kamaki.get_account(options.token)
+            if account is None:
+                raise FatalError("The authentication token you provided is not"
+                                 " valid!")
+        except ClientError as e:
+            raise FatalError("Astakos client: %d %s" % (e.status, e.message))
+
 
     disk = Disk(options.source, out, options.tmp)
 
