@@ -387,8 +387,7 @@ class BundleVolume(object):
 
                 rsync = Rsync(self.out)
 
-                # Excluded paths need to be relative to the source
-                for excl in map(lambda p: p[1:], excluded + [image]):
+                for excl in excluded + [image]:
                     rsync.exclude(excl)
 
                 rsync.archive().hard_links().xattrs().sparse().acls()
@@ -467,8 +466,8 @@ class BundleVolume(object):
         dirname = os.path.dirname(image)
         self.out.output("Examining available space ...", False)
         if free_space(dirname) <= size:
-            raise FatalError('Not enough space under %s to host the image' %
-                             dirname)
+            raise FatalError("Not enough space under %s to host the temporary "
+                             "image" % dirname)
         self.out.success("sufficient")
 
         self._create_filesystems(image, partitions)
