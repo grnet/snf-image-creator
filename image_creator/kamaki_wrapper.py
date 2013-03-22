@@ -39,8 +39,6 @@ from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
 from kamaki.clients.astakos import AstakosClient
 
-from image_creator.util import FatalError
-
 
 class Kamaki(object):
 

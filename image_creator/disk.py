@@ -43,7 +43,6 @@ import os
 import tempfile
 import uuid
 import re
-import sys
 import guestfs
 import shutil
 from sendfile import sendfile

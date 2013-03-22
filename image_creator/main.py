@@ -34,7 +34,6 @@
 # or implied, of GRNET S.A.
 
 from image_creator import __version__ as version
-from image_creator import util
 from image_creator.disk import Disk
 from image_creator.util import FatalError, MD5
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
@@ -195,7 +194,6 @@ def image_creator():
                                  " valid!")
         except ClientError as e:
             raise FatalError("Astakos client: %d %s" % (e.status, e.message))
-
 
     disk = Disk(options.source, out, options.tmp)
 

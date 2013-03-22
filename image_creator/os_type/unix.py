@@ -32,7 +32,6 @@
 # or implied, of GRNET S.A.
 
 import re
-import sys
 
 from image_creator.os_type import OSBase, sysprep
 

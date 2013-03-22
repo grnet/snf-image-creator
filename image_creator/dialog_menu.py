@@ -33,7 +33,6 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import sys
 import os
 import textwrap
 import StringIO
@@ -65,7 +64,7 @@ CONFIGURATION_TASKS = [
 ]
 
 
-class metadata_monitor(object):
+class MetadataMonitor(object):
     def __init__(self, session, meta):
         self.session = session
         self.meta = meta
@@ -554,7 +553,7 @@ def sysprep(session):
                             del session['checksum']
 
                         # Monitor the metadata changes during syspreps
-                        with metadata_monitor(session, image_os.meta):
+                        with MetadataMonitor(session, image_os.meta):
                             image_os.do_sysprep()
                             infobox.finalize()
 
@@ -590,7 +589,7 @@ def shrink(session):
 
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=WIDTH,
                    height=12, title="Image Shrinking"):
-        with metadata_monitor(session, dev.meta):
+        with MetadataMonitor(session, dev.meta):
             infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
             dev.out.add(infobox)
             try:
@@ -640,7 +639,6 @@ def customization_menu(session):
 
 def main_menu(session):
     d = session['dialog']
-    dev = session['device']
 
     update_background_title(session)
 

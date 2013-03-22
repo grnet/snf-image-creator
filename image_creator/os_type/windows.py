@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type import OSBase, sysprep
+from image_creator.os_type import OSBase
 
 
 class Windows(OSBase):

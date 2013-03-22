@@ -380,9 +380,10 @@ class BundleVolume(object):
 
             target = tempfile.mkdtemp()
             try:
-                absmpoints = self._mount(target,
-                                         [(mapped[i], filesystem[i].mpoint)
-                                         for i in mapped.keys()])
+                self._mount(
+                    target,
+                    [(mapped[i], filesystem[i].mpoint) for i in mapped.keys()])
+
                 excluded = self._to_exclude()
 
                 rsync = Rsync(self.out)
