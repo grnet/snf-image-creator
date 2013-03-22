@@ -94,7 +94,28 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'default'
+html_theme_options = {
+       'collapsiblesidebar': 'true',
+       'footerbgcolor':    '#55b577',
+       'footertextcolor':  '#000000',
+       'sidebarbgcolor':   '#ffffff',
+       'sidebarbtncolor':  '#f2f2f2',
+       'sidebartextcolor': '#000000',
+       'sidebarlinkcolor': '#328e4a',
+       'relbarbgcolor':    '#55b577',
+       'relbartextcolor':  '#ffffff',
+       'relbarlinkcolor':  '#ffffff',
+       'bgcolor':          '#ffffff',
+       'textcolor':        '#000000',
+       'headbgcolor':      '#ffffff',
+       'headtextcolor':    '#000000',
+       'headlinkcolor':    '#c60f0f',
+       'linkcolor':        '#328e4a',
+       'visitedlinkcolor': '#63409b',
+       'codebgcolor':      '#eeffcc',
+       'codetextcolor':    '#333333'
+}
+
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
