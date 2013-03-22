@@ -175,7 +175,6 @@ class WizardInputPage(WizardPage):
 
 
 def wizard(session):
-
     init_token = Kamaki.get_token()
     if init_token is None:
         init_token = ""
@@ -198,14 +197,15 @@ def wizard(session):
         title="Registration Type", default="Private")
 
     def validate_account(token):
+        d = session['dialog']
+
         if len(token) == 0:
             d.msgbox("The token cannot be empty", width=PAGE_WIDTH)
             raise WizardInvalidData
 
         account = Kamaki.get_account(token)
         if account is None:
-            session['dialog'].msgbox("The token you provided in not valid!",
-                                     width=PAGE_WIDTH)
+            d.msgbox("The token you provided in not valid!", width=PAGE_WIDTH)
             raise WizardInvalidData
 
         return account
