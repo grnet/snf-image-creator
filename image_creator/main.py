@@ -38,7 +38,6 @@ from image_creator.disk import Disk
 from image_creator.util import FatalError, MD5
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
-from image_creator.os_type import os_cls
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 import sys
 import os
@@ -205,51 +204,47 @@ def image_creator():
     try:
         snapshot = disk.snapshot()
 
-        dev = disk.get_device(snapshot)
+        image = disk.get_image(snapshot)
 
         # If no customization is to be applied, the image should be mounted ro
-        readonly = (not (options.sysprep or options.shrink) or
-                    options.print_sysprep)
-        dev.mount(readonly)
+        ro = (not (options.sysprep or options.shrink) or options.print_sysprep)
+        image.mount(ro)
+        try:
+            for sysprep in options.disabled_syspreps:
+                image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
-        cls = os_cls(dev.distro, dev.ostype)
-        image_os = cls(dev.root, dev.g, out)
-        out.output()
+            for sysprep in options.enabled_syspreps:
+                image.os.enable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
-        for sysprep in options.disabled_syspreps:
-            image_os.disable_sysprep(image_os.get_sysprep_by_name(sysprep))
+            if options.print_sysprep:
+                image.os.print_syspreps()
+                out.output()
 
-        for sysprep in options.enabled_syspreps:
-            image_os.enable_sysprep(image_os.get_sysprep_by_name(sysprep))
+            if options.outfile is None and not options.upload:
+                return 0
 
-        if options.print_sysprep:
-            image_os.print_syspreps()
-            out.output()
+            if options.sysprep:
+                image.os.do_sysprep()
 
-        if options.outfile is None and not options.upload:
-            return 0
+            metadata = image.os.meta
+        finally:
+            image.umount()
 
-        if options.sysprep:
-            image_os.do_sysprep()
-
-        metadata = image_os.meta
-        dev.umount()
-
-        size = options.shrink and dev.shrink() or dev.size
-        metadata.update(dev.meta)
+        size = options.shrink and image.shrink() or image.size
+        metadata.update(image.meta)
 
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)
 
         md5 = MD5(out)
-        checksum = md5.compute(snapshot, size)
+        checksum = md5.compute(image.device, size)
 
         metastring = '\n'.join(
             ['%s=%s' % (key, value) for (key, value) in metadata.items()])
         metastring += '\n'
 
         if options.outfile is not None:
-            dev.dump(options.outfile)
+            image.dump(options.outfile)
 
             out.output('Dumping metadata file ...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
@@ -262,8 +257,8 @@ def image_creator():
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        # Destroy the device. We only need the snapshot from now on
-        disk.destroy_device(dev)
+        # Destroy the image instance. We only need the snapshot from now on
+        disk.destroy_image(image)
 
         out.output()
         try:

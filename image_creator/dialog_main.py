@@ -48,14 +48,13 @@ from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput
 from image_creator.output.composite import CompositeOutput
 from image_creator.disk import Disk
-from image_creator.os_type import os_cls
 from image_creator.dialog_wizard import wizard
 from image_creator.dialog_menu import main_menu
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, confirm_exit, \
     Reset, update_background_title
 
 
-def image_creator(d, media, out, tmp):
+def create_image(d, media, out, tmp):
 
     d.setBackgroundTitle('snf-image-creator')
 
@@ -71,19 +70,14 @@ def image_creator(d, media, out, tmp):
     signal.signal(signal.SIGTERM, signal_handler)
     try:
         snapshot = disk.snapshot()
-        dev = disk.get_device(snapshot)
+        image = disk.get_image(snapshot)
 
+        out.output("Collecting image metadata...")
         metadata = {}
-        for (key, value) in dev.meta.items():
+        for (key, value) in image.meta.items():
             metadata[str(key)] = str(value)
 
-        dev.mount(readonly=True)
-        out.output("Collecting image metadata...")
-        cls = os_cls(dev.distro, dev.ostype)
-        image_os = cls(dev.root, dev.g, out)
-        dev.umount()
-
-        for (key, value) in image_os.meta.items():
+        for (key, value) in image.os.meta.items():
             metadata[str(key)] = str(value)
 
         out.success("done")
@@ -97,9 +91,7 @@ def image_creator(d, media, out, tmp):
 
         session = {"dialog": d,
                    "disk": disk,
-                   "snapshot": snapshot,
-                   "device": dev,
-                   "image_os": image_os,
+                   "image": image,
                    "metadata": metadata}
 
         msg = "snf-image-creator detected a %s system on the input media. " \
@@ -107,8 +99,8 @@ def image_creator(d, media, out, tmp):
               "image creation process?\n\nChoose <Wizard> to run the wizard," \
               " <Expert> to run the snf-image-creator in expert mode or " \
               "press ESC to quit the program." \
-              % (dev.ostype if dev.ostype == dev.distro else "%s (%s)" %
-                 (dev.ostype, dev.distro))
+              % (image.ostype if image.ostype == image.distro else "%s (%s)" %
+                 (image.ostype, image.distro))
 
         update_background_title(session)
 
@@ -226,7 +218,7 @@ def main():
                     out = CompositeOutput([log])
                     out.output("Starting %s v%s..." %
                                (parser.get_prog_name(), version))
-                    ret = image_creator(d, media, out, options.tmp)
+                    ret = create_image(d, media, out, options.tmp)
                     sys.exit(ret)
                 except Reset:
                     log.output("Resetting everything...")

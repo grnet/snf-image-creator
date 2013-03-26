@@ -43,17 +43,17 @@ WIDTH = 70
 
 def update_background_title(session):
     d = session['dialog']
-    dev = session['device']
     disk = session['disk']
+    image = session['image']
 
     MB = 2 ** 20
 
-    size = (dev.size + MB - 1) // MB
+    size = (image.size + MB - 1) // MB
     shrinked = 'shrinked' in session and session['shrinked']
     postfix = " (shrinked)" if shrinked else ''
 
     title = "OS: %s, Distro: %s, Size: %dMB%s, Source: %s" % \
-            (dev.ostype, dev.distro, size, postfix,
+            (image.ostype, image.distro, size, postfix,
              os.path.abspath(disk.source))
 
     d.setBackgroundTitle(title)
@@ -128,18 +128,16 @@ def extract_image(session):
 
         gauge = GaugeOutput(d, "Image Extraction", "Extracting image...")
         try:
-            dev = session['device']
-            out = dev.out
+            image = session['image']
+            out = image.out
             out.add(gauge)
             try:
                 if "checksum" not in session:
-                    size = dev.size
                     md5 = MD5(out)
-                    session['checksum'] = md5.compute(session['snapshot'],
-                                                      size)
+                    session['checksum'] = md5.compute(image.device, image.size)
 
                 # Extract image file
-                dev.dump(path)
+                image.dump(path)
 
                 # Extract metadata file
                 out.output("Extracting metadata file...")

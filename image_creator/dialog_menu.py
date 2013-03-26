@@ -108,9 +108,9 @@ class MetadataMonitor(object):
 
 def upload_image(session):
     d = session["dialog"]
-    dev = session['device']
+    image = session['image']
     meta = session['metadata']
-    size = dev.size
+    size = image.size
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos credentials before you "
@@ -139,17 +139,17 @@ def upload_image(session):
 
     gauge = GaugeOutput(d, "Image Upload", "Uploading...")
     try:
-        out = dev.out
+        out = image.out
         out.add(gauge)
         try:
             if 'checksum' not in session:
                 md5 = MD5(out)
-                session['checksum'] = md5.compute(session['snapshot'], size)
+                session['checksum'] = md5.compute(image.device, size)
 
             kamaki = Kamaki(session['account'], out)
             try:
                 # Upload image file
-                with open(session['snapshot'], 'rb') as f:
+                with open(image.device, 'rb') as f:
                     session["pithos_uri"] = \
                         kamaki.upload(f, size, filename,
                                       "Calculating block hashes",
@@ -188,14 +188,12 @@ def upload_image(session):
 
 def register_image(session):
     d = session["dialog"]
-    dev = session['device']
 
     is_public = False
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos credentians before you "
-                 "can register an images with cyclades",
-                 width=SMALL_WIDTH)
+                 "can register an images with cyclades", width=SMALL_WIDTH)
         return False
 
     if "pithos_uri" not in session:
@@ -233,7 +231,7 @@ def register_image(session):
     img_type = "public" if is_public else "private"
     gauge = GaugeOutput(d, "Image Registration", "Registering image...")
     try:
-        out = dev.out
+        out = session['image'].out
         out.add(gauge)
         try:
             out.output("Registering %s image with Cyclades..." % img_type)
@@ -481,7 +479,7 @@ def exclude_tasks(session):
 
 def sysprep(session):
     d = session['dialog']
-    image_os = session['image_os']
+    image = session['image']
 
     # Is the image already shrinked?
     if 'shrinked' in session and session['shrinked']:
@@ -500,7 +498,7 @@ def sysprep(session):
     if 'exec_syspreps' not in session:
         session['exec_syspreps'] = []
 
-    all_syspreps = image_os.list_syspreps()
+    all_syspreps = image.os.list_syspreps()
     # Only give the user the choice between syspreps that have not ran yet
     syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
 
@@ -513,7 +511,7 @@ def sysprep(session):
         choices = []
         index = 0
         for sysprep in syspreps:
-            name, descr = image_os.sysprep_info(sysprep)
+            name, descr = image.os.sysprep_info(sysprep)
             display_name = name.replace('-', ' ').capitalize()
             sysprep_help += "%s\n" % display_name
             sysprep_help += "%s\n" % ('-' * len(display_name))
@@ -536,34 +534,33 @@ def sysprep(session):
             # Enable selected syspreps and disable the rest
             for i in range(len(syspreps)):
                 if str(i + 1) in tags:
-                    image_os.enable_sysprep(syspreps[i])
+                    image.os.enable_sysprep(syspreps[i])
                     session['exec_syspreps'].append(syspreps[i])
                 else:
-                    image_os.disable_sysprep(syspreps[i])
+                    image.os.disable_sysprep(syspreps[i])
 
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
-                dev = session['device']
-                dev.out.add(infobox)
+                image.out.add(infobox)
                 try:
-                    dev.mount(readonly=False)
+                    image.mount(readonly=False)
                     try:
                         # The checksum is invalid. We have mounted the image rw
                         if 'checksum' in session:
                             del session['checksum']
 
                         # Monitor the metadata changes during syspreps
-                        with MetadataMonitor(session, image_os.meta):
-                            image_os.do_sysprep()
+                        with MetadataMonitor(session, image.os.meta):
+                            image.os.do_sysprep()
                             infobox.finalize()
 
                         # Disable syspreps that have ran
                         for sysprep in session['exec_syspreps']:
-                            image_os.disable_sysprep(sysprep)
+                            image.os.disable_sysprep(sysprep)
                     finally:
-                        dev.umount()
+                        image.umount()
                 finally:
-                    dev.out.remove(infobox)
+                    image.out.remove(infobox)
             finally:
                 infobox.cleanup()
             break
@@ -572,7 +569,7 @@ def sysprep(session):
 
 def shrink(session):
     d = session['dialog']
-    dev = session['device']
+    image = session['image']
 
     shrinked = 'shrinked' in session and session['shrinked']
 
@@ -589,14 +586,14 @@ def shrink(session):
 
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=WIDTH,
                    height=12, title="Image Shrinking"):
-        with MetadataMonitor(session, dev.meta):
+        with MetadataMonitor(session, image.meta):
             infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
-            dev.out.add(infobox)
+            image.out.add(infobox)
             try:
-                dev.shrink()
+                image.shrink()
                 infobox.finalize()
             finally:
-                dev.out.remove(infobox)
+                image.out.remove(infobox)
 
         session['shrinked'] = True
         update_background_title(session)
