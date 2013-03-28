@@ -38,10 +38,12 @@ import os
 
 
 class FatalError(Exception):
+    """Fatal Error exception of snf-image-creator"""
     pass
 
 
 def get_command(command):
+    """Return a file system binary command"""
     def find_sbin_command(command, exception):
         search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
         for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
@@ -56,7 +58,7 @@ def get_command(command):
 
 
 def try_fail_repeat(command, *args):
-
+    """Execute a command multiple times until it succeeds"""
     times = (0.1, 0.5, 1, 2)
     i = iter(times)
     while True:
@@ -74,15 +76,19 @@ def try_fail_repeat(command, *args):
 
 
 def free_space(dirname):
+    """Compute the free space in a directory"""
     stat = os.statvfs(dirname)
     return stat.f_bavail * stat.f_frsize
 
 
 class MD5:
+    """Represents MD5 computations"""
     def __init__(self, output):
+        """Create an MD5 instance"""
         self.out = output
 
     def compute(self, filename, size):
+        """Compute the MD5 checksum of a file"""
         MB = 2 ** 20
         BLOCKSIZE = 4 * MB  # 4MB
 

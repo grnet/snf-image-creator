@@ -35,6 +35,7 @@ from image_creator.os_type.unix import Unix
 
 
 class Freebsd(Unix):
+    """OS class for FreeBSD Unix-like os"""
     pass
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

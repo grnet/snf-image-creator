@@ -44,7 +44,7 @@ class Image(object):
     """The instances of this class can create images out of block devices."""
 
     def __init__(self, device, output, bootable=True, meta={}):
-        """Create a new ImageCreator."""
+        """Create a new Image instance"""
 
         self.device = device
         self.out = output
@@ -78,7 +78,7 @@ class Image(object):
         self.guestfs_enabled = False
 
     def enable(self):
-        """Enable a newly created ImageCreator"""
+        """Enable a newly created Image instance"""
 
         self.out.output('Launching helper VM (may take a while) ...', False)
         # self.progressbar = self.out.Progress(100, "Launching helper VM",
@@ -110,6 +110,7 @@ class Image(object):
         self.out.success('found a(n) %s system' % self.distro)
 
     def _get_os(self):
+        """Return an OS class instance for this image"""
         if hasattr(self, "_os"):
             return self._os
 
@@ -135,7 +136,7 @@ class Image(object):
     os = property(_get_os)
 
     def destroy(self):
-        """Destroy this ImageCreator instance."""
+        """Destroy this Image instance."""
 
         # In new guestfs versions, there is a handy shutdown method for this
         try:
@@ -185,6 +186,7 @@ class Image(object):
         self.mounted = False
 
     def _last_partition(self):
+        """Return the last partition of the image disk"""
         if self.meta['PARTITION_TABLE'] not in 'msdos' 'gpt':
             msg = "Unsupported partition table: %s. Only msdos and gpt " \
                 "partition tables are supported" % self.meta['PARTITION_TABLE']
@@ -211,10 +213,10 @@ class Image(object):
         return last_partition
 
     def shrink(self):
-        """Shrink the disk.
+        """Shrink the image.
 
-        This is accomplished by shrinking the last filesystem in the
-        disk and then updating the partition table. The new disk size
+        This is accomplished by shrinking the last file system of the
+        image and then updating the partition table. The new disk size
         (in bytes) is returned.
 
         ATTENTION: make sure unmount is called before shrink
@@ -337,7 +339,7 @@ class Image(object):
         return self.size
 
     def dump(self, outfile):
-        """Dumps the content of device into a file.
+        """Dumps the content of the image into a file.
 
         This method will only dump the actual payload, found by reading the
         partition table. Empty space in the end of the device will be ignored.

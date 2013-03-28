@@ -42,6 +42,7 @@ WIDTH = 70
 
 
 def update_background_title(session):
+    """Update the backgroud title of the dialog page"""
     d = session['dialog']
     disk = session['disk']
     image = session['image']
@@ -60,19 +61,23 @@ def update_background_title(session):
 
 
 def confirm_exit(d, msg=''):
+    """Ask the user to confirm when exiting the program"""
     return not d.yesno("%s Do you want to exit?" % msg, width=SMALL_WIDTH)
 
 
 def confirm_reset(d):
+    """Ask the user to confirm a reset action"""
     return not d.yesno("Are you sure you want to reset everything?",
                        width=SMALL_WIDTH, defaultno=1)
 
 
 class Reset(Exception):
+    """Exception used to reset the program"""
     pass
 
 
 def extract_metadata_string(session):
+    """Convert image metadata to text"""
     metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
 
     if 'task_metadata' in session:
@@ -82,6 +87,7 @@ def extract_metadata_string(session):
 
 
 def extract_image(session):
+    """Dump the image to a local file"""
     d = session['dialog']
     dir = os.getcwd()
     while 1:

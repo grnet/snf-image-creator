@@ -37,7 +37,7 @@ from image_creator.os_type import OSBase, sysprep
 
 
 class Unix(OSBase):
-
+    """OS class for Unix"""
     sensitive_userdata = [
         '.bash_history',
         '.gnupg',

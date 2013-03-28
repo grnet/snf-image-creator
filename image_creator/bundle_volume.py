@@ -92,6 +92,7 @@ class BundleVolume(object):
         self.disk = parted.Disk(device)
 
     def _read_fstable(self, f):
+        """Use this generator to iterate over the lines of and fstab file"""
 
         if not os.path.isfile(f):
             raise FatalError("Unable to open: `%s'. File is missing." % f)
@@ -106,6 +107,7 @@ class BundleVolume(object):
                 yield FileSystemTableEntry(*entry)
 
     def _get_root_partition(self):
+        """Return the fstab entry accosiated with the root filesystem"""
         for entry in self._read_fstable('/etc/fstab'):
             if entry.mpoint == '/':
                 return entry.dev
@@ -113,12 +115,14 @@ class BundleVolume(object):
         raise FatalError("Unable to find root device in /etc/fstab")
 
     def _is_mpoint(self, path):
+        """Check if a directory is currently a mount point"""
         for entry in self._read_fstable('/proc/mounts'):
             if entry.mpoint == path:
                 return True
         return False
 
     def _get_mount_options(self, device):
+        """Return the mount entry associated with a mounted device"""
         for entry in self._read_fstable('/proc/mounts'):
             if not entry.dev.startswith('/'):
                 continue
@@ -129,6 +133,7 @@ class BundleVolume(object):
         return None
 
     def _create_partition_table(self, image):
+        """Copy the partition table of the host system into the image"""
 
         # Copy the MBR and the space between the MBR and the first partition.
         # In msdos partition tables Grub Stage 1.5 is located there.
@@ -163,6 +168,7 @@ class BundleVolume(object):
             start = logical[i].geometry.end + 1
 
     def _get_partitions(self, disk):
+        """Returns a list with the partitions of the provided disk"""
         Partition = namedtuple('Partition', 'num start end type fs')
 
         partitions = []
@@ -177,7 +183,10 @@ class BundleVolume(object):
         return partitions
 
     def _shrink_partitions(self, image):
-
+        """Remove the last partition of the image if it is a swap partition and
+        shrink the partition before that. Make sure it can still host all the
+        files the corresponding host file system hosts
+        """
         new_end = self.disk.device.length
 
         image_disk = parted.Disk(parted.Device(image))
@@ -246,6 +255,7 @@ class BundleVolume(object):
         return (new_end, self._get_partitions(image_disk))
 
     def _map_partition(self, dev, num, start, end):
+        """Map a partition into a block device using the device mapper"""
         name = os.path.basename(dev) + "_" + uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
@@ -258,13 +268,14 @@ class BundleVolume(object):
         return "/dev/mapper/%sp%d" % (name, num)
 
     def _unmap_partition(self, dev):
+        """Unmap a previously mapped partition"""
         if not os.path.exists(dev):
             return
 
         try_fail_repeat(dmsetup, 'remove', dev.split('/dev/mapper/')[1])
 
     def _mount(self, target, devs):
-
+        """Mount a list of filesystems in mountpoints relative to target"""
         devs.sort(key=lambda d: d[1])
         for dev, mpoint in devs:
             absmpoint = os.path.abspath(target + mpoint)
@@ -273,6 +284,8 @@ class BundleVolume(object):
             mount(dev, absmpoint)
 
     def _umount_all(self, target):
+        """Unmount all filesystems that are mounted under the directory target
+        """
         mpoints = []
         for entry in self._read_fstable('/proc/mounts'):
             if entry.mpoint.startswith(os.path.abspath(target)):
@@ -283,6 +296,10 @@ class BundleVolume(object):
             try_fail_repeat(umount, mpoint)
 
     def _to_exclude(self):
+        """Find which directories to exclude during the image copy. This is
+        accompliced by checking which directories serve as mount points for
+        virtual file systems
+        """
         excluded = ['/tmp', '/var/tmp']
         if self.tmp is not None:
             excluded.append(self.tmp)
@@ -318,6 +335,9 @@ class BundleVolume(object):
         return excluded
 
     def _replace_uuids(self, target, new_uuid):
+        """Replace UUID references in various files. This is needed after
+        copying system files of the host into a new filesystem
+        """
 
         files = ['/etc/fstab',
                  '/boot/grub/grub.cfg',
@@ -343,6 +363,10 @@ class BundleVolume(object):
                     dest.write(line)
 
     def _create_filesystems(self, image, partitions):
+        """Fill the image with data. Host file systems that are not currently
+        mounted are binary copied into the image. For mounted file systems, a
+        file system level copy is performed.
+        """
 
         filesystem = {}
         for p in self.disk.partitions:

@@ -46,17 +46,20 @@ class Kamaki(object):
 
     @staticmethod
     def get_token():
+        """Get the saved token"""
         config = Config()
         return config.get('global', 'token')
 
     @staticmethod
     def save_token(token):
+        """Save this token to the configuration file"""
         config = Config()
         config.set('global', 'token', token)
         config.write()
 
     @staticmethod
     def get_account(token):
+        """Return the account corresponding to this token"""
         config = Config()
         astakos = AstakosClient(config.get('astakos', 'url'), token)
         try:
@@ -69,6 +72,7 @@ class Kamaki(object):
         return account
 
     def __init__(self, account, output):
+        """Create a Kamaki instance"""
         self.account = account
         self.out = output
 

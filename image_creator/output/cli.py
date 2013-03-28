@@ -31,6 +31,8 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""Normal Command-line interface output"""
+
 from image_creator.output import Output
 
 import sys
@@ -65,31 +67,41 @@ def clear(stream):
 
 
 class SilentOutput(Output):
+    """Silent Output class. Only Errors are printed"""
     pass
 
 
 class SimpleOutput(Output):
+    """Print messages but not progress bars. Progress bars are treated as
+    output messages. The user gets informed when the action begins and when it
+    ends, but no progress is shown in between."""
     def __init__(self, colored=True, stream=None):
         self.colored = colored
         self.stream = sys.stderr if stream is None else stream
 
     def error(self, msg, new_line=True):
+        """Print an error"""
         error(msg, new_line, self.colored, self.stream)
 
     def warn(self, msg, new_line=True):
+        """Print a warning"""
         warn(msg, new_line, self.colored, self.stream)
 
     def success(self, msg, new_line=True):
+        """Print msg after an action is completed"""
         success(msg, new_line, self.colored, self.stream)
 
     def output(self, msg='', new_line=True):
+        """Print msg as normal program output"""
         output(msg, new_line, lambda x: x, self.stream)
 
     def clear(self):
+        """Clear the screen"""
         clear(self.stream)
 
 
 class OutputWthProgress(SimpleOutput):
+    """Output class with progress."""
     class _Progress(Bar):
         MESSAGE_LENGTH = 30
 
@@ -102,6 +114,7 @@ class OutputWthProgress(SimpleOutput):
         }
 
         def __init__(self, size, title, bar_type='default'):
+            """Create a Progress bar"""
             self.hide_cursor = False
             super(OutputWthProgress._Progress, self).__init__()
             self.title = title
@@ -116,6 +129,7 @@ class OutputWthProgress(SimpleOutput):
             self.start()
 
         def success(self, result):
+            """Print result after progress has finished"""
             self.output.output("\r%s ...\033[K" % self.title, False)
             self.output.success(result)
 

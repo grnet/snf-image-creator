@@ -76,6 +76,9 @@ class Disk(object):
         self._add_cleanup(shutil.rmtree, self.tmp)
 
     def _get_tmp_dir(self, default=None):
+        """Check tmp directory candidates and return the one with the most
+        available space.
+        """
         if default is not None:
             return default
 
@@ -92,15 +95,20 @@ class Disk(object):
         return TMP_CANDIDATES[max_idx]
 
     def _add_cleanup(self, job, *args):
+        """Add a new job in the cleanup list"""
         self._cleanup_jobs.append((job, args))
 
     def _losetup(self, fname):
+        """Setup a loop device and add it to the cleanup list. The loop device
+        will be detached when cleanup is called.
+        """
         loop = losetup('-f', '--show', fname)
         loop = loop.strip()  # remove the new-line char
         self._add_cleanup(try_fail_repeat, losetup, '-d', loop)
         return loop
 
     def _dir_to_disk(self):
+        """Create a disk out of a directory"""
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
             image = '%s/%s.diskdump' % (self.tmp, uuid.uuid4().hex)

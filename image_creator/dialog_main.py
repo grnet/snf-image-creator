@@ -48,14 +48,14 @@ from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput
 from image_creator.output.composite import CompositeOutput
 from image_creator.disk import Disk
-from image_creator.dialog_wizard import wizard
+from image_creator.dialog_wizard import start_wizard
 from image_creator.dialog_menu import main_menu
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, confirm_exit, \
     Reset, update_background_title
 
 
 def create_image(d, media, out, tmp):
-
+    """Create an image out of `media'"""
     d.setBackgroundTitle('snf-image-creator')
 
     gauge = GaugeOutput(d, "Initialization", "Initializing...")
@@ -108,7 +108,7 @@ def create_image(d, media, out, tmp):
             code = d.yesno(msg, width=WIDTH, height=12, yes_label="Wizard",
                            no_label="Expert")
             if code == d.DIALOG_OK:
-                if wizard(session):
+                if start_wizard(session):
                     break
             elif code == d.DIALOG_CANCEL:
                 main_menu(session)
@@ -125,7 +125,7 @@ def create_image(d, media, out, tmp):
 
 
 def select_file(d, media):
-
+    """Select a media file"""
     if media == '/':
         return '/'
 

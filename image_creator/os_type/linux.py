@@ -38,6 +38,7 @@ import time
 
 
 class Linux(Unix):
+    """OS class for Linux"""
     def __init__(self, rootdev, ghandler, output):
         super(Linux, self).__init__(rootdev, ghandler, output)
         self._uuid = dict()

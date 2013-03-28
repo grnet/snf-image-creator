@@ -65,6 +65,7 @@ CONFIGURATION_TASKS = [
 
 
 class MetadataMonitor(object):
+    """Monitors image metadata chages"""
     def __init__(self, session, meta):
         self.session = session
         self.meta = meta
@@ -107,6 +108,7 @@ class MetadataMonitor(object):
 
 
 def upload_image(session):
+    """Upload the image to pithos+"""
     d = session["dialog"]
     image = session['image']
     meta = session['metadata']
@@ -187,6 +189,7 @@ def upload_image(session):
 
 
 def register_image(session):
+    """Register image with cyclades"""
     d = session["dialog"]
 
     is_public = False
@@ -254,6 +257,7 @@ def register_image(session):
 
 
 def kamaki_menu(session):
+    """Show kamaki related actions"""
     d = session['dialog']
     default_item = "Account"
 
@@ -316,6 +320,7 @@ def kamaki_menu(session):
 
 
 def add_property(session):
+    """Add a new property to the image"""
     d = session['dialog']
 
     while 1:
@@ -350,6 +355,7 @@ def add_property(session):
 
 
 def modify_properties(session):
+    """Modify an existing image property"""
     d = session['dialog']
 
     while 1:
@@ -392,6 +398,7 @@ def modify_properties(session):
 
 
 def delete_properties(session):
+    """Delete an image property"""
     d = session['dialog']
 
     choices = []
@@ -414,6 +421,7 @@ def delete_properties(session):
 
 
 def exclude_tasks(session):
+    """Exclude specific tasks from running during image deployment"""
     d = session['dialog']
 
     index = 0
@@ -478,6 +486,7 @@ def exclude_tasks(session):
 
 
 def sysprep(session):
+    """Perform various system preperation tasks on the image"""
     d = session['dialog']
     image = session['image']
 
@@ -568,6 +577,7 @@ def sysprep(session):
 
 
 def shrink(session):
+    """Shrink the image"""
     d = session['dialog']
     image = session['image']
 
@@ -604,6 +614,7 @@ def shrink(session):
 
 
 def customization_menu(session):
+    """Show image customization menu"""
     d = session['dialog']
 
     choices = [("Sysprep", "Run various image preparation tasks"),
@@ -635,6 +646,7 @@ def customization_menu(session):
 
 
 def main_menu(session):
+    """Show the main menu of the program"""
     d = session['dialog']
 
     update_background_title(session)

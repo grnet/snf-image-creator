@@ -35,6 +35,7 @@ from image_creator.os_type.unix import Unix
 
 
 class Hurd(Unix):
+    """OS class for GNU Hurd"""
     pass
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
