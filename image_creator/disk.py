@@ -152,7 +152,7 @@ class Disk(object):
             self.out.success('looks like an image file')
             sourcedev = self._losetup(self.source)
         elif not stat.S_ISBLK(mode):
-            raise ValueError("Invalid media source. Only block devices, "
+            raise FatalError("Invalid media source. Only block devices, "
                              "regular files and directories are supported.")
         else:
             self.out.success('looks like a block device')
