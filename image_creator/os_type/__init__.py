@@ -38,6 +38,7 @@ import re
 
 
 def os_cls(distro, osfamily):
+    """Given the distro name and the osfamily, return the appropriate class"""
     module = None
     classname = None
     try:
@@ -60,6 +61,7 @@ def add_prefix(target):
 
 
 def sysprep(enabled=True):
+    """Decorator for system preparation tasks"""
     def wrapper(func):
         func.sysprep = True
         func.enabled = enabled

@@ -31,10 +31,11 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.linux import Linux, sysprep
+from image_creator.os_type.linux import Linux
 
 
 class Ubuntu(Linux):
+    """OS class for Ubuntu Linux variants"""
     def __init__(self, rootdev, ghandler, output):
         super(Ubuntu, self).__init__(rootdev, ghandler, output)
 

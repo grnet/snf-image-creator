@@ -33,7 +33,6 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import sys
 import os
 import textwrap
 import StringIO
@@ -65,7 +64,8 @@ CONFIGURATION_TASKS = [
 ]
 
 
-class metadata_monitor(object):
+class MetadataMonitor(object):
+    """Monitors image metadata chages"""
     def __init__(self, session, meta):
         self.session = session
         self.meta = meta
@@ -108,10 +108,11 @@ class metadata_monitor(object):
 
 
 def upload_image(session):
+    """Upload the image to pithos+"""
     d = session["dialog"]
-    dev = session['device']
+    image = session['image']
     meta = session['metadata']
-    size = dev.size
+    size = image.size
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos credentials before you "
@@ -140,17 +141,17 @@ def upload_image(session):
 
     gauge = GaugeOutput(d, "Image Upload", "Uploading...")
     try:
-        out = dev.out
+        out = image.out
         out.add(gauge)
         try:
             if 'checksum' not in session:
                 md5 = MD5(out)
-                session['checksum'] = md5.compute(session['snapshot'], size)
+                session['checksum'] = md5.compute(image.device, size)
 
             kamaki = Kamaki(session['account'], out)
             try:
                 # Upload image file
-                with open(session['snapshot'], 'rb') as f:
+                with open(image.device, 'rb') as f:
                     session["pithos_uri"] = \
                         kamaki.upload(f, size, filename,
                                       "Calculating block hashes",
@@ -188,15 +189,14 @@ def upload_image(session):
 
 
 def register_image(session):
+    """Register image with cyclades"""
     d = session["dialog"]
-    dev = session['device']
 
     is_public = False
 
     if "account" not in session:
         d.msgbox("You need to provide your ~okeanos credentians before you "
-                 "can register an images with cyclades",
-                 width=SMALL_WIDTH)
+                 "can register an images with cyclades", width=SMALL_WIDTH)
         return False
 
     if "pithos_uri" not in session:
@@ -234,7 +234,7 @@ def register_image(session):
     img_type = "public" if is_public else "private"
     gauge = GaugeOutput(d, "Image Registration", "Registering image...")
     try:
-        out = dev.out
+        out = session['image'].out
         out.add(gauge)
         try:
             out.output("Registering %s image with Cyclades..." % img_type)
@@ -257,6 +257,7 @@ def register_image(session):
 
 
 def kamaki_menu(session):
+    """Show kamaki related actions"""
     d = session['dialog']
     default_item = "Account"
 
@@ -319,6 +320,7 @@ def kamaki_menu(session):
 
 
 def add_property(session):
+    """Add a new property to the image"""
     d = session['dialog']
 
     while 1:
@@ -353,6 +355,7 @@ def add_property(session):
 
 
 def modify_properties(session):
+    """Modify an existing image property"""
     d = session['dialog']
 
     while 1:
@@ -395,6 +398,7 @@ def modify_properties(session):
 
 
 def delete_properties(session):
+    """Delete an image property"""
     d = session['dialog']
 
     choices = []
@@ -417,6 +421,7 @@ def delete_properties(session):
 
 
 def exclude_tasks(session):
+    """Exclude specific tasks from running during image deployment"""
     d = session['dialog']
 
     index = 0
@@ -481,8 +486,9 @@ def exclude_tasks(session):
 
 
 def sysprep(session):
+    """Perform various system preperation tasks on the image"""
     d = session['dialog']
-    image_os = session['image_os']
+    image = session['image']
 
     # Is the image already shrinked?
     if 'shrinked' in session and session['shrinked']:
@@ -501,7 +507,7 @@ def sysprep(session):
     if 'exec_syspreps' not in session:
         session['exec_syspreps'] = []
 
-    all_syspreps = image_os.list_syspreps()
+    all_syspreps = image.os.list_syspreps()
     # Only give the user the choice between syspreps that have not ran yet
     syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
 
@@ -514,7 +520,7 @@ def sysprep(session):
         choices = []
         index = 0
         for sysprep in syspreps:
-            name, descr = image_os.sysprep_info(sysprep)
+            name, descr = image.os.sysprep_info(sysprep)
             display_name = name.replace('-', ' ').capitalize()
             sysprep_help += "%s\n" % display_name
             sysprep_help += "%s\n" % ('-' * len(display_name))
@@ -537,34 +543,33 @@ def sysprep(session):
             # Enable selected syspreps and disable the rest
             for i in range(len(syspreps)):
                 if str(i + 1) in tags:
-                    image_os.enable_sysprep(syspreps[i])
+                    image.os.enable_sysprep(syspreps[i])
                     session['exec_syspreps'].append(syspreps[i])
                 else:
-                    image_os.disable_sysprep(syspreps[i])
+                    image.os.disable_sysprep(syspreps[i])
 
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
-                dev = session['device']
-                dev.out.add(infobox)
+                image.out.add(infobox)
                 try:
-                    dev.mount(readonly=False)
+                    image.mount(readonly=False)
                     try:
                         # The checksum is invalid. We have mounted the image rw
                         if 'checksum' in session:
                             del session['checksum']
 
                         # Monitor the metadata changes during syspreps
-                        with metadata_monitor(session, image_os.meta):
-                            image_os.do_sysprep()
+                        with MetadataMonitor(session, image.os.meta):
+                            image.os.do_sysprep()
                             infobox.finalize()
 
                         # Disable syspreps that have ran
                         for sysprep in session['exec_syspreps']:
-                            image_os.disable_sysprep(sysprep)
+                            image.os.disable_sysprep(sysprep)
                     finally:
-                        dev.umount()
+                        image.umount()
                 finally:
-                    dev.out.remove(infobox)
+                    image.out.remove(infobox)
             finally:
                 infobox.cleanup()
             break
@@ -572,8 +577,9 @@ def sysprep(session):
 
 
 def shrink(session):
+    """Shrink the image"""
     d = session['dialog']
-    dev = session['device']
+    image = session['image']
 
     shrinked = 'shrinked' in session and session['shrinked']
 
@@ -590,14 +596,14 @@ def shrink(session):
 
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=WIDTH,
                    height=12, title="Image Shrinking"):
-        with metadata_monitor(session, dev.meta):
+        with MetadataMonitor(session, image.meta):
             infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
-            dev.out.add(infobox)
+            image.out.add(infobox)
             try:
-                dev.shrink()
+                image.shrink()
                 infobox.finalize()
             finally:
-                dev.out.remove(infobox)
+                image.out.remove(infobox)
 
         session['shrinked'] = True
         update_background_title(session)
@@ -608,6 +614,7 @@ def shrink(session):
 
 
 def customization_menu(session):
+    """Show image customization menu"""
     d = session['dialog']
 
     choices = [("Sysprep", "Run various image preparation tasks"),
@@ -639,8 +646,8 @@ def customization_menu(session):
 
 
 def main_menu(session):
+    """Show the main menu of the program"""
     d = session['dialog']
-    dev = session['device']
 
     update_background_title(session)
 

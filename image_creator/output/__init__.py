@@ -33,25 +33,33 @@
 
 
 class Output(object):
+    """A class for printing program output"""
     def error(self, msg, new_line=True):
+        """Print an error"""
         pass
 
     def warn(self, msg, new_line=True):
+        """Print a warning"""
         pass
 
     def success(self, msg, new_line=True):
+        """Print msg after an action is completed"""
         pass
 
     def output(self, msg='', new_line=True):
+        """Print normal program output"""
         pass
 
     def cleanup(self):
+        """Cleanup this output class"""
         pass
 
     def clear(self):
+        """Clear the screen"""
         pass
 
     def _get_progress(self):
+        """Returns a new Progress object"""
         progress = self._Progress
         progress.output = self
         return progress
@@ -59,21 +67,26 @@ class Output(object):
     Progress = property(_get_progress)
 
     class _Progress(object):
+        """Internal progress bar class"""
         def __init__(self, size, title, bar_type='default'):
             self.size = size
             self.bar_type = bar_type
             self.output.output("%s..." % title, False)
 
         def goto(self, dest):
+            """Move progress to a specific position"""
             pass
 
         def next(self):
+            """Move progress a step forward"""
             pass
 
         def success(self, result):
+            """Print a msg after an action is completed successfully"""
             self.output.success(result)
 
     def progress_generator(self, message):
+        """A python generator for the progress bar class"""
         def generator(n):
             progressbar = self.Progress(n, message)
 

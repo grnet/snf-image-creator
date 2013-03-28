@@ -37,6 +37,7 @@ import fcntl
 
 
 class GaugeOutput(Output):
+    """Output class implemented using dialog's gauge widget"""
     def __init__(self, dialog, title, msg=''):
         self.d = dialog
         self.msg = msg
@@ -55,26 +56,31 @@ class GaugeOutput(Output):
         fcntl.fcntl(fd, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
 
     def output(self, msg='', new_line=True):
+        """Print msg as normal output"""
         self.msg = msg
         self.percent = 0
         self.d.gauge_update(self.percent, self.msg, update_text=True)
         time.sleep(0.4)
 
     def success(self, result, new_line=True):
+        """Print result after a successfull action"""
         self.percent = 100
         self.d.gauge_update(self.percent, "%s %s" % (self.msg, result),
                             update_text=True)
         time.sleep(0.4)
 
     def warn(self, msg, new_line=True):
+        """Print a warning"""
         self.d.gauge_update(self.percent, "%s Warning: %s" % (self.msg, msg),
                             update_text=True)
         time.sleep(0.4)
 
     def cleanup(self):
+        """Cleanup the GaugeOutput instance"""
         self.d.gauge_stop()
 
     class _Progress(Output._Progress):
+        """Progress class for dialog's gauge widget"""
         template = {
             'default': '%(index)d/%(size)d',
             'percent': '',
@@ -93,6 +99,7 @@ class GaugeOutput(Output):
             return self.template[self.bar_type] % self.output.__dict__
 
         def goto(self, dest):
+            """Move progress bar to a specific position"""
             self.output.index = dest
             self.output.percent = self.output.index * 100 // self.output.size
             msg = "%s %s" % (self.output.msg, self._postfix())
@@ -100,10 +107,12 @@ class GaugeOutput(Output):
                                        update_text=True)
 
         def next(self):
+            """Move progress bar one step forward"""
             self.goto(self.output.index + 1)
 
 
 class InfoBoxOutput(Output):
+    """Output class implemented using dialog's infobox widget"""
     def __init__(self, dialog, title, msg='', height=20, width=70):
         self.d = dialog
         self.title = title
@@ -113,6 +122,7 @@ class InfoBoxOutput(Output):
         self.d.infobox(self.msg, title=self.title)
 
     def output(self, msg='', new_line=True):
+        """Print msg as normal output"""
         nl = '\n' if new_line else ''
         self.msg += "%s%s" % (msg, nl)
         # If output is long, only output the last lines that fit in the box
@@ -123,12 +133,17 @@ class InfoBoxOutput(Output):
                        width=self.width)
 
     def success(self, result, new_line=True):
+        """Print result after an action is completed successfully"""
         self.output(result, new_line)
 
     def warn(self, msg, new_line=True):
+        """Print a warning message"""
         self.output("Warning: %s" % msg, new_line)
 
     def finalize(self):
+        """Finalize the output. After this is called, the InfoboxOutput
+        instance should be destroyed
+        """
         self.d.msgbox(self.msg, title=self.title, height=(self.height + 2),
                       width=self.width)
 

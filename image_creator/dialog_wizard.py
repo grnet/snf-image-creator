@@ -33,7 +33,6 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import dialog
 import time
 import StringIO
 
@@ -46,14 +45,22 @@ PAGE_WIDTH = 70
 
 
 class WizardExit(Exception):
+    """Exception used to exit the wizard"""
     pass
 
 
 class WizardInvalidData(Exception):
+    """Exception triggered when the user provided data are invalid"""
     pass
 
 
 class Wizard:
+    """Represents a dialog-based wizard
+
+    The wizard is a collection of pages that have a "Next" and a "Back" button
+    on them. The pages are used to collect user data.
+    """
+
     def __init__(self, session):
         self.session = session
         self.pages = []
@@ -61,9 +68,11 @@ class Wizard:
         self.d = session['dialog']
 
     def add_page(self, page):
+        """Add a new page to the wizard"""
         self.pages.append(page)
 
     def run(self):
+        """Run the wizard"""
         idx = 0
         while True:
             try:
@@ -96,6 +105,7 @@ class Wizard:
 
 
 class WizardPage(object):
+    """Represents a page in a wizard"""
     NEXT = 1
     PREV = -1
 
@@ -107,11 +117,15 @@ class WizardPage(object):
         setattr(self, "display", display)
 
     def run(self, session, index, total):
+        """Display this wizard page
+
+        This function is used by the wizard program when accessing a page.
+        """
         raise NotImplementedError
 
 
 class WizardRadioListPage(WizardPage):
-
+    """Represent a Radio List in a wizard"""
     def __init__(self, name, printable, message, choices, **kargs):
         super(WizardRadioListPage, self).__init__(**kargs)
         self.name = name
@@ -146,12 +160,13 @@ class WizardRadioListPage(WizardPage):
 
 
 class WizardInputPage(WizardPage):
-
+    """Represents an input field in a wizard"""
     def __init__(self, name, printable, message, **kargs):
         super(WizardInputPage, self).__init__(**kargs)
         self.name = name
         self.printable = printable
         self.message = message
+        self.info = "%s: <none>" % self.printable
         self.title = kargs['title'] if 'title' in kargs else ''
         self.init = kargs['init'] if 'init' in kargs else ''
 
@@ -174,15 +189,15 @@ class WizardInputPage(WizardPage):
         return self.NEXT
 
 
-def wizard(session):
-
+def start_wizard(session):
+    """Run the image creation wizard"""
     init_token = Kamaki.get_token()
     if init_token is None:
         init_token = ""
 
     name = WizardInputPage(
         "ImageName", "Image Name", "Please provide a name for the image:",
-        title="Image Name", init=session['device'].distro)
+        title="Image Name", init=session['image'].distro)
 
     descr = WizardInputPage(
         "ImageDescription", "Image Description",
@@ -198,14 +213,16 @@ def wizard(session):
         title="Registration Type", default="Private")
 
     def validate_account(token):
+        """Check if a token is valid"""
+        d = session['dialog']
+
         if len(token) == 0:
             d.msgbox("The token cannot be empty", width=PAGE_WIDTH)
             raise WizardInvalidData
 
         account = Kamaki.get_account(token)
         if account is None:
-            session['dialog'].msgbox("The token you provided in not valid!",
-                                     width=PAGE_WIDTH)
+            d.msgbox("The token you provided in not valid!", width=PAGE_WIDTH)
             raise WizardInvalidData
 
         return account
@@ -232,39 +249,37 @@ def wizard(session):
 
 
 def create_image(session):
+    """Create an image using the information collected by the wizard"""
     d = session['dialog']
-    disk = session['disk']
-    device = session['device']
-    snapshot = session['snapshot']
-    image_os = session['image_os']
+    image = session['image']
     wizard = session['wizard']
 
     # Save Kamaki credentials
     Kamaki.save_token(wizard['Account']['auth_token'])
 
     with_progress = OutputWthProgress(True)
-    out = disk.out
+    out = image.out
     out.add(with_progress)
     try:
         out.clear()
 
         #Sysprep
-        device.mount(False)
-        image_os.do_sysprep()
-        metadata = image_os.meta
-        device.umount()
+        image.mount(False)
+        image.os.do_sysprep()
+        metadata = image.os.meta
+        image.umount()
 
         #Shrink
-        size = device.shrink()
+        size = image.shrink()
         session['shrinked'] = True
         update_background_title(session)
 
-        metadata.update(device.meta)
+        metadata.update(image.meta)
         metadata['DESCRIPTION'] = wizard['ImageDescription']
 
         #MD5
         md5 = MD5(out)
-        session['checksum'] = md5.compute(snapshot, size)
+        session['checksum'] = md5.compute(image.device, size)
 
         #Metadata
         metastring = '\n'.join(
@@ -279,7 +294,7 @@ def create_image(session):
             name = "%s-%s.diskdump" % (wizard['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))
             pithos_file = ""
-            with open(snapshot, 'rb') as f:
+            with open(image.device, 'rb') as f:
                 pithos_file = kamaki.upload(f, size, name,
                                             "(1/4)  Calculating block hashes",
                                             "(2/4)  Uploading missing blocks")

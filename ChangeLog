@@ -1,3 +1,7 @@
+2013-03-28, v0.2.8
+	* Fix a bug in wizard mode
+	* Cleanup and refine the code
+
 2013-03-21, v0.2.7
 	* Fix a bug in host bundling mode where some files were erroneously
 	  excluded from the image
