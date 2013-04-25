@@ -31,6 +31,6 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-__version__ = '0.2.8'
+__version__ = '0.2.9'
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

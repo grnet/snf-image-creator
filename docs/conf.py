@@ -50,7 +50,7 @@ copyright = u'2012, 2013 GRNET S.A. All rights reserved'
 # built documents.
 #
 # The short X.Y version.
-version = '0.2.8'
+version = '0.2.9'
 # The full version, including alpha/beta/rc tags.
 release = '0.2.8'
 
