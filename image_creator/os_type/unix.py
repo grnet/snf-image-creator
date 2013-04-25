@@ -39,6 +39,7 @@ from image_creator.os_type import OSBase, sysprep
 class Unix(OSBase):
     """OS class for Unix"""
     sensitive_userdata = [
+        '.history',
         '.bash_history',
         '.gnupg',
         '.ssh',
@@ -48,105 +49,6 @@ class Unix(OSBase):
 
     def __init__(self, rootdev, ghandler, output):
         super(Unix, self).__init__(rootdev, ghandler, output)
-
-        self.meta["USERS"] = " ".join(self._get_passworded_users())
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            self.out.warn("No passworded users found!")
-            del self.meta['USERS']
-
-    def _get_passworded_users(self):
-        users = []
-        regexp = re.compile('(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
-
-        for line in self.g.cat('/etc/shadow').splitlines():
-            match = regexp.match(line)
-            if not match:
-                continue
-
-            user, passwd = match.groups()
-            if len(passwd) > 0 and passwd[0] == '!':
-                self.out.warn("Ignoring locked %s account." % user)
-            else:
-                users.append(user)
-
-        return users
-
-    @sysprep(enabled=False)
-    def remove_user_accounts(self, print_header=True):
-        """Remove all user accounts with id greater than 1000"""
-
-        if print_header:
-            self.out.output("Removing all user accounts with id greater than "
-                            "1000")
-
-        if 'USERS' not in self.meta:
-            return
-
-        # Remove users from /etc/passwd
-        passwd = []
-        removed_users = {}
-        metadata_users = self.meta['USERS'].split()
-        for line in self.g.cat('/etc/passwd').splitlines():
-            fields = line.split(':')
-            if int(fields[2]) > 1000:
-                removed_users[fields[0]] = fields
-                # remove it from the USERS metadata too
-                if fields[0] in metadata_users:
-                    metadata_users.remove(fields[0])
-            else:
-                passwd.append(':'.join(fields))
-
-        self.meta['USERS'] = " ".join(metadata_users)
-
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            del self.meta['USERS']
-
-        self.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
-
-        # Remove the corresponding /etc/shadow entries
-        shadow = []
-        for line in self.g.cat('/etc/shadow').splitlines():
-            fields = line.split(':')
-            if fields[0] not in removed_users:
-                shadow.append(':'.join(fields))
-
-        self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
-
-        # Remove the corresponding /etc/group entries
-        group = []
-        for line in self.g.cat('/etc/group').splitlines():
-            fields = line.split(':')
-            # Remove groups tha have the same name as the removed users
-            if fields[0] not in removed_users:
-                group.append(':'.join(fields))
-
-        self.g.write('/etc/group', '\n'.join(group) + '\n')
-
-        # Remove home directories
-        for home in [field[5] for field in removed_users.values()]:
-            if self.g.is_dir(home) and home.startswith('/home/'):
-                self.g.rm_rf(home)
-
-    @sysprep()
-    def cleanup_passwords(self, print_header=True):
-        """Remove all passwords and lock all user accounts"""
-
-        if print_header:
-            self.out.output("Cleaning up passwords & locking all user "
-                            "accounts")
-
-        shadow = []
-
-        for line in self.g.cat('/etc/shadow').splitlines():
-            fields = line.split(':')
-            if fields[1] not in ('*', '!'):
-                fields[1] = '!'
-
-            shadow.append(":".join(fields))
-
-        self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
     @sysprep()
     def cleanup_cache(self, print_header=True):
