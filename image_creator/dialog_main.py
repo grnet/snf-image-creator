@@ -99,7 +99,8 @@ def create_image(d, media, out, tmp):
               "image creation process?\n\nChoose <Wizard> to run the wizard," \
               " <Expert> to run the snf-image-creator in expert mode or " \
               "press ESC to quit the program." \
-              % (image.ostype if image.ostype == image.distro else "%s (%s)" %
+              % (image.ostype if image.ostype == image.distro or
+                 image.distro == "unknown" else "%s (%s)" %
                  (image.ostype, image.distro))
 
         update_background_title(session)
