@@ -53,7 +53,7 @@ def get_command(command):
 
     try:
         return sh.__getattr__(command)
-    except sh.CommadNotFount as e:
+    except sh.CommandNotFound as e:
         return find_sbin_command(command, e)
 
 
