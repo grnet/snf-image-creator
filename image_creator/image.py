@@ -107,7 +107,9 @@ class Image(object):
 
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
-        self.out.success('found a(n) %s system' % self.distro)
+        self.out.success(
+            'found a(n) %s system' %
+            self.ostype if self.distro == "unknown" else self.distro)
 
     def _get_os(self):
         """Return an OS class instance for this image"""

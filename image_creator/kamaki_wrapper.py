@@ -61,7 +61,7 @@ class Kamaki(object):
     def get_account(token):
         """Return the account corresponding to this token"""
         config = Config()
-        astakos = AstakosClient(config.get('astakos', 'url'), token)
+        astakos = AstakosClient(config.get('user', 'url'), token)
         try:
             account = astakos.info()
         except ClientError as e:
@@ -78,7 +78,7 @@ class Kamaki(object):
 
         config = Config()
 
-        pithos_url = config.get('store', 'url')
+        pithos_url = config.get('file', 'url')
         self.pithos_client = PithosClient(
             pithos_url, self.account['auth_token'], self.account['uuid'],
             self.CONTAINER)

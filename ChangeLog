@@ -1,3 +1,8 @@
+2013-04-25, v0.2.9
+	* Support kamaki 0.8
+	* Fix a bug in util.get_command()
+	* Move some linux specific code from unix.py to linux.py
+
 2013-03-28, v0.2.8
 	* Fix a bug in wizard mode
 	* Cleanup and refine the code

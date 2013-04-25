@@ -181,7 +181,7 @@ class Disk(object):
         return "/dev/mapper/%s" % snapshot
 
     def get_image(self, media):
-        """Returns a newly created ImageCreator instance."""
+        """Returns a newly created Image instance."""
 
         image = Image(media, self.out)
         self._images.append(image)
@@ -189,8 +189,7 @@ class Disk(object):
         return image
 
     def destroy_image(self, image):
-        """Destroys an ImageCreator instance previously created by
-        get_image_creator method.
+        """Destroys an Image instance previously created by get_image method.
         """
         self._images.remove(image)
         image.destroy()
