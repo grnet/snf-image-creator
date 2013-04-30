@@ -239,10 +239,10 @@ latex_documents = [
 man_pages = [
     ('man/snf-image-creator', 'snf-image-creator',
      'Command line image creator for Synnefo',
-     'GRNET Development Team <synnefo-devel@googlegroups.com>', 1),
+     'Synnefo development team <synnefo-devel@googlegroups.com>', 1),
     ('man/snf-mkimage', 'snf-mkimage',
      'Dialog-based image creator for Synnefo',
-     'GRNET Development Team <synnefo-devel@googlegroups.com>', 1)
+     'Synnefo development team <synnefo-devel@googlegroups.com>', 1)
 ]
 
 # If true, show URL addresses after external links.
