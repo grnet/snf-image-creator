@@ -1,3 +1,7 @@
+2013-05-01, v0.2.10
+	* Fix a bug where acl and user_xattr mount options where not respected
+	  in host bundling operation
+
 2013-04-25, v0.2.9
 	* Support kamaki 0.8
 	* Fix a bug in util.get_command()
