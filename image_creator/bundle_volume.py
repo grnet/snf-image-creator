@@ -53,6 +53,7 @@ losetup = get_command('losetup')
 mount = get_command('mount')
 umount = get_command('umount')
 blkid = get_command('blkid')
+tune2fs = get_command('tune2fs')
 
 MKFS_OPTS = {'ext2': ['-F'],
              'ext3': ['-F'],
@@ -277,11 +278,15 @@ class BundleVolume(object):
     def _mount(self, target, devs):
         """Mount a list of filesystems in mountpoints relative to target"""
         devs.sort(key=lambda d: d[1])
-        for dev, mpoint in devs:
+        for dev, mpoint, options in devs:
             absmpoint = os.path.abspath(target + mpoint)
             if not os.path.exists(absmpoint):
                 os.makedirs(absmpoint)
-            mount(dev, absmpoint)
+
+            if len(options) > 0:
+                mount(dev, absmpoint, '-o', ",".join(options))
+            else:
+                mount(dev, absmpoint)
 
     def _umount_all(self, target):
         """Unmount all filesystems that are mounted under the directory target
@@ -369,8 +374,10 @@ class BundleVolume(object):
         """
 
         filesystem = {}
+        orig_dev = {}
         for p in self.disk.partitions:
             filesystem[p.number] = self._get_mount_options(p.path)
+            orig_dev[p.number] = p.path
 
         unmounted = filter(lambda p: filesystem[p.num] is None, partitions)
         mounted = filter(lambda p: filesystem[p.num] is not None, partitions)
@@ -385,6 +392,8 @@ class BundleVolume(object):
             self.out.success("done")
 
         loop = str(losetup('-f', '--show', image)).strip()
+
+        # Recreate mounted file systems
         mapped = {}
         try:
             for p in mounted:
@@ -398,15 +407,34 @@ class BundleVolume(object):
                 self.out.output('Creating %s filesystem on partition %d ... ' %
                                 (fs, i), False)
                 get_command('mkfs.%s' % fs)(*(MKFS_OPTS[fs] + [dev]))
+
+                # For ext[234] enable the default mount options
+                if re.match('^ext[234]$', fs):
+                    mopts = filter(
+                        lambda p: p.startswith('Default mount options:'),
+                        tune2fs('-l', orig_dev[i]).splitlines()
+                        )[0].split(':')[1].strip().split()
+
+                    if not (len(mopts) == 1 and mopts[0] == '(none)'):
+                        for opt in mopts:
+                            tune2fs('-o', opt, dev)
+
                 self.out.success('done')
                 new_uuid[i] = blkid(
                     '-s', 'UUID', '-o', 'value', dev).stdout.strip()
 
             target = tempfile.mkdtemp()
+            devs = []
+            for i in mapped.keys():
+                fs = filesystem[i].fs
+                mpoint = filesystem[i].mpoint
+                opts = []
+                for opt in filesystem[i].opts.split(','):
+                    if opt in ('acl', 'user_xattr'):
+                        opts.append(opt)
+                devs.append((mapped[i], mpoint, opts))
             try:
-                self._mount(
-                    target,
-                    [(mapped[i], filesystem[i].mpoint) for i in mapped.keys()])
+                self._mount(target, devs)
 
                 excluded = self._to_exclude()
 
