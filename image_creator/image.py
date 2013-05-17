@@ -54,6 +54,7 @@ class Image(object):
         self.guestfs_device = None
         self.size = 0
         self.mounted = False
+        self.mounted_ro = False
 
         self.g = guestfs.GuestFS()
         self.g.add_drive_opts(self.device, readonly=0, format="raw")
@@ -158,10 +159,12 @@ class Image(object):
     def mount(self, readonly=False):
         """Mount all disk partitions in a correct order."""
 
-        mount = self.g.mount_ro if readonly else self.g.mount
-        msg = " read-only" if readonly else ""
-        self.out.output("Mounting the media%s ..." % msg, False)
-        mps = self.g.inspect_get_mountpoints(self.root)
+        msg = "Mounting the media%s ..." % (" read-only" if readonly else "")
+        self.out.output(msg, False)
+
+        #If something goes wrong when mounting rw, remount the filesystem ro
+        remount_ro = False
+        rw_mpoints = ('/', '/etc', '/root', '/home', '/var')
 
         # Sort the keys to mount the fs in a correct order.
         # / should be mounted befor /boot, etc
@@ -172,15 +175,45 @@ class Image(object):
                 return 0
             else:
                 return -1
+        mps = self.g.inspect_get_mountpoints(self.root)
         mps.sort(compare)
-        for mp, dev in mps:
-            try:
-                mount(dev, mp)
-            except RuntimeError as msg:
-                self.out.warn("%s (ignored)" % msg)
 
-        self.mounted = True
-        self.out.success("done")
+        mopts = 'ro' if readonly else 'rw'
+        for mp, dev in mps:
+            if self.ostype == 'freebsd':
+                # libguestfs can't handle correct freebsd partitions on GUID
+                # Partition Table. We have to do the translation to linux
+                # device names ourselves
+                m = re.match('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$', dev)
+                if m:
+                    m2 = int(m.group(2))
+                    m3 = int(m.group(3))
+                    dev = '/dev/sd%c%d' % (chr(ord('a') + m2), m3)
+            try:
+                self.g.mount_options(mopts, dev, mp)
+            except RuntimeError as msg:
+                if self.ostype == 'freebsd':
+                    freebsd_mopts = "ufstype=ufs2,%s" % mopts
+                    try:
+                        self.g.mount_vfs(freebsd_mopts, 'ufs', dev, mp)
+                    except RuntimeError as msg:
+                        if readonly is False and mp in rw_mpoints:
+                            remount_ro = True
+                            break
+                elif readonly is False and mp in rw_mpoints:
+                    remount_ro = True
+                    break
+                else:
+                    self.out.warn("%s (ignored)" % msg)
+        if remount_ro:
+            self.out.warn("Unable to mount %s read-write. "
+                          "Remounting everything read-only..." % mp)
+            self.umount()
+            self.mount(True)
+        else:
+            self.mounted = True
+            self.mounted_ro = readonly
+            self.out.success("done")
 
     def umount(self):
         """Umount all mounted filesystems."""
