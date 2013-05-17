@@ -224,6 +224,12 @@ def image_creator():
                 return 0
 
             if options.sysprep:
+                err_msg = "Unable to apply the system preparation tasks."
+                if not image.mounted:
+                    raise FatalError("%s Couldn't mount the media." % err_msg)
+                elif image.mounted_ro:
+                    raise FatalError("%s Couldn't mount the media read-write."
+                                     % err_msg)
                 image.os.do_sysprep()
 
             metadata = image.os.meta
