@@ -195,9 +195,11 @@ def start_wizard(session):
     if init_token is None:
         init_token = ""
 
+    distro = session['image'].distro
+    ostype = session['image'].ostype
     name = WizardInputPage(
         "ImageName", "Image Name", "Please provide a name for the image:",
-        title="Image Name", init=session['image'].distro)
+        title="Image Name", init=ostype if distro == "unknown" else distro)
 
     descr = WizardInputPage(
         "ImageDescription", "Image Description",
