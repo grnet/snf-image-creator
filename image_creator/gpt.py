@@ -216,7 +216,7 @@ class GPTPartitionTable(object):
             return struct.calcsize(GPTPartitionTable.GPTHeader.format)
 
         def __str__(self):
-            """Print a GPTHeader""" 
+            """Print a GPTHeader"""
             return "Signature: %s\n" % self.signature + \
                    "Revision: %r\n" % self.revision + \
                    "Header Size: %d\n" % self.hdr_size + \

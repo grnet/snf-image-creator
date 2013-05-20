@@ -557,11 +557,13 @@ def sysprep(session):
                         err_msg = \
                             "Unable to execute the system preparation tasks."
                         if not image.mounted:
-                            d.msgbox("%s Couldn't mount the media." % err_msg,
+                            d.msgbox(
+                                "%s Couldn't mount the media." % err_msg,
                                 title="System Preperation", width=SMALL_WIDTH)
                             return
                         elif image.mounted_ro:
-                            d.msgbox("%s Couldn't mount the media read-write."
+                            d.msgbox(
+                                "%s Couldn't mount the media read-write."
                                 % err_msg, title="System Preperation",
                                 width=SMALL_WIDTH)
                             return

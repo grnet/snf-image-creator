@@ -413,7 +413,7 @@ class BundleVolume(object):
                     mopts = filter(
                         lambda p: p.startswith('Default mount options:'),
                         tune2fs('-l', orig_dev[i]).splitlines()
-                        )[0].split(':')[1].strip().split()
+                    )[0].split(':')[1].strip().split()
 
                     if not (len(mopts) == 1 and mopts[0] == '(none)'):
                         for opt in mopts:
