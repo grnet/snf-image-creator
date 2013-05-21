@@ -43,6 +43,10 @@ class Freebsd(Unix):
 
         self.meta["USERS"] = " ".join(self._get_passworded_users())
 
+        #The original product name key is long and ugly
+        self.meta['DESCRIPTION'] = \
+            self.meta['DESCRIPTION'].split('#')[0].strip()
+
         # Delete the USERS metadata if empty
         if not len(self.meta['USERS']):
             self.out.warn("No passworded users found!")
