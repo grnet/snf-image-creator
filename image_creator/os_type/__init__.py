@@ -82,6 +82,8 @@ class OSBase(object):
         self.meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
         self.meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
         self.meta['OS'] = self.g.inspect_get_distro(self.root)
+        if self.meta['OS'] == "unknown":
+            self.meta['OS'] = self.meta['OSFAMILY']
         self.meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
 
     def _is_sysprep(self, obj):
