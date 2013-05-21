@@ -92,7 +92,9 @@ class Unix(OSBase):
     def cleanup_userdata(self, print_header=True):
         """Delete sensitive userdata"""
 
-        homedirs = ['/root'] + self.ls('/home/')
+        homedirs = ['/root']
+        if self.g.is_dir('/home/'):
+            homedirs += self.ls('/home/')
 
         if print_header:
             self.out.output("Removing sensitive user data under %s" %
