@@ -305,7 +305,7 @@ class Image(object):
             break
 
         if not re.match("ext[234]", fstype):
-            self.out.warn("Don't know how to resize %s partitions." % fstype)
+            self.out.warn("Don't know how to shrink %s partitions." % fstype)
             return self.size
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
