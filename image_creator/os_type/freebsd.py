@@ -33,9 +33,39 @@
 
 from image_creator.os_type.unix import Unix
 
+import re
+
 
 class Freebsd(Unix):
     """OS class for FreeBSD Unix-like os"""
-    pass
+    def __init__(self, rootdev, ghandler, output):
+        super(Freebsd, self).__init__(rootdev, ghandler, output)
+
+        self.meta["USERS"] = " ".join(self._get_passworded_users())
+
+        # Delete the USERS metadata if empty
+        if not len(self.meta['USERS']):
+            self.out.warn("No passworded users found!")
+            del self.meta['USERS']
+
+    def _get_passworded_users(self):
+        users = []
+        regexp = re.compile(
+            '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
+        )
+
+        for line in self.g.cat('/etc/master.passwd').splitlines():
+            line = line.split('#')[0]
+            match = regexp.match(line)
+            if not match:
+                continue
+
+            user, passwd = match.groups()
+            if len(passwd) > 0 and passwd[0] == '!':
+                self.out.warn("Ignoring locked %s account." % user)
+            else:
+                users.append(user)
+
+        return users
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
