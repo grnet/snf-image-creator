@@ -31,7 +31,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.unix import Unix
+from image_creator.os_type.unix import Unix, sysprep
 
 import re
 
@@ -71,5 +71,33 @@ class Freebsd(Unix):
                 users.append(user)
 
         return users
+
+    @sysprep()
+    def cleanup_password(self, print_header=True):
+        """Remove all passwords and lock all user accounts"""
+
+        if print_header:
+            self.out.output("Cleaning up passwords & locking all user "
+                            "accounts")
+
+        master_passwd = []
+
+        for line in self.g.cat('/etc/master.passwd').splitlines():
+
+            # Check for empty or comment lines
+            if len(line.split('#')[0]) == 0:
+                master_passwd.append(line)
+                continue
+
+            fields = line.split(':')
+            if fields[1] not in ('*', '!'):
+                fields[1] = '!'
+
+            master_passwd.append(":".join(fields))
+
+        self.g.write('/etc/master.passwd', "\n".join(master_passwd) + '\n')
+
+        # Make sure no one can login on the system
+        self.g.rm_rf('/etc/spwd.db')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
