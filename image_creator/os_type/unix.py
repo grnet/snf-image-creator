@@ -85,7 +85,9 @@ class Unix(OSBase):
         if print_header:
             self.out.output('Removing files under /var/mail & /var/spool/mail')
 
-        self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
+        if self.g.is_dir('/var/spool/mail'):
+            self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
+
         self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
     @sysprep()
