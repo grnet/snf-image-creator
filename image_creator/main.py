@@ -206,7 +206,7 @@ def image_creator():
 
         image = disk.get_image(snapshot)
 
-        # If no customization is to be applied, the image should be mounted ro
+        # If no customization is to be done, the image should be mounted ro
         ro = (not (options.sysprep or options.shrink) or options.print_sysprep)
         image.mount(ro)
         try:
@@ -224,12 +224,13 @@ def image_creator():
                 return 0
 
             if options.sysprep:
-                err_msg = "Unable to apply the system preparation tasks."
+                err_msg = "Unable to perform the system preparation tasks. " \
+                    "Couldn't mount the media%s. Use --no-sysprep if you " \
+                    "don't won't to perform any system preparation task."
                 if not image.mounted:
-                    raise FatalError("%s Couldn't mount the media." % err_msg)
+                    raise FatalError(err_msg % "")
                 elif image.mounted_ro:
-                    raise FatalError("%s Couldn't mount the media read-write."
-                                     % err_msg)
+                    raise FatalError(err_msg % " read-write")
                 image.os.do_sysprep()
 
             metadata = image.os.meta
