@@ -504,12 +504,8 @@ def sysprep(session):
     help_title = "System Preperation Tasks"
     sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
-    if 'exec_syspreps' not in session:
-        session['exec_syspreps'] = []
 
-    all_syspreps = image.os.list_syspreps()
-    # Only give the user the choice between syspreps that have not ran yet
-    syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
+    syspreps = image.os.list_syspreps()
 
     if len(syspreps) == 0:
         d.msgbox("No system preparation task available to run!",
@@ -544,9 +540,13 @@ def sysprep(session):
             for i in range(len(syspreps)):
                 if str(i + 1) in tags:
                     image.os.enable_sysprep(syspreps[i])
-                    session['exec_syspreps'].append(syspreps[i])
                 else:
                     image.os.disable_sysprep(syspreps[i])
+
+            if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
+                d.msgbox("No system preperation task is selected!",
+                         title="System Preperation", width=SMALL_WIDTH)
+                continue
 
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
@@ -554,18 +554,17 @@ def sysprep(session):
                 try:
                     image.mount(readonly=False)
                     try:
-                        err_msg = \
-                            "Unable to execute the system preparation tasks."
+                        err = "Unable to execute the system preparation " \
+                            "tasks. Couldn't mount the media%s."
                         if not image.mounted:
-                            d.msgbox(
-                                "%s Couldn't mount the media." % err_msg,
-                                title="System Preperation", width=SMALL_WIDTH)
+                            d.msgbox(err % "", title="System Preperation",
+                                     width=SMALL_WIDTH)
                             return
                         elif image.mounted_ro:
                             d.msgbox(
-                                "%s Couldn't mount the media read-write."
-                                % err_msg, title="System Preperation",
-                                width=SMALL_WIDTH)
+                                err % " read-write",title="System Preperation",
+                                width=SMALL_WIDTH
+                            )
                             return
 
                         # The checksum is invalid. We have mounted the image rw
@@ -577,9 +576,6 @@ def sysprep(session):
                             image.os.do_sysprep()
                             infobox.finalize()
 
-                        # Disable syspreps that have ran
-                        for sysprep in session['exec_syspreps']:
-                            image.os.disable_sysprep(sysprep)
                     finally:
                         image.umount()
                 finally:
