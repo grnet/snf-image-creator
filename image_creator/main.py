@@ -181,8 +181,8 @@ def image_creator():
         for extension in ('', '.meta', '.md5sum'):
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
-                raise FatalError("Output file %s exists "
-                                 "(use --force to overwrite it)" % filename)
+                raise FatalError("Output file `%s' exists "
+                                 "(use --force to overwrite it)." % filename)
 
     # Check if the authentication token is valid. The earlier the better
     if options.token is not None:
@@ -191,8 +191,23 @@ def image_creator():
             if account is None:
                 raise FatalError("The authentication token you provided is not"
                                  " valid!")
+            else:
+                kamaki = Kamaki(account, out)
         except ClientError as e:
             raise FatalError("Astakos client: %d %s" % (e.status, e.message))
+
+    if options.upload and not options.force:
+        if kamaki.object_exists(options.upload):
+            raise FatalError("Remote pithos object `%s' exists "
+                             "(use --force to overwrite it)." % options.upload)
+        if kamaki.object_exists("%s.md5sum" % options.upload):
+            raise FatalError("Remote pithos object `%s.md5sum' exists "
+                             "(use --force to overwrite it)." % options.upload)
+
+    if options.register and not options.force:
+        if kamaki.object_exists("%s.meta" % options.upload):
+            raise FatalError("Remote pithos object `%s.meta' exists "
+                             "(use --force to overwrite it)." % options.upload)
 
     disk = Disk(options.source, out, options.tmp)
 
@@ -272,19 +287,12 @@ def image_creator():
             uploaded_obj = ""
             if options.upload:
                 out.output("Uploading image to pithos:")
-                kamaki = Kamaki(account, out)
                 with open(snapshot, 'rb') as f:
                     uploaded_obj = kamaki.upload(
                         f, size, options.upload,
-                        "(1/4)  Calculating block hashes",
-                        "(2/4)  Uploading missing blocks")
-
-                out.output("(3/4)  Uploading metadata file ...", False)
-                kamaki.upload(StringIO.StringIO(metastring),
-                              size=len(metastring),
-                              remote_path="%s.%s" % (options.upload, 'meta'))
-                out.success('done')
-                out.output("(4/4)  Uploading md5sum file ...", False)
+                        "(1/3)  Calculating block hashes",
+                        "(2/3)  Uploading missing blocks")
+                out.output("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
@@ -299,6 +307,11 @@ def image_creator():
                            False)
                 kamaki.register(options.register, uploaded_obj, metadata,
                                 options.public)
+                out.success('done')
+                out.output("Uploading metadata file ...", False)
+                kamaki.upload(StringIO.StringIO(metastring),
+                              size=len(metastring),
+                              remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
                 out.output()
         except ClientError as e:

@@ -136,6 +136,19 @@ def upload_image(session):
         if len(filename) == 0:
             d.msgbox("Filename cannot be empty", width=SMALL_WIDTH)
             continue
+
+        kamaki = Kamaki(session['account'], None)
+        overwrite = []
+        for f in (filename, "%s.md5sum" % filename, "%s.meta" % filename):
+            if kamaki.object_exists(f):
+                overwrite.append(f)
+
+        if len(overwrite) > 0:
+            if d.yesno("The following pithos object(s) already exist(s):\n"
+                       "%s\nDo you want to overwrite them?" %
+                       "\n".join(overwrite), width=WIDTH, defaultno=1):
+                continue
+
         session['upload'] = filename
         break
 
@@ -143,12 +156,12 @@ def upload_image(session):
     try:
         out = image.out
         out.add(gauge)
+        kamaki.out = out
         try:
             if 'checksum' not in session:
                 md5 = MD5(out)
                 session['checksum'] = md5.compute(image.device, size)
 
-            kamaki = Kamaki(session['account'], out)
             try:
                 # Upload image file
                 with open(image.device, 'rb') as f:
@@ -156,14 +169,6 @@ def upload_image(session):
                         kamaki.upload(f, size, filename,
                                       "Calculating block hashes",
                                       "Uploading missing blocks")
-                # Upload metadata file
-                out.output("Uploading metadata file...")
-                metastring = extract_metadata_string(session)
-                kamaki.upload(StringIO.StringIO(metastring),
-                              size=len(metastring),
-                              remote_path="%s.meta" % filename)
-                out.success("done")
-
                 # Upload md5sum file
                 out.output("Uploading md5sum file...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
@@ -237,12 +242,19 @@ def register_image(session):
         out = session['image'].out
         out.add(gauge)
         try:
-            out.output("Registering %s image with Cyclades..." % img_type)
             try:
+                out.output("Registering %s image with Cyclades..." % img_type)
                 kamaki = Kamaki(session['account'], out)
                 kamaki.register(name, session['pithos_uri'], metadata,
                                 is_public)
                 out.success('done')
+                # Upload metadata file
+                out.output("Uploading metadata file...")
+                metastring = extract_metadata_string(session)
+                kamaki.upload(StringIO.StringIO(metastring),
+                              size=len(metastring),
+                              remote_path="%s.meta" % session['upload'])
+                out.success("done")
             except ClientError as e:
                 d.msgbox("Error in pithos+ client: %s" % e.message)
                 return False
@@ -504,7 +516,6 @@ def sysprep(session):
     help_title = "System Preperation Tasks"
     sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
-
     syspreps = image.os.list_syspreps()
 
     if len(syspreps) == 0:
@@ -556,15 +567,13 @@ def sysprep(session):
                     try:
                         err = "Unable to execute the system preparation " \
                             "tasks. Couldn't mount the media%s."
+                        title = "System Preparation"
                         if not image.mounted:
-                            d.msgbox(err % "", title="System Preperation",
-                                     width=SMALL_WIDTH)
+                            d.msgbox(err % "", title=title, width=SMALL_WIDTH)
                             return
                         elif image.mounted_ro:
-                            d.msgbox(
-                                err % " read-write",title="System Preperation",
-                                width=SMALL_WIDTH
-                            )
+                            d.msgbox(err % " read-write", title=title,
+                                     width=SMALL_WIDTH)
                             return
 
                         # The checksum is invalid. We have mounted the image rw

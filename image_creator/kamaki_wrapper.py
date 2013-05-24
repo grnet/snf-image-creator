@@ -117,4 +117,16 @@ class Kamaki(object):
         params = {'is_public': is_public, 'disk_format': 'diskdump'}
         self.image_client.register(name, location, params, str_metadata)
 
+    def object_exists(self, location):
+        """Check if an object exists in pythos"""
+
+        try:
+            self.pithos_client.get_object_info(location)
+        except ClientError as e:
+            if e.status == 404:  # Object not found error
+                return False
+            else:
+                raise
+        return True
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
