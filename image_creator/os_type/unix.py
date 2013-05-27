@@ -85,14 +85,18 @@ class Unix(OSBase):
         if print_header:
             self.out.output('Removing files under /var/mail & /var/spool/mail')
 
-        self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
+        if self.g.is_dir('/var/spool/mail'):
+            self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
+
         self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
     @sysprep()
     def cleanup_userdata(self, print_header=True):
         """Delete sensitive userdata"""
 
-        homedirs = ['/root'] + self.ls('/home/')
+        homedirs = ['/root']
+        if self.g.is_dir('/home/'):
+            homedirs += self.ls('/home/')
 
         if print_header:
             self.out.output("Removing sensitive user data under %s" %

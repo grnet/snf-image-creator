@@ -71,7 +71,7 @@ class Output(object):
         def __init__(self, size, title, bar_type='default'):
             self.size = size
             self.bar_type = bar_type
-            self.output.output("%s..." % title, False)
+            self.output.output("%s ..." % title, False)
 
         def goto(self, dest):
             """Move progress to a specific position"""

@@ -195,9 +195,11 @@ def start_wizard(session):
     if init_token is None:
         init_token = ""
 
+    distro = session['image'].distro
+    ostype = session['image'].ostype
     name = WizardInputPage(
         "ImageName", "Image Name", "Please provide a name for the image:",
-        title="Image Name", init=session['image'].distro)
+        title="Image Name", init=ostype if distro == "unknown" else distro)
 
     descr = WizardInputPage(
         "ImageDescription", "Image Description",
@@ -265,6 +267,12 @@ def create_image(session):
 
         #Sysprep
         image.mount(False)
+        err_msg = "Unable to execute the system preparation tasks."
+        if not image.mounted:
+            raise FatalError("%s Couldn't mount the media." % err_msg)
+        elif image.mounted_ro:
+            raise FatalError("%s Couldn't mount the media read-write."
+                             % err_msg)
         image.os.do_sysprep()
         metadata = image.os.meta
         image.umount()
@@ -317,6 +325,14 @@ def create_image(session):
             kamaki.register(wizard['ImageName'], pithos_file, metadata,
                             is_public)
             out.success('done')
+            if is_public:
+                out.output("Sharing md5sum file ...", False)
+                kamaki.share("%s.md5sum" % name)
+                out.success('done')
+                out.output("Sharing metadata file ...", False)
+                kamaki.share("%s.meta" % name)
+                out.success('done')
+
             out.output()
 
         except ClientError as e:

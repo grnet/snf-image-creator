@@ -158,7 +158,7 @@ class Disk(object):
             self.out.success('looks like a block device')
 
         # Take a snapshot and return it to the user
-        self.out.output("Snapshotting media source...", False)
+        self.out.output("Snapshotting media source ...", False)
         size = blockdev('--getsz', sourcedev)
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
