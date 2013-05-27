@@ -325,6 +325,14 @@ def create_image(session):
             kamaki.register(wizard['ImageName'], pithos_file, metadata,
                             is_public)
             out.success('done')
+            if is_public:
+                out.output("Sharing md5sum file ...", False)
+                kamaki.share("%s.md5sum" % name)
+                out.success('done')
+                out.output("Sharing metadata file ...", False)
+                kamaki.share("%s.meta" % name)
+                out.success('done')
+
             out.output()
 
         except ClientError as e:

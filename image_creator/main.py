@@ -313,6 +313,14 @@ def image_creator():
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
+                if options.public:
+                    out.output("Sharing md5sum file ...", False)
+                    kamaki.share("%s.md5sum" % options.upload)
+                    out.success('done')
+                    out.output("Sharing metadata file ...", False)
+                    kamaki.share("%s.meta" % options.upload)
+                    out.success('done')
+
                 out.output()
         except ClientError as e:
             raise FatalError("Pithos client: %d %s" % (e.status, e.message))

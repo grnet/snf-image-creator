@@ -117,6 +117,11 @@ class Kamaki(object):
         params = {'is_public': is_public, 'disk_format': 'diskdump'}
         self.image_client.register(name, location, params, str_metadata)
 
+    def share(self, location):
+        """Share this file with all the users"""
+
+        self.pithos_client.set_object_sharing(location, "*")
+
     def object_exists(self, location):
         """Check if an object exists in pythos"""
 

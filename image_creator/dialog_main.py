@@ -72,7 +72,7 @@ def create_image(d, media, out, tmp):
         snapshot = disk.snapshot()
         image = disk.get_image(snapshot)
 
-        out.output("Collecting image metadata...")
+        out.output("Collecting image metadata ...")
         metadata = {}
         for (key, value) in image.meta.items():
             metadata[str(key)] = str(value)
@@ -217,12 +217,12 @@ def main():
             while 1:
                 try:
                     out = CompositeOutput([log])
-                    out.output("Starting %s v%s..." %
+                    out.output("Starting %s v%s ..." %
                                (parser.get_prog_name(), version))
                     ret = create_image(d, media, out, options.tmp)
                     sys.exit(ret)
                 except Reset:
-                    log.output("Resetting everything...")
+                    log.output("Resetting everything ...")
                     continue
         finally:
             if logfile is not None:

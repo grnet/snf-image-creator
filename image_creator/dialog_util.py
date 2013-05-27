@@ -146,13 +146,13 @@ def extract_image(session):
                 image.dump(path)
 
                 # Extract metadata file
-                out.output("Extracting metadata file...")
+                out.output("Extracting metadata file ...")
                 with open('%s.meta' % path, 'w') as f:
                     f.write(extract_metadata_string(session))
                 out.success('done')
 
                 # Extract md5sum file
-                out.output("Extracting md5sum file...")
+                out.output("Extracting md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], name)
                 with open('%s.md5sum' % path, 'w') as f:
                     f.write(md5str)

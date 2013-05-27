@@ -255,6 +255,11 @@ def register_image(session):
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])
                 out.success("done")
+                if is_public:
+                    out.output("Sharing metadata and md5sum files...")
+                    kamaki.share("%s.meta" % session['upload'])
+                    kamaki.share("%s.md5sum" % session['upload'])
+                    out.success('done')
             except ClientError as e:
                 d.msgbox("Error in pithos+ client: %s" % e.message)
                 return False
