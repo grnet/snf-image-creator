@@ -33,9 +33,40 @@
 
 from image_creator.os_type import OSBase
 
+import hivex
+import tempfile
+import os
+
 
 class Windows(OSBase):
     """OS class for Windows"""
-    pass
+    def __init__(self, rootdev, ghandler, output):
+        super(Windows, self).__init__(rootdev, ghandler, output)
+
+        self.meta["USERS"] = " ".join(self._get_users())
+
+    def _get_users(self):
+        samfd, sam = tempfile.mkstemp()
+        try:
+            systemroot = self.g.inspect_get_windows_systemroot(self.root)
+            path = "%s/system32/config/sam" % systemroot
+            path = self.g.case_sensitive_path(path)
+            self.g.download(path, sam)
+
+            h = hivex.Hivex(sam)
+
+            key = h.root()
+
+            # Navigate to /SAM/Domains/Account/Users/Names
+            for child in ('SAM', 'Domains', 'Account', 'Users', 'Names'):
+                key = h.node_get_child(key, child)
+
+            users = [h.node_name(x) for x in h.node_children(key)]
+
+        finally:
+            os.unlink(sam)
+
+        # Filter out the guest account
+        return filter(lambda x: x != "Guest", users)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
