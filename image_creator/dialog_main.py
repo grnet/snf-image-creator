@@ -36,6 +36,7 @@
 import dialog
 import sys
 import os
+import stat
 import textwrap
 import signal
 import optparse
@@ -47,20 +48,19 @@ from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput
 from image_creator.output.composite import CompositeOutput
 from image_creator.disk import Disk
-from image_creator.os_type import os_cls
-from image_creator.dialog_wizard import wizard
+from image_creator.dialog_wizard import start_wizard
 from image_creator.dialog_menu import main_menu
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, confirm_exit, \
     Reset, update_background_title
 
 
-def image_creator(d, media, out):
-
+def create_image(d, media, out, tmp):
+    """Create an image out of `media'"""
     d.setBackgroundTitle('snf-image-creator')
 
     gauge = GaugeOutput(d, "Initialization", "Initializing...")
     out.add(gauge)
-    disk = Disk(media, out)
+    disk = Disk(media, out, tmp)
 
     def signal_handler(signum, frame):
         gauge.cleanup()
@@ -70,19 +70,14 @@ def image_creator(d, media, out):
     signal.signal(signal.SIGTERM, signal_handler)
     try:
         snapshot = disk.snapshot()
-        dev = disk.get_device(snapshot)
+        image = disk.get_image(snapshot)
 
+        out.output("Collecting image metadata ...")
         metadata = {}
-        for (key, value) in dev.meta.items():
+        for (key, value) in image.meta.items():
             metadata[str(key)] = str(value)
 
-        dev.mount(readonly=True)
-        out.output("Collecting image metadata...")
-        cls = os_cls(dev.distro, dev.ostype)
-        image_os = cls(dev.root, dev.g, out)
-        dev.umount()
-
-        for (key, value) in image_os.meta.items():
+        for (key, value) in image.os.meta.items():
             metadata[str(key)] = str(value)
 
         out.success("done")
@@ -96,9 +91,7 @@ def image_creator(d, media, out):
 
         session = {"dialog": d,
                    "disk": disk,
-                   "snapshot": snapshot,
-                   "device": dev,
-                   "image_os": image_os,
+                   "image": image,
                    "metadata": metadata}
 
         msg = "snf-image-creator detected a %s system on the input media. " \
@@ -106,8 +99,9 @@ def image_creator(d, media, out):
               "image creation process?\n\nChoose <Wizard> to run the wizard," \
               " <Expert> to run the snf-image-creator in expert mode or " \
               "press ESC to quit the program." \
-              % (dev.ostype if dev.ostype == dev.distro else "%s (%s)" %
-                 (dev.ostype, dev.distro))
+              % (image.ostype if image.ostype == image.distro or
+                 image.distro == "unknown" else "%s (%s)" %
+                 (image.ostype, image.distro))
 
         update_background_title(session)
 
@@ -115,7 +109,7 @@ def image_creator(d, media, out):
             code = d.yesno(msg, width=WIDTH, height=12, yes_label="Wizard",
                            no_label="Expert")
             if code == d.DIALOG_OK:
-                if wizard(session):
+                if start_wizard(session):
                     break
             elif code == d.DIALOG_CANCEL:
                 main_menu(session)
@@ -132,23 +126,33 @@ def image_creator(d, media, out):
 
 
 def select_file(d, media):
-    root = os.sep
+    """Select a media file"""
+    if media == '/':
+        return '/'
+
+    default = os.getcwd() + os.sep
     while 1:
         if media is not None:
             if not os.path.exists(media):
                 d.msgbox("The file `%s' you choose does not exist." % media,
                          width=SMALL_WIDTH)
             else:
-                break
+                mode = os.stat(media).st_mode
+                if not stat.S_ISDIR(mode):
+                    break
+                default = media
 
-        (code, media) = d.fselect(root, 10, 50,
-                                  title="Please select input media")
+        (code, media) = d.fselect(default, 10, 60, extra_button=1,
+                                  title="Please select an input media.",
+                                  extra_label="Bundle Host")
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d, "You canceled the media selection dialog box."):
                 sys.exit(0)
             else:
                 media = None
                 continue
+        elif code == d.DIALOG_EXTRA:
+            return '/'
 
     return media
 
@@ -176,6 +180,9 @@ def main():
     parser.add_option("-l", "--logfile", type="string", dest="logfile",
                       default=None, help="log all messages to FILE",
                       metavar="FILE")
+    parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
+                      help="create large temporary image files under DIR",
+                      metavar="DIR")
 
     options, args = parser.parse_args(sys.argv[1:])
 
@@ -189,7 +196,9 @@ def main():
             raise FatalError("You must run %s as root" %
                              parser.get_prog_name())
 
-        media = select_file(d, args[0] if len(args) == 1 else None)
+        if options.tmp is not None and not os.path.isdir(options.tmp):
+            raise FatalError("The directory `%s' specified with --tmpdir is "
+                             "not valid" % options.tmp)
 
         logfile = None
         if options.logfile is not None:
@@ -199,18 +208,21 @@ def main():
                 raise FatalError(
                     "Unable to open logfile `%s' for writing. Reason: %s" %
                     (options.logfile, e.strerror))
+
+        media = select_file(d, args[0] if len(args) == 1 else None)
+
         try:
             log = SimpleOutput(False, logfile) if logfile is not None \
                 else Output()
             while 1:
                 try:
                     out = CompositeOutput([log])
-                    out.output("Starting %s v%s..." %
+                    out.output("Starting %s v%s ..." %
                                (parser.get_prog_name(), version))
-                    ret = image_creator(d, media, out)
+                    ret = create_image(d, media, out, options.tmp)
                     sys.exit(ret)
                 except Reset:
-                    log.output("Resetting everything...")
+                    log.output("Resetting everything ...")
                     continue
         finally:
             if logfile is not None:

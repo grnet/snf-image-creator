@@ -41,12 +41,14 @@ setup(
     name='snf_image_creator',
     version=image_creator.__version__,
     description='Command line tool for creating images',
-    long_description=open('README.rst').read(),
+    long_description=open('README').read(),
     url='https://code.grnet.gr/projects/snf-image-creator',
+    author="Synnefo development team",
+    author_email="synnefo-devel@googlegroups.com",
     license='BSD',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'py-sendfile'],
+    install_requires=['sh', 'ansicolors', 'progress>=1.0.2'],
     entry_points={
         'console_scripts': [
                 'snf-image-creator = image_creator.main:main',

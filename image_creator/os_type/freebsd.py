@@ -33,8 +33,71 @@
 
 from image_creator.os_type.unix import Unix, sysprep
 
+import re
+
 
 class Freebsd(Unix):
-    pass
+    """OS class for FreeBSD Unix-like os"""
+    def __init__(self, rootdev, ghandler, output):
+        super(Freebsd, self).__init__(rootdev, ghandler, output)
+
+        self.meta["USERS"] = " ".join(self._get_passworded_users())
+
+        #The original product name key is long and ugly
+        self.meta['DESCRIPTION'] = \
+            self.meta['DESCRIPTION'].split('#')[0].strip()
+
+        # Delete the USERS metadata if empty
+        if not len(self.meta['USERS']):
+            self.out.warn("No passworded users found!")
+            del self.meta['USERS']
+
+    def _get_passworded_users(self):
+        users = []
+        regexp = re.compile(
+            '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
+        )
+
+        for line in self.g.cat('/etc/master.passwd').splitlines():
+            line = line.split('#')[0]
+            match = regexp.match(line)
+            if not match:
+                continue
+
+            user, passwd = match.groups()
+            if len(passwd) > 0 and passwd[0] == '!':
+                self.out.warn("Ignoring locked %s account." % user)
+            else:
+                users.append(user)
+
+        return users
+
+    @sysprep()
+    def cleanup_password(self, print_header=True):
+        """Remove all passwords and lock all user accounts"""
+
+        if print_header:
+            self.out.output("Cleaning up passwords & locking all user "
+                            "accounts")
+
+        master_passwd = []
+
+        for line in self.g.cat('/etc/master.passwd').splitlines():
+
+            # Check for empty or comment lines
+            if len(line.split('#')[0]) == 0:
+                master_passwd.append(line)
+                continue
+
+            fields = line.split(':')
+            if fields[1] not in ('*', '!'):
+                fields[1] = '!'
+
+            master_passwd.append(":".join(fields))
+
+        self.g.write('/etc/master.passwd', "\n".join(master_passwd) + '\n')
+
+        # Make sure no one can login on the system
+        self.g.rm_rf('/etc/spwd.db')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

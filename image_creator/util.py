@@ -31,16 +31,19 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import sys
 import sh
 import hashlib
+import time
+import os
 
 
 class FatalError(Exception):
+    """Fatal Error exception of snf-image-creator"""
     pass
 
 
 def get_command(command):
+    """Return a file system binary command"""
     def find_sbin_command(command, exception):
         search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
         for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
@@ -50,16 +53,42 @@ def get_command(command):
 
     try:
         return sh.__getattr__(command)
-    except sh.CommadNotFount as e:
+    except sh.CommandNotFound as e:
         return find_sbin_command(command, e)
 
 
+def try_fail_repeat(command, *args):
+    """Execute a command multiple times until it succeeds"""
+    times = (0.1, 0.5, 1, 2)
+    i = iter(times)
+    while True:
+        try:
+            command(*args)
+            return
+        except sh.ErrorReturnCode:
+            try:
+                wait = i.next()
+            except StopIteration:
+                break
+            time.sleep(wait)
+
+    raise FatalError("Command: `%s %s' failed" % (command, " ".join(args)))
+
+
+def free_space(dirname):
+    """Compute the free space in a directory"""
+    stat = os.statvfs(dirname)
+    return stat.f_bavail * stat.f_frsize
+
+
 class MD5:
+    """Represents MD5 computations"""
     def __init__(self, output):
+        """Create an MD5 instance"""
         self.out = output
 
     def compute(self, filename, size):
-
+        """Compute the MD5 checksum of a file"""
         MB = 2 ** 20
         BLOCKSIZE = 4 * MB  # 4MB
 

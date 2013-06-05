@@ -31,10 +31,11 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.os_type.unix import Unix, sysprep
+from image_creator.os_type.unix import Unix
 
 
-class Hard(Unix):
+class Hurd(Unix):
+    """OS class for GNU Hurd"""
     pass
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

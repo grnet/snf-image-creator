@@ -33,7 +33,6 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import sys
 import os
 import textwrap
 import StringIO
@@ -65,7 +64,8 @@ CONFIGURATION_TASKS = [
 ]
 
 
-class metadata_monitor(object):
+class MetadataMonitor(object):
+    """Monitors image metadata chages"""
     def __init__(self, session, meta):
         self.session = session
         self.meta = meta
@@ -108,23 +108,24 @@ class metadata_monitor(object):
 
 
 def upload_image(session):
+    """Upload the image to pithos+"""
     d = session["dialog"]
-    dev = session['device']
-    size = dev.size
+    image = session['image']
+    meta = session['metadata']
+    size = image.size
 
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos login username before you "
+        d.msgbox("You need to provide your ~okeanos credentials before you "
                  "can upload images to pithos+", width=SMALL_WIDTH)
         return False
 
-    if "token" not in session:
-        d.msgbox("You need to provide your ~okeanos account authentication "
-                 "token before you can upload images to pithos+",
-                 width=SMALL_WIDTH)
-        return False
-
     while 1:
-        init = session["upload"] if "upload" in session else ''
+        if 'upload' in session:
+            init = session['upload']
+        elif 'OS' in meta:
+            init = "%s.diskdump" % meta['OS']
+        else:
+            init = ""
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
                                     width=WIDTH)
 
@@ -135,34 +136,39 @@ def upload_image(session):
         if len(filename) == 0:
             d.msgbox("Filename cannot be empty", width=SMALL_WIDTH)
             continue
+
+        kamaki = Kamaki(session['account'], None)
+        overwrite = []
+        for f in (filename, "%s.md5sum" % filename, "%s.meta" % filename):
+            if kamaki.object_exists(f):
+                overwrite.append(f)
+
+        if len(overwrite) > 0:
+            if d.yesno("The following pithos object(s) already exist(s):\n"
+                       "%s\nDo you want to overwrite them?" %
+                       "\n".join(overwrite), width=WIDTH, defaultno=1):
+                continue
+
         session['upload'] = filename
         break
 
     gauge = GaugeOutput(d, "Image Upload", "Uploading...")
     try:
-        out = dev.out
+        out = image.out
         out.add(gauge)
+        kamaki.out = out
         try:
             if 'checksum' not in session:
                 md5 = MD5(out)
-                session['checksum'] = md5.compute(session['snapshot'], size)
+                session['checksum'] = md5.compute(image.device, size)
 
-            kamaki = Kamaki(session['account'], session['token'], out)
             try:
                 # Upload image file
-                with open(session['snapshot'], 'rb') as f:
+                with open(image.device, 'rb') as f:
                     session["pithos_uri"] = \
                         kamaki.upload(f, size, filename,
                                       "Calculating block hashes",
                                       "Uploading missing blocks")
-                # Upload metadata file
-                out.output("Uploading metadata file...")
-                metastring = extract_metadata_string(session)
-                kamaki.upload(StringIO.StringIO(metastring),
-                              size=len(metastring),
-                              remote_path="%s.meta" % filename)
-                out.success("done")
-
                 # Upload md5sum file
                 out.output("Uploading md5sum file...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
@@ -188,24 +194,19 @@ def upload_image(session):
 
 
 def register_image(session):
+    """Register image with cyclades"""
     d = session["dialog"]
-    dev = session['device']
+
+    is_public = False
 
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos login username before you "
-                 "can register an images to cyclades",
-                 width=SMALL_WIDTH)
-        return False
-
-    if "token" not in session:
-        d.msgbox("You need to provide your ~okeanos account authentication "
-                 "token before you can register an images to cyclades",
-                 width=SMALL_WIDTH)
+        d.msgbox("You need to provide your ~okeanos credentians before you "
+                 "can register an images with cyclades", width=SMALL_WIDTH)
         return False
 
     if "pithos_uri" not in session:
         d.msgbox("You need to upload the image to pithos+ before you can "
-                 "register it to cyclades", width=SMALL_WIDTH)
+                 "register it with cyclades", width=SMALL_WIDTH)
         return False
 
     while 1:
@@ -218,6 +219,15 @@ def register_image(session):
         if len(name) == 0:
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
+
+        ret = d.yesno("Make the image public?\\nA public image is accessible "
+                      "by every user of the service.", defaultno=1,
+                      width=WIDTH)
+        if ret not in (0, 1):
+            continue
+
+        is_public = True if ret == 0 else False
+
         break
 
     metadata = {}
@@ -226,16 +236,30 @@ def register_image(session):
         for key in session['task_metadata']:
             metadata[key] = 'yes'
 
+    img_type = "public" if is_public else "private"
     gauge = GaugeOutput(d, "Image Registration", "Registering image...")
     try:
-        out = dev.out
+        out = session['image'].out
         out.add(gauge)
         try:
-            out.output("Registering image with Cyclades...")
             try:
-                kamaki = Kamaki(session['account'], session['token'], out)
-                kamaki.register(name, session['pithos_uri'], metadata)
+                out.output("Registering %s image with Cyclades..." % img_type)
+                kamaki = Kamaki(session['account'], out)
+                kamaki.register(name, session['pithos_uri'], metadata,
+                                is_public)
                 out.success('done')
+                # Upload metadata file
+                out.output("Uploading metadata file...")
+                metastring = extract_metadata_string(session)
+                kamaki.upload(StringIO.StringIO(metastring),
+                              size=len(metastring),
+                              remote_path="%s.meta" % session['upload'])
+                out.success("done")
+                if is_public:
+                    out.output("Sharing metadata and md5sum files...")
+                    kamaki.share("%s.meta" % session['upload'])
+                    kamaki.share("%s.md5sum" % session['upload'])
+                    out.success('done')
             except ClientError as e:
                 d.msgbox("Error in pithos+ client: %s" % e.message)
                 return False
@@ -244,30 +268,30 @@ def register_image(session):
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image `%s' was successfully registered with Cyclades as `%s'" %
-             (session['upload'], name), width=SMALL_WIDTH)
+    d.msgbox("%s image `%s' was successfully registered with Cyclades as `%s'"
+             % (img_type.title(), session['upload'], name), width=SMALL_WIDTH)
     return True
 
 
 def kamaki_menu(session):
+    """Show kamaki related actions"""
     d = session['dialog']
     default_item = "Account"
 
-    account = Kamaki.get_account()
-    if account:
-        session['account'] = account
-
-    token = Kamaki.get_token()
-    if token:
-        session['token'] = token
+    if 'account' not in session:
+        token = Kamaki.get_token()
+        if token:
+            session['account'] = Kamaki.get_account(token)
+            if not session['account']:
+                del session['account']
+                Kamaki.save_token('')  # The token was not valid. Remove it
 
     while 1:
-        account = session["account"] if "account" in session else "<none>"
-        token = session["token"] if "token" in session else "<none>"
+        account = session["account"]['username'] if "account" in session else \
+            "<none>"
         upload = session["upload"] if "upload" in session else "<none>"
 
-        choices = [("Account", "Change your ~okeanos username: %s" % account),
-                   ("Token", "Change your ~okeanos token: %s" % token),
+        choices = [("Account", "Change your ~okeanos account: %s" % account),
                    ("Upload", "Upload image to pithos+"),
                    ("Register", "Register the image to cyclades: %s" % upload)]
 
@@ -283,31 +307,23 @@ def kamaki_menu(session):
         if choice == "Account":
             default_item = "Account"
             (code, answer) = d.inputbox(
-                "Please provide your ~okeanos account e-mail address:",
-                init=session["account"] if "account" in session else '',
-                width=WIDTH)
+                "Please provide your ~okeanos authentication token:",
+                init=session["account"]['auth_token'] if "account" in session
+                else '', width=WIDTH)
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 continue
             if len(answer) == 0 and "account" in session:
                     del session["account"]
             else:
-                session["account"] = answer.strip()
-                Kamaki.save_account(session['account'])
-                default_item = "Token"
-        elif choice == "Token":
-            default_item = "Token"
-            (code, answer) = d.inputbox(
-                "Please provide your ~okeanos account authetication token:",
-                init=session["token"] if "token" in session else '',
-                width=WIDTH)
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                continue
-            if len(answer) == 0 and "token" in session:
-                del session["token"]
-            else:
-                session["token"] = answer.strip()
-                Kamaki.save_token(session['token'])
-                default_item = "Upload"
+                token = answer.strip()
+                session['account'] = Kamaki.get_account(token)
+                if session['account'] is not None:
+                    Kamaki.save_token(token)
+                    default_item = "Upload"
+                else:
+                    del session['account']
+                    d.msgbox("The token you provided is not valid!",
+                             width=SMALL_WIDTH)
         elif choice == "Upload":
             if upload_image(session):
                 default_item = "Register"
@@ -321,6 +337,7 @@ def kamaki_menu(session):
 
 
 def add_property(session):
+    """Add a new property to the image"""
     d = session['dialog']
 
     while 1:
@@ -355,6 +372,7 @@ def add_property(session):
 
 
 def modify_properties(session):
+    """Modify an existing image property"""
     d = session['dialog']
 
     while 1:
@@ -397,6 +415,7 @@ def modify_properties(session):
 
 
 def delete_properties(session):
+    """Delete an image property"""
     d = session['dialog']
 
     choices = []
@@ -419,6 +438,7 @@ def delete_properties(session):
 
 
 def exclude_tasks(session):
+    """Exclude specific tasks from running during image deployment"""
     d = session['dialog']
 
     index = 0
@@ -483,8 +503,9 @@ def exclude_tasks(session):
 
 
 def sysprep(session):
+    """Perform various system preperation tasks on the image"""
     d = session['dialog']
-    image_os = session['image_os']
+    image = session['image']
 
     # Is the image already shrinked?
     if 'shrinked' in session and session['shrinked']:
@@ -500,12 +521,7 @@ def sysprep(session):
     help_title = "System Preperation Tasks"
     sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
-    if 'exec_syspreps' not in session:
-        session['exec_syspreps'] = []
-
-    all_syspreps = image_os.list_syspreps()
-    # Only give the user the choice between syspreps that have not ran yet
-    syspreps = [s for s in all_syspreps if s not in session['exec_syspreps']]
+    syspreps = image.os.list_syspreps()
 
     if len(syspreps) == 0:
         d.msgbox("No system preparation task available to run!",
@@ -516,7 +532,7 @@ def sysprep(session):
         choices = []
         index = 0
         for sysprep in syspreps:
-            name, descr = image_os.sysprep_info(sysprep)
+            name, descr = image.os.sysprep_info(sysprep)
             display_name = name.replace('-', ' ').capitalize()
             sysprep_help += "%s\n" % display_name
             sysprep_help += "%s\n" % ('-' * len(display_name))
@@ -539,34 +555,45 @@ def sysprep(session):
             # Enable selected syspreps and disable the rest
             for i in range(len(syspreps)):
                 if str(i + 1) in tags:
-                    image_os.enable_sysprep(syspreps[i])
-                    session['exec_syspreps'].append(syspreps[i])
+                    image.os.enable_sysprep(syspreps[i])
                 else:
-                    image_os.disable_sysprep(syspreps[i])
+                    image.os.disable_sysprep(syspreps[i])
+
+            if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
+                d.msgbox("No system preperation task is selected!",
+                         title="System Preperation", width=SMALL_WIDTH)
+                continue
 
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
-                dev = session['device']
-                dev.out.add(infobox)
+                image.out.add(infobox)
                 try:
-                    dev.mount(readonly=False)
+                    image.mount(readonly=False)
                     try:
+                        err = "Unable to execute the system preparation " \
+                            "tasks. Couldn't mount the media%s."
+                        title = "System Preparation"
+                        if not image.mounted:
+                            d.msgbox(err % "", title=title, width=SMALL_WIDTH)
+                            return
+                        elif image.mounted_ro:
+                            d.msgbox(err % " read-write", title=title,
+                                     width=SMALL_WIDTH)
+                            return
+
                         # The checksum is invalid. We have mounted the image rw
                         if 'checksum' in session:
                             del session['checksum']
 
                         # Monitor the metadata changes during syspreps
-                        with metadata_monitor(session, image_os.meta):
-                            image_os.do_sysprep()
+                        with MetadataMonitor(session, image.os.meta):
+                            image.os.do_sysprep()
                             infobox.finalize()
 
-                        # Disable syspreps that have ran
-                        for sysprep in session['exec_syspreps']:
-                            image_os.disable_sysprep(sysprep)
                     finally:
-                        dev.umount()
+                        image.umount()
                 finally:
-                    dev.out.remove(infobox)
+                    image.out.remove(infobox)
             finally:
                 infobox.cleanup()
             break
@@ -574,8 +601,9 @@ def sysprep(session):
 
 
 def shrink(session):
+    """Shrink the image"""
     d = session['dialog']
-    dev = session['device']
+    image = session['image']
 
     shrinked = 'shrinked' in session and session['shrinked']
 
@@ -592,14 +620,14 @@ def shrink(session):
 
     if not d.yesno("%s\n\nDo you want to continue?" % msg, width=WIDTH,
                    height=12, title="Image Shrinking"):
-        with metadata_monitor(session, dev.meta):
+        with MetadataMonitor(session, image.meta):
             infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
-            dev.out.add(infobox)
+            image.out.add(infobox)
             try:
-                dev.shrink()
+                image.shrink()
                 infobox.finalize()
             finally:
-                dev.out.remove(infobox)
+                image.out.remove(infobox)
 
         session['shrinked'] = True
         update_background_title(session)
@@ -610,6 +638,7 @@ def shrink(session):
 
 
 def customization_menu(session):
+    """Show image customization menu"""
     d = session['dialog']
 
     choices = [("Sysprep", "Run various image preparation tasks"),
@@ -641,8 +670,8 @@ def customization_menu(session):
 
 
 def main_menu(session):
+    """Show the main menu of the program"""
     d = session['dialog']
-    dev = session['device']
 
     update_background_title(session)
 
@@ -672,6 +701,10 @@ def main_menu(session):
                 d.infobox("Resetting snf-image-creator. Please wait...",
                           width=SMALL_WIDTH)
                 raise Reset
+        elif choice == "Help":
+            d.msgbox("For help, check the online documentation:\n\nhttp://www"
+                     ".synnefo.org/docs/snf-image-creator/latest/",
+                     width=WIDTH, title="Help")
         elif choice in actions:
             actions[choice](session)
 

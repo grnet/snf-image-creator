@@ -1,1 +1,4 @@
 include image_creator/help/*.rst
+include README COPYRIGHT AUTHORS ChangeLog
+recursive-include docs *
+prune docs/_build

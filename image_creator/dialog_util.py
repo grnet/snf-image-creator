@@ -42,37 +42,42 @@ WIDTH = 70
 
 
 def update_background_title(session):
+    """Update the backgroud title of the dialog page"""
     d = session['dialog']
-    dev = session['device']
     disk = session['disk']
+    image = session['image']
 
     MB = 2 ** 20
 
-    size = (dev.size + MB - 1) // MB
+    size = (image.size + MB - 1) // MB
     shrinked = 'shrinked' in session and session['shrinked']
     postfix = " (shrinked)" if shrinked else ''
 
     title = "OS: %s, Distro: %s, Size: %dMB%s, Source: %s" % \
-            (dev.ostype, dev.distro, size, postfix,
+            (image.ostype, image.distro, size, postfix,
              os.path.abspath(disk.source))
 
     d.setBackgroundTitle(title)
 
 
 def confirm_exit(d, msg=''):
+    """Ask the user to confirm when exiting the program"""
     return not d.yesno("%s Do you want to exit?" % msg, width=SMALL_WIDTH)
 
 
 def confirm_reset(d):
+    """Ask the user to confirm a reset action"""
     return not d.yesno("Are you sure you want to reset everything?",
                        width=SMALL_WIDTH, defaultno=1)
 
 
 class Reset(Exception):
+    """Exception used to reset the program"""
     pass
 
 
 def extract_metadata_string(session):
+    """Convert image metadata to text"""
     metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
 
     if 'task_metadata' in session:
@@ -82,6 +87,7 @@ def extract_metadata_string(session):
 
 
 def extract_image(session):
+    """Dump the image to a local file"""
     d = session['dialog']
     dir = os.getcwd()
     while 1:
@@ -128,27 +134,25 @@ def extract_image(session):
 
         gauge = GaugeOutput(d, "Image Extraction", "Extracting image...")
         try:
-            dev = session['device']
-            out = dev.out
+            image = session['image']
+            out = image.out
             out.add(gauge)
             try:
                 if "checksum" not in session:
-                    size = dev.size
                     md5 = MD5(out)
-                    session['checksum'] = md5.compute(session['snapshot'],
-                                                      size)
+                    session['checksum'] = md5.compute(image.device, image.size)
 
                 # Extract image file
-                dev.dump(path)
+                image.dump(path)
 
                 # Extract metadata file
-                out.output("Extracting metadata file...")
+                out.output("Extracting metadata file ...")
                 with open('%s.meta' % path, 'w') as f:
                     f.write(extract_metadata_string(session))
                 out.success('done')
 
                 # Extract md5sum file
-                out.output("Extracting md5sum file...")
+                out.output("Extracting md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], name)
                 with open('%s.md5sum' % path, 'w') as f:
                     f.write(md5str)

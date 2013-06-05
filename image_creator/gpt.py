@@ -42,9 +42,11 @@ BLOCKSIZE = 512
 class MBR(object):
     """Represents a Master Boot Record."""
     class Partition(object):
+        """Represents a partition entry in MBR"""
         format = "<B3sB3sLL"
 
         def __init__(self, raw_part):
+            """Create a Partition instance"""
             (
                 self.status,
                 self.start,
@@ -55,6 +57,7 @@ class MBR(object):
             ) = struct.unpack(self.format, raw_part)
 
         def pack(self):
+            """Pack the partition values into a binary string"""
             return struct.pack(self.format,
                                self.status,
                                self.start,
@@ -112,6 +115,7 @@ class MBR(object):
     510     2               MBR signature
     """
     def __init__(self, block):
+        """Create an MBR instance"""
         raw_part = {}
         (self.code_area,
          raw_part[0],
@@ -126,11 +130,11 @@ class MBR(object):
 
     @staticmethod
     def size():
-        """Returns the size of a Master Boot Record."""
+        """Return the size of a Master Boot Record."""
         return struct.calcsize(MBR.format)
 
     def pack(self):
-        """Packs an MBR to a binary string."""
+        """Pack an MBR to a binary string."""
         return struct.pack(self.format,
                            self.code_area,
                            self.part[0].pack(),
@@ -174,6 +178,7 @@ class GPTPartitionTable(object):
         """
 
         def __init__(self, block):
+            """Create a GPTHeader instance"""
             (self.signature,
              self.revision,
              self.hdr_size,
@@ -207,10 +212,11 @@ class GPTPartitionTable(object):
 
         @staticmethod
         def size():
-            """Returns the size of a GPT Header."""
+            """Return the size of a GPT Header."""
             return struct.calcsize(GPTPartitionTable.GPTHeader.format)
 
         def __str__(self):
+            """Print a GPTHeader"""
             return "Signature: %s\n" % self.signature + \
                    "Revision: %r\n" % self.revision + \
                    "Header Size: %d\n" % self.hdr_size + \
@@ -227,6 +233,7 @@ class GPTPartitionTable(object):
                    "CRC32 of partition array: %s\n" % self.part_crc32
 
     def __init__(self, disk):
+        """Create a GPTPartitionTable instance"""
         self.disk = disk
         with open(disk, "rb") as d:
             # MBR (Logical block address 0)
@@ -249,7 +256,7 @@ class GPTPartitionTable(object):
             self.secondary = self.GPTHeader(raw_header)
 
     def size(self):
-        """Returns the payload size of GPT partitioned device."""
+        """Return the payload size of GPT partitioned device."""
         return (self.primary.backup_lba + 1) * BLOCKSIZE
 
     def shrink(self, size, old_size):
@@ -296,6 +303,7 @@ class GPTPartitionTable(object):
             d.write(self.mbr.pack())
             d.write(self.primary.pack())
             d.write('\x00' * (BLOCKSIZE - self.primary.size()))
+            d.write(self.part_entries)
             d.seek(self.secondary.part_entry_start * BLOCKSIZE)
             d.write(self.part_entries)
             d.seek(self.primary.backup_lba * BLOCKSIZE)
