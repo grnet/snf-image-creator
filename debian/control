@@ -2,15 +2,18 @@ Source: snf-image-creator
 Section: python
 Priority: optional
 Maintainer: Nikos Skalkotos <skalkoto@grnet.gr>
-Build-Depends: debhelper (>= 8), python-all (>= 2.5)
-Standards-Version: 3.9.2
+XSBC-Original-Maintainer: Nikos Skalkotos <skalkoto@grnet.gr>
+Build-Depends: debhelper (>= 8), python-all (>= 2.5), python-setuptools,
+ python-sphinx
+Standards-Version: 3.9.3
 XS-Python-Version: >= 2.6
 Homepage: https://code.grnet.gr/projects/snf-image-creator
 
 Package: snf-image-creator
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-progress (>=1.0.2), python-ansicolors, python-dialog, kamaki, python-guestfs, python-sendfile
-XB-Python-Version: ${python:Versions}
+Depends: ${misc:Depends}, ${python:Depends}, python-progress (>=1.0.2),
+ python-setuptools, python-ansicolors, python-dialog, kamaki(>=0.8),
+ python-guestfs, python-sendfile, python-parted, rsync, libguestfs-tools
 Description: Synnefo Image Creator
  snf-image-creator is a command line tool for creating OS images to be used
  with synnefo.
