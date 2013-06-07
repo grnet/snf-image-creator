@@ -77,9 +77,23 @@ class OSBase(object):
         self.root = rootdev
         self.g = ghandler
         self.out = output
-
-        # Collect metadata about the OS
         self.meta = {}
+
+    def collect_metadata(self):
+        """Collect metadata about the OS"""
+
+        try:
+            if not self.mount(readonly=True):
+                raise FatalError("Unable to mount the media read-only")
+
+            self.out.output('Collecting image metadata ...', False)
+            self._do_collect_metadata()
+            self.out.success('done')
+        finally:
+            self.umount()
+
+    def _do_collect_metadata(self):
+
         self.meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
         self.meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
         self.meta['OS'] = self.g.inspect_get_distro(self.root)
@@ -212,18 +226,54 @@ class OSBase(object):
     def do_sysprep(self):
         """Prepere system for image creation."""
 
-        self.out.output('Preparing system for image creation:')
+        try:
+            if not self.mount(readonly=False):
+                raise FatalError("Unable to mount the media read-write")
 
-        tasks = self.list_syspreps()
-        enabled = filter(lambda x: x.enabled, tasks)
+            self.out.output('Preparing system for image creation:')
 
-        size = len(enabled)
-        cnt = 0
-        for task in enabled:
-            cnt += 1
-            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
-            task()
-            setattr(task.im_func, 'executed', True)
-        self.out.output()
+            tasks = self.list_syspreps()
+            enabled = filter(lambda x: x.enabled, tasks)
+
+            size = len(enabled)
+            cnt = 0
+            for task in enabled:
+                cnt += 1
+                self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+                task()
+                setattr(task.im_func, 'executed', True)
+            self.out.output()
+        finally:
+            self.umount()
+
+    def _do_mount(self, readonly):
+        try:
+            self.g.mount_options('ro' if readonly else 'rw', self.root, '/')
+        except RuntimeError as msg:
+            self.out.warn("unable to mount the root partition: %s" % msg)
+            return False
+
+        return True
+
+    def mount(self, readonly=False):
+        """Mount image."""
+
+        if getattr(self, "mounted", False):
+            return True
+
+        mount_type = 'read-only' if readonly else 'read-write'
+        self.out.output("Mount the media %s ..." % mount_type, False)
+
+        if not self._do_mount(readonly):
+            return False
+
+        self.mounted = True
+        self.out.success('done')
+        return True
+
+    def umount(self):
+        """Umount all mounted filesystems."""
+        self.g.umount_all()
+        self.mounted = False
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

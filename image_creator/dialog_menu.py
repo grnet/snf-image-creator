@@ -38,7 +38,7 @@ import textwrap
 import StringIO
 
 from image_creator import __version__ as version
-from image_creator.util import MD5
+from image_creator.util import MD5, FatalError
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
@@ -568,30 +568,19 @@ def sysprep(session):
             try:
                 image.out.add(infobox)
                 try:
-                    image.mount(readonly=False)
-                    try:
-                        err = "Unable to execute the system preparation " \
-                            "tasks. Couldn't mount the media%s."
-                        title = "System Preparation"
-                        if not image.mounted:
-                            d.msgbox(err % "", title=title, width=SMALL_WIDTH)
-                            return
-                        elif image.mounted_ro:
-                            d.msgbox(err % " read-write", title=title,
-                                     width=SMALL_WIDTH)
-                            return
+                    # The checksum is invalid. We have mounted the image rw
+                    if 'checksum' in session:
+                        del session['checksum']
 
-                        # The checksum is invalid. We have mounted the image rw
-                        if 'checksum' in session:
-                            del session['checksum']
-
-                        # Monitor the metadata changes during syspreps
-                        with MetadataMonitor(session, image.os.meta):
+                    # Monitor the metadata changes during syspreps
+                    with MetadataMonitor(session, image.os.meta):
+                        try:
                             image.os.do_sysprep()
                             infobox.finalize()
-
-                    finally:
-                        image.umount()
+                        except FatalError as e:
+                            title = "System Preparation"
+                            d.msgbox("System Preparation failed: %s" % e,
+                                     title=title, width=SMALL_WIDTH)
                 finally:
                     image.out.remove(infobox)
             finally:

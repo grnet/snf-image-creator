@@ -53,8 +53,6 @@ class Image(object):
         self.progress_bar = None
         self.guestfs_device = None
         self.size = 0
-        self.mounted = False
-        self.mounted_ro = False
 
         self.g = guestfs.GuestFS()
         self.g.add_drive_opts(self.device, readonly=0, format="raw")
@@ -120,19 +118,10 @@ class Image(object):
         if not self.guestfs_enabled:
             self.enable()
 
-        if not self.mounted:
-            do_unmount = True
-            self.mount(readonly=True)
-        else:
-            do_unmount = False
+        cls = os_cls(self.distro, self.ostype)
+        self._os = cls(self.root, self.g, self.out)
 
-        try:
-            cls = os_cls(self.distro, self.ostype)
-            self._os = cls(self.root, self.g, self.out)
-
-        finally:
-            if do_unmount:
-                self.umount()
+        self._os.collect_metadata()
 
         return self._os
 
@@ -155,70 +144,6 @@ class Image(object):
 #        total = array[3]
 #
 #        self.progressbar.goto((position * 100) // total)
-
-    def mount(self, readonly=False):
-        """Mount all disk partitions in a correct order."""
-
-        msg = "Mounting the media%s ..." % (" read-only" if readonly else "")
-        self.out.output(msg, False)
-
-        #If something goes wrong when mounting rw, remount the filesystem ro
-        remount_ro = False
-        rw_mpoints = ('/', '/etc', '/root', '/home', '/var')
-
-        # Sort the keys to mount the fs in a correct order.
-        # / should be mounted befor /boot, etc
-        def compare(a, b):
-            if len(a[0]) > len(b[0]):
-                return 1
-            elif len(a[0]) == len(b[0]):
-                return 0
-            else:
-                return -1
-        mps = self.g.inspect_get_mountpoints(self.root)
-        mps.sort(compare)
-
-        mopts = 'ro' if readonly else 'rw'
-        for mp, dev in mps:
-            if self.ostype == 'freebsd':
-                # libguestfs can't handle correct freebsd partitions on GUID
-                # Partition Table. We have to do the translation to linux
-                # device names ourselves
-                m = re.match('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$', dev)
-                if m:
-                    m2 = int(m.group(2))
-                    m3 = int(m.group(3))
-                    dev = '/dev/sd%c%d' % (chr(ord('a') + m2), m3)
-            try:
-                self.g.mount_options(mopts, dev, mp)
-            except RuntimeError as msg:
-                if self.ostype == 'freebsd':
-                    freebsd_mopts = "ufstype=ufs2,%s" % mopts
-                    try:
-                        self.g.mount_vfs(freebsd_mopts, 'ufs', dev, mp)
-                    except RuntimeError as msg:
-                        if readonly is False and mp in rw_mpoints:
-                            remount_ro = True
-                            break
-                elif readonly is False and mp in rw_mpoints:
-                    remount_ro = True
-                    break
-                else:
-                    self.out.warn("%s (ignored)" % msg)
-        if remount_ro:
-            self.out.warn("Unable to mount %s read-write. "
-                          "Remounting everything read-only..." % mp)
-            self.umount()
-            self.mount(True)
-        else:
-            self.mounted = True
-            self.mounted_ro = readonly
-            self.out.success("done")
-
-    def umount(self):
-        """Umount all mounted filesystems."""
-        self.g.umount_all()
-        self.mounted = False
 
     def _last_partition(self):
         """Return the last partition of the image disk"""

@@ -221,36 +221,23 @@ def image_creator():
 
         image = disk.get_image(snapshot)
 
-        # If no customization is to be done, the image should be mounted ro
-        ro = (not (options.sysprep or options.shrink) or options.print_sysprep)
-        image.mount(ro)
-        try:
-            for sysprep in options.disabled_syspreps:
-                image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
+        for sysprep in options.disabled_syspreps:
+            image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
-            for sysprep in options.enabled_syspreps:
-                image.os.enable_sysprep(image.os.get_sysprep_by_name(sysprep))
+        for sysprep in options.enabled_syspreps:
+            image.os.enable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
-            if options.print_sysprep:
-                image.os.print_syspreps()
-                out.output()
+        if options.print_sysprep:
+            image.os.print_syspreps()
+            out.output()
 
-            if options.outfile is None and not options.upload:
-                return 0
+        if options.outfile is None and not options.upload:
+            return 0
 
-            if options.sysprep:
-                err_msg = "Unable to perform the system preparation tasks. " \
-                    "Couldn't mount the media%s. Use --no-sysprep if you " \
-                    "don't won't to perform any system preparation task."
-                if not image.mounted:
-                    raise FatalError(err_msg % "")
-                elif image.mounted_ro:
-                    raise FatalError(err_msg % " read-write")
-                image.os.do_sysprep()
+        if options.sysprep:
+            image.os.do_sysprep()
 
-            metadata = image.os.meta
-        finally:
-            image.umount()
+        metadata = image.os.meta
 
         size = options.shrink and image.shrink() or image.size
         metadata.update(image.meta)

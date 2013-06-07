@@ -39,6 +39,10 @@ class Ubuntu(Linux):
     def __init__(self, rootdev, ghandler, output):
         super(Ubuntu, self).__init__(rootdev, ghandler, output)
 
+    def _do_collect_metadata(self):
+        """Collect metadata about the OS"""
+
+        super(Ubuntu, self)._do_collect_metadata()
         apps = self.g.inspect_list_applications(self.root)
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':

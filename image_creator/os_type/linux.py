@@ -44,6 +44,10 @@ class Linux(Unix):
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
 
+    def _do_collect_metadata(self):
+        """Collect metadata about the OS"""
+
+        super(Linux, self)._do_collect_metadata()
         self.meta["USERS"] = " ".join(self._get_passworded_users())
 
         # Delete the USERS metadata if empty

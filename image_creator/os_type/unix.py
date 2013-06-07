@@ -47,8 +47,41 @@ class Unix(OSBase):
         '.kamaki.history'
     ]
 
-    def __init__(self, rootdev, ghandler, output):
-        super(Unix, self).__init__(rootdev, ghandler, output)
+    def _mountpoints(self):
+        """Return mountpoints in the correct order.
+        / should be mounted before /boot or /usr, /usr befor /usr/bin ...
+        """
+        mps = self.g.inspect_get_mountpoints(self.root)
+
+        def compare(a, b):
+            if len(a[0]) > len(b[0]):
+                return 1
+            elif len(a[0]) == len(b[0]):
+                return 0
+            else:
+                return -1
+        mps.sort(compare)
+
+        for mp in mps:
+            yield mp
+
+    def _do_mount(self, readonly):
+        """Mount partitions in the correct order"""
+
+        critical_mpoints = ('/', '/etc', '/root', '/home', '/var')
+
+        mopts = 'ro' if readonly else 'rw'
+        for mp, dev in self._mountpoints():
+            try:
+                self.g.mount_options(mopts, dev, mp)
+            except RuntimeError as msg:
+                if mp in critical_mpoint:
+                    self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))
+                    return False
+                else:
+                    self.out.warn('%s (ignored)' % msg)
+
+        return True
 
     @sysprep()
     def cleanup_cache(self, print_header=True):
