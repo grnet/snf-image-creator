@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -30,6 +32,8 @@
 # documentation are those of the authors and should not be
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
+
+"""This module hosts OS-specific code common to all Unix-like OSs."""
 
 import re
 
@@ -75,7 +79,7 @@ class Unix(OSBase):
             try:
                 self.g.mount_options(mopts, dev, mp)
             except RuntimeError as msg:
-                if mp in critical_mpoint:
+                if mp in critical_mpoints:
                     self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))
                     return False
                 else:
@@ -90,7 +94,7 @@ class Unix(OSBase):
         if print_header:
             self.out.output('Removing files under /var/cache')
 
-        self.foreach_file('/var/cache', self.g.rm, ftype='r')
+        self._foreach_file('/var/cache', self.g.rm, ftype='r')
 
     @sysprep()
     def cleanup_tmp(self, print_header=True):
@@ -99,8 +103,8 @@ class Unix(OSBase):
         if print_header:
             self.out.output('Removing files under /tmp and /var/tmp')
 
-        self.foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
-        self.foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
+        self._foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
+        self._foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
 
     @sysprep()
     def cleanup_log(self, print_header=True):
@@ -109,7 +113,7 @@ class Unix(OSBase):
         if print_header:
             self.out.output('Emptying all files under /var/log')
 
-        self.foreach_file('/var/log', self.g.truncate, ftype='r')
+        self._foreach_file('/var/log', self.g.truncate, ftype='r')
 
     @sysprep(enabled=False)
     def cleanup_mail(self, print_header=True):
@@ -119,9 +123,9 @@ class Unix(OSBase):
             self.out.output('Removing files under /var/mail & /var/spool/mail')
 
         if self.g.is_dir('/var/spool/mail'):
-            self.foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
+            self._foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
 
-        self.foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
+        self._foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
     @sysprep()
     def cleanup_userdata(self, print_header=True):
@@ -129,7 +133,7 @@ class Unix(OSBase):
 
         homedirs = ['/root']
         if self.g.is_dir('/home/'):
-            homedirs += self.ls('/home/')
+            homedirs += self._ls('/home/')
 
         if print_header:
             self.out.output("Removing sensitive user data under %s" %
@@ -141,6 +145,6 @@ class Unix(OSBase):
                 if self.g.is_file(fname):
                     self.g.scrub_file(fname)
                 elif self.g.is_dir(fname):
-                    self.foreach_file(fname, self.g.scrub_file, ftype='r')
+                    self._foreach_file(fname, self.g.scrub_file, ftype='r')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

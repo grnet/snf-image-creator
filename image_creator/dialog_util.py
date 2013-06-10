@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -32,6 +32,10 @@
 # documentation are those of the authors and should not be
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
+
+"""Module providing useful functions for the dialog-based version of
+snf-image-creator.
+"""
 
 import os
 from image_creator.output.dialog import GaugeOutput

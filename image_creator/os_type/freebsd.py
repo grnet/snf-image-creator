@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,6 +33,8 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This module hosts OS-specific code for FreeBSD."""
+
 from image_creator.os_type.unix import Unix, sysprep
 
 import re
@@ -40,68 +44,6 @@ class Freebsd(Unix):
     """OS class for FreeBSD Unix-like os"""
     def __init__(self, rootdev, ghandler, output):
         super(Freebsd, self).__init__(rootdev, ghandler, output)
-
-    def _do_collect_metadata(self):
-
-        super(Freebsd, self)._do_collect_metadata()
-        self.meta["USERS"] = " ".join(self._get_passworded_users())
-
-        #The original product name key is long and ugly
-        self.meta['DESCRIPTION'] = \
-            self.meta['DESCRIPTION'].split('#')[0].strip()
-
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            self.out.warn("No passworded users found!")
-            del self.meta['USERS']
-
-    def _get_passworded_users(self):
-        users = []
-        regexp = re.compile(
-            '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
-        )
-
-        for line in self.g.cat('/etc/master.passwd').splitlines():
-            line = line.split('#')[0]
-            match = regexp.match(line)
-            if not match:
-                continue
-
-            user, passwd = match.groups()
-            if len(passwd) > 0 and passwd[0] == '!':
-                self.out.warn("Ignoring locked %s account." % user)
-            else:
-                users.append(user)
-
-        return users
-
-    def _do_mount(self, readonly):
-        """Mount partitions in the correct order"""
-
-        critical_mpoints = ('/', '/etc', '/root', '/home', '/var')
-
-        # libguestfs can't handle correct freebsd partitions on GUID
-        # Partition Table. We have to do the translation to linux
-        # device names ourselves
-        guid_device = re.compile('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
-
-        mopts = "ufstype=ufs2,%s" % ('ro' if readonly else 'rw')
-        for mp, dev in self._mountpoints():
-            match = guid_device.match(dev)
-            if match:
-                m2 = int(match.group(2))
-                m3 = int(match.group(3))
-                dev = '/dev/sd%c%d' % (chr(ord('a') + m2), m3)
-            try:
-                self.g.mount_vfs(mopts, 'ufs', dev, mp)
-            except RuntimeError as msg:
-                if mp in critical_mpoints:
-                    self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))
-                    return False
-                else:
-                    self.out.warn('%s (ignored)' % msg)
-
-        return True
 
     @sysprep()
     def cleanup_password(self, print_header=True):
@@ -130,5 +72,68 @@ class Freebsd(Unix):
 
         # Make sure no one can login on the system
         self.g.rm_rf('/etc/spwd.db')
+
+    def _do_collect_metadata(self):
+        """Collect metadata about the OS"""
+        super(Freebsd, self)._do_collect_metadata()
+        self.meta["USERS"] = " ".join(self._get_passworded_users())
+
+        #The original product name key is long and ugly
+        self.meta['DESCRIPTION'] = \
+            self.meta['DESCRIPTION'].split('#')[0].strip()
+
+        # Delete the USERS metadata if empty
+        if not len(self.meta['USERS']):
+            self.out.warn("No passworded users found!")
+            del self.meta['USERS']
+
+    def _get_passworded_users(self):
+        """Returns a list of non-locked user accounts"""
+        users = []
+        regexp = re.compile(
+            '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
+        )
+
+        for line in self.g.cat('/etc/master.passwd').splitlines():
+            line = line.split('#')[0]
+            match = regexp.match(line)
+            if not match:
+                continue
+
+            user, passwd = match.groups()
+            if len(passwd) > 0 and passwd[0] == '!':
+                self.out.warn("Ignoring locked %s account." % user)
+            else:
+                users.append(user)
+
+        return users
+
+    def _do_mount(self, readonly):
+        """Mount partitions in the correct order"""
+
+        critical_mpoints = ('/', '/etc', '/root', '/home', '/var')
+
+        # libguestfs can't handle correct freebsd partitions on a GUID
+        # Partition Table. We have to do the translation to linux device names
+        # ourselves
+        guid_device = re.compile('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
+
+        mopts = "ufstype=ufs2,%s" % ('ro' if readonly else 'rw')
+        for mp, dev in self._mountpoints():
+            match = guid_device.match(dev)
+            if match:
+                group2 = int(match.group(2))
+                group3 = int(match.group(3))
+                dev = '/dev/sd%c%d' % (chr(ord('a') + group2), group3)
+            try:
+                self.g.mount_vfs(mopts, 'ufs', dev, mp)
+            except RuntimeError as msg:
+                if mp in critical_mpoints:
+                    self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))
+                    return False
+                else:
+                    self.out.warn('%s (ignored)' % msg)
+
+        return True
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

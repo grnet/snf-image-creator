@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -32,6 +32,10 @@
 # documentation are those of the authors and should not be
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
+
+"""This module implements the "expert" mode of the dialog-based version of
+snf-image-creator.
+"""
 
 import os
 import textwrap
@@ -313,7 +317,7 @@ def kamaki_menu(session):
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 continue
             if len(answer) == 0 and "account" in session:
-                    del session["account"]
+                del session["account"]
             else:
                 token = answer.strip()
                 session['account'] = Kamaki.get_account(token)

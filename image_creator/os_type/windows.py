@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,6 +33,9 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This module hosts OS-specific code common for the various Microsoft
+Windows OSs."""
+
 from image_creator.os_type import OSBase
 
 import hivex
@@ -46,6 +51,7 @@ class Windows(OSBase):
         self.meta["USERS"] = " ".join(self._get_users())
 
     def _get_users(self):
+        """Returns a list of users found in the images"""
         samfd, sam = tempfile.mkstemp()
         try:
             systemroot = self.g.inspect_get_windows_systemroot(self.root)
