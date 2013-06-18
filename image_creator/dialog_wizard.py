@@ -43,7 +43,8 @@ import StringIO
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.util import MD5, FatalError
 from image_creator.output.cli import OutputWthProgress
-from image_creator.dialog_util import extract_image, update_background_title
+from image_creator.dialog_util import extract_image, update_background_title, \
+    add_cloud, edit_cloud
 
 PAGE_WIDTH = 70
 
@@ -195,9 +196,40 @@ class WizardInputPage(WizardPage):
 
 def start_wizard(session):
     """Run the image creation wizard"""
-    init_token = Kamaki.get_token()
-    if init_token is None:
-        init_token = ""
+
+    d = session['dialog']
+    clouds = Kamaki.get_clouds()
+    if not len(clouds):
+        if not add_cloud(session):
+            return False
+    else:
+        while 1:
+            choices = []
+            for (name, cloud) in clouds.items():
+                descr = cloud['description'] if 'description' in cloud else ''
+                choices.append((name, descr))
+
+            (code, choice) = d.menu(
+                "In this menu you can select existing cloud account to use "
+                " or add new ones. Press <Select> to select an existing "
+                "account or <Add> to add a new one.", height=18,
+                width=PAGE_WIDTH, choices=choices, menu_height=10,
+                ok_label="Select", extra_button=1, extra_label="Add",
+                title="Clouds")
+
+            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                return False
+            elif code == d.DIALOG_OK:  # Select button
+                account = Kamaki.get_account(choice)
+                if not account:
+                    if not d.yesno("Then cloud you have selected is not "
+                                   "valid! Would you like to edit it?",
+                                   width=PAGE_WIDTH, defaultno=0):
+                        edit_cloud(session, choice)
+                    continue
+                break
+            elif code == d.DIALOG_EXTRA:  # Add button
+                add_cloud(session)
 
     distro = session['image'].distro
     ostype = session['image'].ostype
@@ -218,50 +250,25 @@ def start_wizard(session):
          ("Public", "Everyone can create VMs from this image")],
         title="Registration Type", default="Private")
 
-    def validate_account(token):
-        """Check if a token is valid"""
-        d = session['dialog']
-
-        if len(token) == 0:
-            d.msgbox("The token cannot be empty", width=PAGE_WIDTH)
-            raise WizardInvalidData
-
-        account = Kamaki.get_account(token)
-        if account is None:
-            d.msgbox("The token you provided in not valid!", width=PAGE_WIDTH)
-            raise WizardInvalidData
-
-        return account
-
-    account = WizardInputPage(
-        "Account", "Account",
-        "Please provide your ~okeanos authentication token:",
-        title="~okeanos account", init=init_token, validate=validate_account,
-        display=lambda account: account['username'])
-
     w = Wizard(session)
 
     w.add_page(name)
     w.add_page(descr)
     w.add_page(registration)
-    w.add_page(account)
 
     if w.run():
-        create_image(session)
+        create_image(session, account)
     else:
         return False
 
     return True
 
 
-def create_image(session):
+def create_image(session, account):
     """Create an image using the information collected by the wizard"""
     d = session['dialog']
     image = session['image']
     wizard = session['wizard']
-
-    # Save Kamaki credentials
-    Kamaki.save_token(wizard['Account']['auth_token'])
 
     with_progress = OutputWthProgress(True)
     out = image.out
@@ -293,7 +300,7 @@ def create_image(session):
         out.output()
         try:
             out.output("Uploading image to pithos:")
-            kamaki = Kamaki(wizard['Account'], out)
+            kamaki = Kamaki(account, out)
 
             name = "%s-%s.diskdump" % (wizard['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))
@@ -316,7 +323,7 @@ def create_image(session):
 
             is_public = True if wizard['ImageRegistration'] == "Public" else \
                 False
-            out.output('Registering %s image with ~okeanos ...' %
+            out.output('Registering %s image with cyclades ...' %
                        wizard['ImageRegistration'].lower(), False)
             kamaki.register(wizard['ImageName'], pithos_file, metadata,
                             is_public)
@@ -336,8 +343,8 @@ def create_image(session):
     finally:
         out.remove(with_progress)
 
-    msg = "The %s image was successfully uploaded and registered with " \
-          "~okeanos. Would you like to keep a local copy of the image?" \
+    msg = "The %s image was successfully uploaded to Pithos and registered " \
+          "with Cyclades. Would you like to keep a local copy of the image?" \
           % wizard['ImageRegistration'].lower()
     if not d.yesno(msg, width=PAGE_WIDTH):
         extract_image(session)

@@ -98,6 +98,10 @@ def parse_options(input_args):
                       default=None, help="use this authentication token when "
                       "uploading/registering images")
 
+    parser.add_option("-a", "--authentication-url", dest="url", type="string",
+                      default=None, help="use this authentication URL when "
+                      "uploading/registering images")
+
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
                       help="print the enabled and disabled system preparation "
                       "operations for this input media", action="store_true")
@@ -138,10 +142,13 @@ def parse_options(input_args):
     if options.register and not options.upload:
         raise FatalError("You also need to set -u when -r option is set")
 
-    if options.upload and options.token is None:
-        raise FatalError(
-            "Image uploading cannot be performed. "
-            "No authentication token is specified. Use -t to set a token")
+    if options.upload and (options.token is None or options.url is None):
+        if options.url is None:
+            err = "No authentication URL is specified. Use -a to set a URL"
+        else:
+            err = "No autentication token is specified. Use -t to set a token"
+
+        raise FatalError("Image uploading cannot be performed. %s" % err)
 
     if options.tmp is not None and not os.path.isdir(options.tmp):
         raise FatalError("The directory `%s' specified with --tmpdir is not "
@@ -190,12 +197,12 @@ def image_creator():
                                  "(use --force to overwrite it)." % filename)
 
     # Check if the authentication token is valid. The earlier the better
-    if options.token is not None:
+    if options.token is not None and options.url is not None:
         try:
-            account = Kamaki.get_account(options.token)
+            account = Kamaki.create_account(options.url, options.token)
             if account is None:
-                raise FatalError("The authentication token you provided is not"
-                                 " valid!")
+                raise FatalError("The authentication token and/or URL you "
+                                 "provided is not valid!")
             else:
                 kamaki = Kamaki(account, out)
         except ClientError as e:

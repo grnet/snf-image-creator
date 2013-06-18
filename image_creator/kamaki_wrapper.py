@@ -47,51 +47,101 @@ from kamaki.clients.pithos import PithosClient
 from kamaki.clients.astakos import AstakosClient
 
 
+config = Config()
+
+
 class Kamaki(object):
     """Wrapper class for the ./kamaki library"""
     CONTAINER = "images"
 
     @staticmethod
-    def get_token():
-        """Get the saved token"""
-        config = Config()
-        return config.get('global', 'token')
+    def get_default_cloud_name():
+        """Returns the name of the default cloud"""
+        clouds = config.keys('cloud')
+        default = config.get('global', 'default_cloud')
+        if not default:
+            return clouds[0] if len(clouds) else ""
+        return default if default in clouds else ""
 
     @staticmethod
-    def save_token(token):
-        """Save this token to the configuration file"""
-        config = Config()
-        config.set('global', 'token', token)
+    def set_default_cloud(name):
+        """Sets a cloud account as default"""
+        config.set('global', 'default_cloud', name)
         config.write()
 
     @staticmethod
-    def get_account(token):
-        """Return the account corresponding to this token"""
-        config = Config()
-        astakos = AstakosClient(config.get('user', 'url'), token)
+    def get_clouds():
+        """Returns the list of available clouds"""
+        names = config.keys('cloud')
+
+        clouds = {}
+        for name in names:
+            clouds[name] = config.get('cloud', name)
+
+        return clouds
+
+    @staticmethod
+    def get_cloud_by_name(name):
+        """Returns a dict with cloud info"""
+        return config.get('cloud', name)
+
+    @staticmethod
+    def save_cloud(name, url, token, description=""):
+        """Save a new cloud account"""
+        cloud = {'url': url, 'token': token}
+        if len(description):
+            cloud['description'] = description
+        config.set('cloud', name, cloud)
+
+        # Make the saved cloud the default one
+        config.set('global', 'default_cloud', name)
+        config.write()
+
+    @staticmethod
+    def remove_cloud(name):
+        """Deletes an existing cloud from the Kamaki configuration file"""
+        config.remove_option('cloud', name)
+        config.write()
+
+    @staticmethod
+    def create_account(url, token):
+        """Given a valid (URL, tokens) pair this method returns an Astakos
+        client instance
+        """
+        client = AstakosClient(url, token)
         try:
-            account = astakos.info()
-        except ClientError as e:
-            if e.status == 401:  # Unauthorized: invalid token
-                return None
-            else:
-                raise
-        return account
+            client.authenticate()
+        except ClientError:
+            return None
+
+        return client
+
+    @staticmethod
+    def get_account(cloud_name):
+        """Given a saved cloud name this method returns an Astakos client
+        instance
+        """
+        cloud = config.get('cloud', cloud_name)
+        assert cloud, "cloud: `%s' does not exist" % cloud_name
+        assert 'url' in cloud, "url attr is missing in %s" % cloud_name
+        assert 'token' in cloud, "token attr is missing in %s" % cloud_name
+
+        return Kamaki.create_account(cloud['url'], cloud['token'])
 
     def __init__(self, account, output):
         """Create a Kamaki instance"""
         self.account = account
         self.out = output
 
-        config = Config()
-
-        pithos_url = config.get('file', 'url')
-        self.pithos_client = PithosClient(
-            pithos_url, self.account['auth_token'], self.account['uuid'],
+        self.pithos = PithosClient(
+            self.account.get_service_endpoints('object-store')['publicURL'],
+            self.account.token,
+            self.account.user_info()['id'],
             self.CONTAINER)
 
-        image_url = config.get('image', 'url')
-        self.image_client = ImageClient(image_url, self.account['auth_token'])
+        self.image = ImageClient(
+            self.account.get_service_endpoints('image')['publicURL'],
+            self.account.token)
 
     def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
         """Upload a file to pithos"""
@@ -99,7 +149,7 @@ class Kamaki(object):
         path = basename(file_obj.name) if remote_path is None else remote_path
 
         try:
-            self.pithos_client.create_container(self.CONTAINER)
+            self.pithos.create_container(self.CONTAINER)
         except ClientError as e:
             if e.status != 202:  # Ignore container already exists errors
                 raise e
@@ -107,11 +157,10 @@ class Kamaki(object):
         hash_cb = self.out.progress_generator(hp) if hp is not None else None
         upload_cb = self.out.progress_generator(up) if up is not None else None
 
-        self.pithos_client.upload_object(path, file_obj, size, hash_cb,
-                                         upload_cb)
+        self.pithos.upload_object(path, file_obj, size, hash_cb, upload_cb)
 
-        return "pithos://%s/%s/%s" % (self.account['uuid'], self.CONTAINER,
-                                      path)
+        return "pithos://%s/%s/%s" % (self.account.user_info()['id'],
+                                      self.CONTAINER, path)
 
     def register(self, name, location, metadata, public=False):
         """Register an image to ~okeanos"""
@@ -122,18 +171,18 @@ class Kamaki(object):
             str_metadata[str(key)] = str(value)
         is_public = 'true' if public else 'false'
         params = {'is_public': is_public, 'disk_format': 'diskdump'}
-        self.image_client.register(name, location, params, str_metadata)
+        return self.image.register(name, location, params, str_metadata)
 
     def share(self, location):
         """Share this file with all the users"""
 
-        self.pithos_client.set_object_sharing(location, "*")
+        self.pithos.set_object_sharing(location, "*")
 
     def object_exists(self, location):
         """Check if an object exists in pythos"""
 
         try:
-            self.pithos_client.get_object_info(location)
+            self.pithos.get_object_info(location)
         except ClientError as e:
             if e.status == 404:  # Object not found error
                 return False

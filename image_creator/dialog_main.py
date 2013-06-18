@@ -178,7 +178,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
         if len(field[0]) > label_len:
             label_len = len(field[0])
 
-    input_len = width - label_len - 2
+    input_len = width - label_len - 1
 
     line = 1
     for field in fields:
@@ -186,7 +186,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
         item = field[1]
         item_len = field[2]
         cmd.extend((label, str(line), str(1), item, str(line),
-                   str(label_len + 2), str(input_len), str(item_len)))
+                   str(label_len + 1), str(input_len), str(item_len)))
         line += 1
 
     code, output = self._perform(*(cmd,), **kwargs)
