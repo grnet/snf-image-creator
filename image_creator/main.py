@@ -49,6 +49,7 @@ import os
 import optparse
 import StringIO
 import signal
+import json
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -280,9 +281,9 @@ def image_creator():
         md5 = MD5(out)
         checksum = md5.compute(image.device, size)
 
-        metastring = '\n'.join(
-            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
-        metastring += '\n'
+        metastring = unicode(json.dumps(
+            {'properties': metadata,
+             'disk-format': 'diskdump'}, ensure_ascii=False))
 
         if options.outfile is not None:
             image.dump(options.outfile)
@@ -324,10 +325,11 @@ def image_creator():
                 img_type = 'public' if options.public else 'private'
                 out.output('Registering %s image with ~okeanos ...' % img_type,
                            False)
-                kamaki.register(options.register, uploaded_obj, metadata,
-                                options.public)
+                result = kamaki.register(options.register, uploaded_obj,
+                                         metadata, options.public)
                 out.success('done')
                 out.output("Uploading metadata file ...", False)
+                metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))

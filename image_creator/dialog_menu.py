@@ -40,6 +40,7 @@ snf-image-creator.
 import os
 import textwrap
 import StringIO
+import json
 
 from image_creator import __version__ as version
 from image_creator.util import MD5, FatalError
@@ -249,12 +250,12 @@ def register_image(session):
             try:
                 out.output("Registering %s image with Cyclades..." % img_type)
                 kamaki = Kamaki(session['account'], out)
-                kamaki.register(name, session['pithos_uri'], metadata,
-                                is_public)
+                result = kamaki.register(name, session['pithos_uri'], metadata,
+                                         is_public)
                 out.success('done')
                 # Upload metadata file
                 out.output("Uploading metadata file...")
-                metastring = extract_metadata_string(session)
+                metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])

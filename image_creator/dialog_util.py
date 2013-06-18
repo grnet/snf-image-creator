@@ -39,6 +39,7 @@ snf-image-creator.
 
 import os
 import re
+import json
 from image_creator.output.dialog import GaugeOutput
 from image_creator.util import MD5
 from image_creator.kamaki_wrapper import Kamaki
@@ -84,12 +85,14 @@ class Reset(Exception):
 
 def extract_metadata_string(session):
     """Convert image metadata to text"""
-    metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
-
+    metadata = {}
+    metadata.update(session['metadata'])
     if 'task_metadata' in session:
-        metadata.extend("%s=yes" % m for m in session['task_metadata'])
+        for key in session['task_metadata']:
+            metadata[key] = 'yes'
 
-    return '\n'.join(metadata) + '\n'
+    return unicode(json.dumps({'properties': metadata,
+                               'disk-format': 'diskdump'}, ensure_ascii=False))
 
 
 def extract_image(session):

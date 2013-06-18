@@ -39,6 +39,7 @@ snf-image-creator.
 
 import time
 import StringIO
+import json
 
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.util import MD5, FatalError
@@ -292,11 +293,6 @@ def create_image(session, account):
         md5 = MD5(out)
         session['checksum'] = md5.compute(image.device, size)
 
-        #Metadata
-        metastring = '\n'.join(
-            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
-        metastring += '\n'
-
         out.output()
         try:
             out.output("Uploading image to pithos:")
@@ -307,14 +303,10 @@ def create_image(session, account):
             pithos_file = ""
             with open(image.device, 'rb') as f:
                 pithos_file = kamaki.upload(f, size, name,
-                                            "(1/4)  Calculating block hashes",
-                                            "(2/4)  Uploading missing blocks")
+                                            "(1/3)  Calculating block hashes",
+                                            "(2/3)  Uploading missing blocks")
 
-            out.output("(3/4)  Uploading metadata file ...", False)
-            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
-                          remote_path="%s.%s" % (name, 'meta'))
-            out.success('done')
-            out.output("(4/4)  Uploading md5sum file ...", False)
+            out.output("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                           remote_path="%s.%s" % (name, 'md5sum'))
@@ -325,9 +317,15 @@ def create_image(session, account):
                 False
             out.output('Registering %s image with cyclades ...' %
                        wizard['ImageRegistration'].lower(), False)
-            kamaki.register(wizard['ImageName'], pithos_file, metadata,
-                            is_public)
+            result = kamaki.register(wizard['ImageName'], pithos_file,
+                                     metadata, is_public)
             out.success('done')
+            out.output("Uploading metadata file ...", False)
+            metastring = unicode(json.dumps(result, ensure_ascii=False))
+            kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
+                          remote_path="%s.%s" % (name, 'meta'))
+            out.success('done')
+
             if is_public:
                 out.output("Sharing md5sum file ...", False)
                 kamaki.share("%s.md5sum" % name)
