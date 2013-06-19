@@ -17,40 +17,47 @@ snf-image-creator receives the following options:
 
 .. code-block:: console
 
- $ snf-image-creator --help
- Usage: snf-image-creator [options] <input_media>
-
- Options:
-   --version             show program's version number and exit
-   -h, --help            show this help message and exit
-   -o FILE, --outfile=FILE
-                         dump image to FILE
-   -f, --force           overwrite output files if they exist
-   -s, --silent          output only errors
-   -u FILENAME, --upload=FILENAME
-                         upload the image to pithos with name FILENAME
-   -r IMAGENAME, --register=IMAGENAME
-                         register the image with ~okeanos as IMAGENAME
-   -m KEY=VALUE, --metadata=KEY=VALUE
-                         add custom KEY=VALUE metadata to the image
-   -t TOKEN, --token=TOKEN
-                         use this token when uploading/registering images
-                         [Default: None]
-   --print-sysprep       print the available enabled and disabled system
-                         preparation operations for this input media
-   --enable-sysprep=SYSPREP
-                         run SYSPREP operation on the input media
-   --disable-sysprep=SYSPREP
-                         prevent SYSPREP operation from running on the input
-                         media
-   --no-sysprep          don't perform any system preparation operation
-   --no-shrink           don't shrink the image
-   --public              register image with cyclades as public
-   --tmpdir=DIR          create large temporary image files under DIR
+   $ snf-image-creator --help
+   Usage: snf-image-creator [options] <input_media>
+   
+   Options:
+     --version             show program's version number and exit
+     -h, --help            show this help message and exit
+     -o FILE, --outfile=FILE
+                           dump image to FILE
+     -f, --force           overwrite output files if they exist
+     -s, --silent          output only errors
+     -u FILENAME, --upload=FILENAME
+                           upload the image to pithos with name FILENAME
+     -r IMAGENAME, --register=IMAGENAME
+                           register the image with ~okeanos as IMAGENAME
+     -m KEY=VALUE, --metadata=KEY=VALUE
+                           add custom KEY=VALUE metadata to the image
+     -t TOKEN, --token=TOKEN
+                           use this authentication token when
+                           uploading/registering images
+     -a URL, --authentication-url=URL
+                           use this authentication URL when uploading/registering
+                           images
+     -c CLOUD, --cloud=CLOUD
+                           use this saved cloud account to authenticate against a
+                           cloud when uploading/registering images
+     --print-sysprep       print the enabled and disabled system preparation
+                           operations for this input media
+     --enable-sysprep=SYSPREP
+                           run SYSPREP operation on the input media
+     --disable-sysprep=SYSPREP
+                           prevent SYSPREP operation from running on the input
+                           media
+     --no-sysprep          don't perform any system preparation operation
+     --no-shrink           don't shrink any partition
+     --public              register image with cyclades as public
+     --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
 the image you create, provide a filename using the *-o* option. To upload the
-image to *pithos+*, provide a valid authentication token using *-t* and a
+image to *pithos+*, provide valid cloud API access info (by either using a
+token with *-t* and a URL with *-a* pair or a cloud name with *-c*) and a
 filename using *-u*. If you also want to register the image with *~okeanos*, in
 addition to *-u* provide a registration name using *-r*. All images are
 registered as *private*. Only the user that registers the image can create
@@ -75,61 +82,62 @@ debian system, we print the following output:
 
 .. code-block:: console
 
-   $ snf-image-creator --print-sysprep debian_desktop.img
-
-   snf-image-creator 0.1
+   $ snf-image-creator --print-sysprep ubuntu.raw
+   snf-image-creator 0.3
    =====================
-   Examining source media `debian_desktop.img'... looks like an image file
-   Snapshotting media source... done
+   Examining source media `ubuntu_hd.raw' ... looks like an image file
+   Snapshotting media source ... done
    Enabling recovery proc
-   Launching helper VM... done
-   Inspecting Operating System... found a(n) debian system
-   Mounting the media read-only... done
-
+   Launching helper VM (may take a while) ... done
+   Inspecting Operating System ... ubuntu
+   Mounting the media read-only ... done
+   Collecting image metadata ... done
+   Umounting the media ... done
+   
    Enabled system preparation operations:
        cleanup-cache:
-   	Remove all regular files under /var/cache
-
+           Remove all regular files under /var/cache
+   
        cleanup-log:
-   	Empty all files under /var/log
-
+           Empty all files under /var/log
+   
        cleanup-passwords:
-   	Remove all passwords and lock all user accounts
-
+           Remove all passwords and lock all user accounts
+   
        cleanup-tmp:
-   	Remove all files under /tmp and /var/tmp
-
+           Remove all files under /tmp and /var/tmp
+   
        cleanup-userdata:
-   	Delete sensitive userdata
-
+           Delete sensitive userdata
+   
        fix-acpid:
-   	Replace acpid powerdown action scripts to immediately shutdown the
-   	system without checking if a GUI is running.
-
+           Replace acpid powerdown action scripts to immediately shutdown the
+           system without checking if a GUI is running.
+   
        remove-persistent-net-rules:
-   	Remove udev rules that will keep network interface names persistent
-   	after hardware changes and reboots. Those rules will be created again
-   	the next time the image runs.
-
+           Remove udev rules that will keep network interface names persistent
+           after hardware changes and reboots. Those rules will be created again
+           the next time the image runs.
+   
        remove-swap-entry:
-   	Remove swap entry from /etc/fstab. If swap is the last partition
-   	then the partition will be removed when shrinking is performed. If the
-   	swap partition is not the last partition in the disk or if you are not
-   	going to shrink the image you should probably disable this.
-
+           Remove swap entry from /etc/fstab. If swap is the last partition
+           then the partition will be removed when shrinking is performed. If the
+           swap partition is not the last partition in the disk or if you are not
+           going to shrink the image you should probably disable this.
+   
        use-persistent-block-device-names:
-   	Scan fstab & grub configuration files and replace all non-persistent
-   	device references with UUIDs.
-
+           Scan fstab & grub configuration files and replace all non-persistent
+           device references with UUIDs.
+   
    Disabled system preparation operations:
        cleanup-mail:
-   	Remove all files under /var/mail and /var/spool/mail
-
+           Remove all files under /var/mail and /var/spool/mail
+   
        remove-user-accounts:
-   	Remove all user accounts with id greater than 1000
-
-
-   cleaning up...
+           Remove all user accounts with id greater than 1000
+   
+   
+   cleaning up ...
 
 If you want the image to have all normal user accounts and all mail files
 removed, you should use *--enable-sysprep* option like this:
@@ -173,11 +181,11 @@ Wizard mode
 When *snf-mkimage* runs in *wizard* mode, the user is just asked to provide the
 following basic information:
 
+ * Cloud: The cloud account to use to upload and register the resulting image
  * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image
    (ex. "Slackware Linux 14.0 with KDE")
  * Registration Type: Private or Public
- * Account: The authentication token for an *~okeanos* account
 
 After confirming, the image will be extracted, uploaded to *pithos+* and
 registered with *~okeanos*. The user will also be given the choice to keep a
@@ -202,10 +210,9 @@ In the *Customize* sub-menu the user can control:
 
 In the *Register* sub-menu the user can provide:
 
- * The credentials (authentication token) to use when authenticating
-   to *~okeanos*
+ * Which cloud account to use
  * A *pithos+* filename for the uploaded *diskdump* image
- * A name for the image to use when registering it with *~okeanos*, as well as
+ * A name for the image to use when registering it with *~cyclades*, as well as
    the registration type (*private* or *public*)
 
 By choosing the *Extract* menu entry, the user can dump the image to the local
@@ -244,13 +251,13 @@ Create a 2G sparse file to host the new system:
 
 .. code-block:: console
 
-   $ truncate -s 2G ubuntu_hd.raw
+   $ truncate -s 2G ubuntu.raw
 
 And install the Ubuntu system on this file:
 
 .. code-block:: console
 
-   $ sudo kvm -boot d -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio \
+   $ sudo kvm -boot d -drive file=ubuntu.raw,format=raw,cache=none,if=virtio \
      -m 1G -cdrom ubuntu-12.04.2-server-amd64.iso
 
 .. warning::
@@ -261,7 +268,7 @@ And install the Ubuntu system on this file:
 You will be able to boot your installed OS and make any changes you want
 (e.g. install openssh-server) using the following command::
 
-   $ sudo kvm -m 1G -boot c -drive file=ubuntu_hd.raw,format=raw,cache=none,if=virtio
+   $ sudo kvm -m 1G -boot c -drive file=ubuntu.raw,format=raw,cache=none,if=virtio
 
 After you're done, you may use *snf-mkimage* as root to create and upload the
 image:
@@ -269,7 +276,7 @@ image:
 .. code-block:: console
 
    $ sudo -s
-   $ snf-mkimage ubuntu_hd.raw
+   $ snf-mkimage ubuntu.raw
 
 In the first screen you will be asked to choose if you want to run the program
 in *Wizard* or *Expert* mode. Choose *Wizard*.
