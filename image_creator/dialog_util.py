@@ -252,12 +252,10 @@ def edit_cloud(session, name):
     info = Kamaki.get_cloud_by_name(name)
 
     assert info, "Cloud: `%s' does not exist" % name
-    assert 'url' in info, "Cloud: `%s' does not have a url attr" % name
-    assert 'token' in info, "Cloud: `%s' does not have a token attr" % name
 
     description = info['description'] if 'description' in info else ""
-    url = info['url']
-    token = info['token']
+    url = info['url'] if 'url' in info else ""
+    token = info['token'] if 'token' in info else ""
 
     d = session['dialog']
 

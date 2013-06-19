@@ -48,6 +48,7 @@ from image_creator.dialog_util import extract_image, update_background_title, \
     add_cloud, edit_cloud
 
 PAGE_WIDTH = 70
+PAGE_HEIGHT = 10
 
 
 class WizardExit(Exception):
@@ -55,8 +56,8 @@ class WizardExit(Exception):
     pass
 
 
-class WizardInvalidData(Exception):
-    """Exception triggered when the user provided data are invalid"""
+class WizardReloadPage(Exception):
+    """Exception that reloads the last WizardPage"""
     pass
 
 
@@ -85,7 +86,7 @@ class Wizard:
                 idx += self.pages[idx].run(self.session, idx, len(self.pages))
             except WizardExit:
                 return False
-            except WizardInvalidData:
+            except WizardReloadPage:
                 continue
 
             if idx >= len(self.pages):
@@ -146,13 +147,13 @@ class WizardRadioListPage(WizardPage):
         w = session['wizard']
 
         choices = []
-        for i in range(len(self.choices)):
-            default = 1 if self.choices[i][0] == self.default else 0
-            choices.append((self.choices[i][0], self.choices[i][1], default))
+        for choice in self.choices():
+            default = 1 if choice[0] == self.default else 0
+            choices.append((choice[0], choice[1], default))
 
         (code, answer) = d.radiolist(
-            self.message, height=10, width=PAGE_WIDTH, ok_label="Next",
-            cancel="Back", choices=choices,
+            self.message, width=PAGE_WIDTH, ok_label="Next", cancel="Back",
+            choices=choices, height=PAGE_HEIGHT,
             title="(%d/%d) %s" % (index + 1, total, self.title))
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
@@ -182,7 +183,8 @@ class WizardInputPage(WizardPage):
 
         (code, answer) = d.inputbox(
             self.message, init=self.init, width=PAGE_WIDTH, ok_label="Next",
-            cancel="Back", title="(%d/%d) %s" % (index + 1, total, self.title))
+            cancel="Back", height=PAGE_HEIGHT,
+            title="(%d/%d) %s" % (index + 1, total, self.title))
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return self.PREV
@@ -195,45 +197,100 @@ class WizardInputPage(WizardPage):
         return self.NEXT
 
 
+class WizardMenuPage(WizardPage):
+    """Represents a menu dialog in a wizard"""
+    def __init__(self, name, printable, message, choices, **kargs):
+        super(WizardMenuPage, self).__init__(**kargs)
+        self.name = name
+        self.printable = printable
+        self.message = message
+        self.info = "%s: <none>" % self.printable
+        self.choices = choices
+        self.title = kargs['title'] if 'title' in kargs else ''
+        self.default = kargs['default'] if 'default' in kargs else ""
+        self.extra = kargs['extra'] if 'extra' in kargs else None
+        self.extra_label = \
+            kargs['extra_label'] if 'extra_label' in kargs else 'Extra'
+        self.fallback = kargs['fallback'] if 'fallback' in kargs else None
+
+    def run(self, session, index, total):
+        d = session['dialog']
+        w = session['wizard']
+
+        extra_button = 1 if self.extra else 0
+
+        choices = self.choices()
+
+        if len(choices) == 0:
+            assert self.fallback, "Zero choices and no fallback"
+            if self.fallback():
+                raise WizardReloadPage
+            else:
+                return self.PREV
+
+        default_item = self.default if self.default else choices[0][0]
+
+        (code, choice) = d.menu(
+            self.message, width=PAGE_WIDTH, ok_label="Next", cancel="Back",
+            title="(%d/%d) %s" % (index + 1, total, self.title),
+            choices=choices, height=PAGE_HEIGHT, default_item=default_item,
+            extra_label=self.extra_label, extra_button=extra_button)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return self.PREV
+        elif code == d.DIALOG_EXTRA:
+            self.extra()
+            raise WizardReloadPage
+
+        self.default = choice
+        w[self.name] = self.validate(choice)
+        self.info = "%s: %s" % (self.printable, self.display(w[self.name]))
+
+        return self.NEXT
+
+
 def start_wizard(session):
     """Run the image creation wizard"""
 
-    d = session['dialog']
-    clouds = Kamaki.get_clouds()
-    if not len(clouds):
-        if not add_cloud(session):
-            return False
-    else:
-        while 1:
-            choices = []
-            for (name, cloud) in clouds.items():
-                descr = cloud['description'] if 'description' in cloud else ''
-                choices.append((name, descr))
-
-            (code, choice) = d.menu(
-                "In this menu you can select existing cloud account to use "
-                " or add new ones. Press <Select> to select an existing "
-                "account or <Add> to add a new one.", height=18,
-                width=PAGE_WIDTH, choices=choices, menu_height=10,
-                ok_label="Select", extra_button=1, extra_label="Add",
-                title="Clouds")
-
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                return False
-            elif code == d.DIALOG_OK:  # Select button
-                account = Kamaki.get_account(choice)
-                if not account:
-                    if not d.yesno("Then cloud you have selected is not "
-                                   "valid! Would you like to edit it?",
-                                   width=PAGE_WIDTH, defaultno=0):
-                        edit_cloud(session, choice)
-                    continue
-                break
-            elif code == d.DIALOG_EXTRA:  # Add button
-                add_cloud(session)
-
     distro = session['image'].distro
     ostype = session['image'].ostype
+
+    def cloud_choices():
+        choices = []
+        for (name, cloud) in Kamaki.get_clouds().items():
+            descr = cloud['description'] if 'description' in cloud else ''
+            choices.append((name, descr))
+
+        return choices
+
+    def cloud_add():
+        return add_cloud(session)
+
+    def cloud_none_available():
+        if not session['dialog'].yesno(
+                "No available clouds found. Would you like to add one now?",
+                width=PAGE_WIDTH, defaultno=0):
+            return add_cloud(session)
+        return False
+
+    def cloud_validate(cloud):
+        if not Kamaki.get_account(cloud):
+            if not session['dialog'].yesno(
+                    "The cloud you have selected is not valid! Would you "
+                    "like to edit it now?", width=PAGE_WIDTH, defaultno=0):
+                if edit_cloud(session, cloud):
+                    return cloud
+
+            raise WizardInvalidData
+
+        return cloud
+
+    cloud = WizardMenuPage(
+        "Cloud", "Cloud",
+        "Please select a cloud account or press <Add> to add a new one:",
+        choices=cloud_choices, extra_label="Add", extra=cloud_add,
+        title="Clouds", validate=cloud_validate, fallback=cloud_none_available)
+
     name = WizardInputPage(
         "ImageName", "Image Name", "Please provide a name for the image:",
         title="Image Name", init=ostype if distro == "unknown" else distro)
@@ -244,28 +301,31 @@ def start_wizard(session):
         title="Image Description", init=session['metadata']['DESCRIPTION'] if
         'DESCRIPTION' in session['metadata'] else '')
 
+    def registration_choices():
+        return [("Private", "Image is accessible only by this user"),
+                ("Public", "Everyone can create VMs from this image")]
+
     registration = WizardRadioListPage(
         "ImageRegistration", "Registration Type",
-        "Please provide a registration type:",
-        [("Private", "Image is accessible only by this user"),
-         ("Public", "Everyone can create VMs from this image")],
+        "Please provide a registration type:", registration_choices,
         title="Registration Type", default="Private")
 
     w = Wizard(session)
 
+    w.add_page(cloud)
     w.add_page(name)
     w.add_page(descr)
     w.add_page(registration)
 
     if w.run():
-        create_image(session, account)
+        create_image(session)
     else:
         return False
 
     return True
 
 
-def create_image(session, account):
+def create_image(session):
     """Create an image using the information collected by the wizard"""
     d = session['dialog']
     image = session['image']
@@ -296,6 +356,8 @@ def create_image(session, account):
         out.output()
         try:
             out.output("Uploading image to pithos:")
+            account = Kamaki.get_account(wizard['Cloud'])
+            assert account, "Cloud: %s is not valid" % wizard['Cloud']
             kamaki = Kamaki(account, out)
 
             name = "%s-%s.diskdump" % (wizard['ImageName'],
@@ -342,7 +404,7 @@ def create_image(session, account):
         out.remove(with_progress)
 
     msg = "The %s image was successfully uploaded to Pithos and registered " \
-          "with Cyclades. Would you like to keep a local copy of the image?" \
+          "with Cyclades. Would you like to keep a local copy?" \
           % wizard['ImageRegistration'].lower()
     if not d.yesno(msg, width=PAGE_WIDTH):
         extract_image(session)
