@@ -38,8 +38,11 @@ snf-image-creator.
 """
 
 import os
+import re
+import json
 from image_creator.output.dialog import GaugeOutput
 from image_creator.util import MD5
+from image_creator.kamaki_wrapper import Kamaki
 
 SMALL_WIDTH = 60
 WIDTH = 70
@@ -82,12 +85,14 @@ class Reset(Exception):
 
 def extract_metadata_string(session):
     """Convert image metadata to text"""
-    metadata = ['%s=%s' % (k, v) for (k, v) in session['metadata'].items()]
-
+    metadata = {}
+    metadata.update(session['metadata'])
     if 'task_metadata' in session:
-        metadata.extend("%s=yes" % m for m in session['task_metadata'])
+        for key in session['task_metadata']:
+            metadata[key] = 'yes'
 
-    return '\n'.join(metadata) + '\n'
+    return unicode(json.dumps({'properties': metadata,
+                               'disk-format': 'diskdump'}, ensure_ascii=False))
 
 
 def extract_image(session):
@@ -168,6 +173,115 @@ def extract_image(session):
         d.msgbox("Image file `%s' was successfully extracted!" % path,
                  width=SMALL_WIDTH)
         break
+
+    return True
+
+
+def _check_cloud(session, name, description, url, token):
+    """Checks if the provided info for a cloud are valid"""
+    d = session['dialog']
+    regexp = re.compile('^[a-zA-Z0-9_]+$')
+
+    if not re.match(regexp, name):
+        d.msgbox("Allowed characters for name: [a-zA-Z0-9_]", width=WIDTH)
+        return False
+
+    if len(url) == 0:
+        d.msgbox("Url cannot be empty!", width=WIDTH)
+        return False
+
+    if len(token) == 0:
+        d.msgbox("Token cannot be empty!", width=WIDTH)
+        return False
+
+    if Kamaki.create_account(url, token) is None:
+        d.msgbox("The cloud info you provided is not valid. Please check the "
+                 "Authentication URL and the token values again!", width=WIDTH)
+        return False
+
+    return True
+
+
+def add_cloud(session):
+    """Add a new cloud account"""
+
+    d = session['dialog']
+
+    name = ""
+    description = ""
+    url = ""
+    token = ""
+
+    while 1:
+        fields = [
+            ("Name:", name, 60),
+            ("Description (optional): ", description, 80),
+            ("Authentication URL: ", url, 200),
+            ("Token:", token, 100)]
+
+        (code, output) = d.form("Add a new cloud account:", height=13,
+                                width=WIDTH, form_height=4, fields=fields)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        name, description, url, token = output
+
+        name = name.strip()
+        description = description.strip()
+        url = url.strip()
+        token = token.strip()
+
+        if _check_cloud(session, name, description, url, token):
+            if name in Kamaki.get_clouds().keys():
+                d.msgbox("A cloud with name `%s' already exists. If you want "
+                         "to edit the existing cloud account, use the edit "
+                         "menu." % name, width=WIDTH)
+            else:
+                Kamaki.save_cloud(name, url, token, description)
+                break
+
+        continue
+
+    return True
+
+
+def edit_cloud(session, name):
+    """Edit a cloud account"""
+
+    info = Kamaki.get_cloud_by_name(name)
+
+    assert info, "Cloud: `%s' does not exist" % name
+
+    description = info['description'] if 'description' in info else ""
+    url = info['url'] if 'url' in info else ""
+    token = info['token'] if 'token' in info else ""
+
+    d = session['dialog']
+
+    while 1:
+        fields = [
+            ("Description (optional): ", description, 80),
+            ("Authentication URL: ", url, 200),
+            ("Token:", token, 100)]
+
+        (code, output) = d.form("Edit cloud account: `%s'" % name, height=13,
+                                width=WIDTH, form_height=3, fields=fields)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        description, url, token = output
+
+        description = description.strip()
+        url = url.strip()
+        token = token.strip()
+
+        if _check_cloud(session, name, description, url, token):
+            Kamaki.save_cloud(name, url, token, description)
+            break
+
+        continue
 
     return True
 

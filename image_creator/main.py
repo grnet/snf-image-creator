@@ -49,6 +49,7 @@ import os
 import optparse
 import StringIO
 import signal
+import json
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -98,6 +99,15 @@ def parse_options(input_args):
                       default=None, help="use this authentication token when "
                       "uploading/registering images")
 
+    parser.add_option("-a", "--authentication-url", dest="url", type="string",
+                      default=None, help="use this authentication URL when "
+                      "uploading/registering images")
+
+    parser.add_option("-c", "--cloud", dest="cloud", type="string",
+                      default=None, help="use this saved cloud account to "
+                      "authenticate against a cloud when "
+                      "uploading/registering images")
+
     parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
                       help="print the enabled and disabled system preparation "
                       "operations for this input media", action="store_true")
@@ -138,10 +148,13 @@ def parse_options(input_args):
     if options.register and not options.upload:
         raise FatalError("You also need to set -u when -r option is set")
 
-    if options.upload and options.token is None:
-        raise FatalError(
-            "Image uploading cannot be performed. "
-            "No authentication token is specified. Use -t to set a token")
+    if options.upload and (options.token is None or options.url is None) and \
+            options.cloud is None:
+
+        err = "You need to either specify an authentication URL and token " \
+              "pair or an available cloud name."
+
+        raise FatalError("Image uploading cannot be performed. %s" % err)
 
     if options.tmp is not None and not os.path.isdir(options.tmp):
         raise FatalError("The directory `%s' specified with --tmpdir is not "
@@ -189,13 +202,28 @@ def image_creator():
                 raise FatalError("Output file `%s' exists "
                                  "(use --force to overwrite it)." % filename)
 
-    # Check if the authentication token is valid. The earlier the better
-    if options.token is not None:
+    # Check if the authentication info is valid. The earlier the better
+    if options.token is not None and options.url is not None:
         try:
-            account = Kamaki.get_account(options.token)
+            account = Kamaki.create_account(options.url, options.token)
             if account is None:
-                raise FatalError("The authentication token you provided is not"
-                                 " valid!")
+                raise FatalError("The authentication token and/or URL you "
+                                 "provided is not valid!")
+            else:
+                kamaki = Kamaki(account, out)
+        except ClientError as e:
+            raise FatalError("Astakos client: %d %s" % (e.status, e.message))
+    elif options.cloud:
+        avail_clouds = Kamaki.get_clouds()
+        if options.cloud not in avail_clouds.keys():
+            raise FatalError(
+                "Cloud: `%s' does not exist.\n\nAvailable clouds:\n\n\t%s\n"
+                % (options.cloud, "\n\t".join(avail_clouds.keys())))
+        try:
+            account = Kamaki.get_account(options.cloud)
+            if account is None:
+                raise FatalError(
+                    "Cloud: `$s' exists but is not valid!" % options.cloud)
             else:
                 kamaki = Kamaki(account, out)
         except ClientError as e:
@@ -253,9 +281,9 @@ def image_creator():
         md5 = MD5(out)
         checksum = md5.compute(image.device, size)
 
-        metastring = '\n'.join(
-            ['%s=%s' % (key, value) for (key, value) in metadata.items()])
-        metastring += '\n'
+        metastring = unicode(json.dumps(
+            {'properties': metadata,
+             'disk-format': 'diskdump'}, ensure_ascii=False))
 
         if options.outfile is not None:
             image.dump(options.outfile)
@@ -297,10 +325,11 @@ def image_creator():
                 img_type = 'public' if options.public else 'private'
                 out.output('Registering %s image with ~okeanos ...' % img_type,
                            False)
-                kamaki.register(options.register, uploaded_obj, metadata,
-                                options.public)
+                result = kamaki.register(options.register, uploaded_obj,
+                                         metadata, options.public)
                 out.success('done')
                 out.output("Uploading metadata file ...", False)
+                metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
