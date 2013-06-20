@@ -83,20 +83,22 @@ class Wizard:
         idx = 0
         while True:
             try:
-                idx += self.pages[idx].run(self.session, idx, len(self.pages))
+                total = len(self.pages)
+                title = "(%d/%d) %s" % (idx + 1, total, self.pages[idx].title)
+                idx += self.pages[idx].run(self.session, title)
             except WizardExit:
                 return False
             except WizardReloadPage:
                 continue
 
             if idx >= len(self.pages):
-                msg = "All necessary information has been gathered:\n\n"
+                text = "All necessary information has been gathered:\n\n"
                 for page in self.pages:
-                    msg += " * %s\n" % page.info
-                msg += "\nContinue with the image creation process?"
+                    text += " * %s\n" % page.info
+                text += "\nContinue with the image creation process?"
 
                 ret = self.d.yesno(
-                    msg, width=PAGE_WIDTH, height=8 + len(self.pages),
+                    text, width=PAGE_WIDTH, height=8 + len(self.pages),
                     ok_label="Yes", cancel="Back", extra_button=1,
                     extra_label="Quit", title="Confirmation")
 
@@ -116,14 +118,26 @@ class WizardPage(object):
     NEXT = 1
     PREV = -1
 
-    def __init__(self, **kargs):
+    def __init__(self, name, display_name, text, **kargs):
+        self.name = name
+        self.display_name = display_name
+        self.text = text
+
+        self.title = kargs['title'] if 'title' in kargs else ""
+        self.default = kargs['default'] if 'default' in kargs else ""
+        self.extra = kargs['extra'] if 'extra' in kargs else None
+        self.extra_label = \
+            kargs['extra_label'] if 'extra_label' in kargs else 'Extra'
+
+        self.info = "%s: <none>" % self.display_name
+
         validate = kargs['validate'] if 'validate' in kargs else lambda x: x
         setattr(self, "validate", validate)
 
         display = kargs['display'] if 'display' in kargs else lambda x: x
         setattr(self, "display", display)
 
-    def run(self, session, index, total):
+    def run(self, session, title):
         """Display this wizard page
 
         This function is used by the wizard program when accessing a page.
@@ -131,18 +145,25 @@ class WizardPage(object):
         raise NotImplementedError
 
 
-class WizardRadioListPage(WizardPage):
-    """Represent a Radio List in a wizard"""
-    def __init__(self, name, printable, message, choices, **kargs):
-        super(WizardRadioListPage, self).__init__(**kargs)
-        self.name = name
-        self.printable = printable
-        self.message = message
-        self.choices = choices
-        self.title = kargs['title'] if 'title' in kargs else ''
-        self.default = kargs['default'] if 'default' in kargs else ""
+class WizardPageWthChoices(WizardPage):
+    """Represents a Wizard Page that allows the user to select something from
+    a list of choices.
 
-    def run(self, session, index, total):
+    The available choices are created by a function passed to the class through
+    the choices variable. If the choices function returns an empty list, a
+    fallback funtion is executed if available.
+    """
+    def __init__(self, name, display_name, text, choices, **kargs):
+        super(WizardPageWthChoices, self).__init__(name, display_name, text,
+                                                   **kargs)
+        self.choices = choices
+        self.fallback = kargs['fallback'] if 'fallback' in kargs else None
+
+
+class WizardRadioListPage(WizardPageWthChoices):
+    """Represent a Radio List in a wizard"""
+
+    def run(self, session, title):
         d = session['dialog']
         w = session['wizard']
 
@@ -152,68 +173,45 @@ class WizardRadioListPage(WizardPage):
             choices.append((choice[0], choice[1], default))
 
         (code, answer) = d.radiolist(
-            self.message, width=PAGE_WIDTH, ok_label="Next", cancel="Back",
-            choices=choices, height=PAGE_HEIGHT,
-            title="(%d/%d) %s" % (index + 1, total, self.title))
+            self.text, width=PAGE_WIDTH, ok_label="Next", cancel="Back",
+            choices=choices, height=PAGE_HEIGHT, title=title)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return self.PREV
 
         w[self.name] = self.validate(answer)
         self.default = answer
-        self.info = "%s: %s" % (self.printable, self.display(w[self.name]))
+        self.info = "%s: %s" % (self.display_name, self.display(w[self.name]))
 
         return self.NEXT
 
 
 class WizardInputPage(WizardPage):
     """Represents an input field in a wizard"""
-    def __init__(self, name, printable, message, **kargs):
-        super(WizardInputPage, self).__init__(**kargs)
-        self.name = name
-        self.printable = printable
-        self.message = message
-        self.info = "%s: <none>" % self.printable
-        self.title = kargs['title'] if 'title' in kargs else ''
-        self.init = kargs['init'] if 'init' in kargs else ''
 
-    def run(self, session, index, total):
+    def run(self, session, title):
         d = session['dialog']
         w = session['wizard']
 
         (code, answer) = d.inputbox(
-            self.message, init=self.init, width=PAGE_WIDTH, ok_label="Next",
-            cancel="Back", height=PAGE_HEIGHT,
-            title="(%d/%d) %s" % (index + 1, total, self.title))
+            self.text, init=self.default, width=PAGE_WIDTH, ok_label="Next",
+            cancel="Back", height=PAGE_HEIGHT, title=title)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return self.PREV
 
         value = answer.strip()
-        self.init = value
+        self.default = value
         w[self.name] = self.validate(value)
-        self.info = "%s: %s" % (self.printable, self.display(w[self.name]))
+        self.info = "%s: %s" % (self.display_name, self.display(w[self.name]))
 
         return self.NEXT
 
 
-class WizardMenuPage(WizardPage):
-    """Represents a menu dialog in a wizard"""
-    def __init__(self, name, printable, message, choices, **kargs):
-        super(WizardMenuPage, self).__init__(**kargs)
-        self.name = name
-        self.printable = printable
-        self.message = message
-        self.info = "%s: <none>" % self.printable
-        self.choices = choices
-        self.title = kargs['title'] if 'title' in kargs else ''
-        self.default = kargs['default'] if 'default' in kargs else ""
-        self.extra = kargs['extra'] if 'extra' in kargs else None
-        self.extra_label = \
-            kargs['extra_label'] if 'extra_label' in kargs else 'Extra'
-        self.fallback = kargs['fallback'] if 'fallback' in kargs else None
+class WizardMenuPage(WizardPageWthChoices):
+    """Represents a menu dialog with available choices in a wizard"""
 
-    def run(self, session, index, total):
+    def run(self, session, title):
         d = session['dialog']
         w = session['wizard']
 
@@ -231,10 +229,10 @@ class WizardMenuPage(WizardPage):
         default_item = self.default if self.default else choices[0][0]
 
         (code, choice) = d.menu(
-            self.message, width=PAGE_WIDTH, ok_label="Next", cancel="Back",
-            title="(%d/%d) %s" % (index + 1, total, self.title),
-            choices=choices, height=PAGE_HEIGHT, default_item=default_item,
-            extra_label=self.extra_label, extra_button=extra_button)
+            self.text, width=PAGE_WIDTH, ok_label="Next", cancel="Back",
+            title=title, choices=choices, height=PAGE_HEIGHT,
+            default_item=default_item, extra_label=self.extra_label,
+            extra_button=extra_button)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return self.PREV
@@ -244,7 +242,7 @@ class WizardMenuPage(WizardPage):
 
         self.default = choice
         w[self.name] = self.validate(choice)
-        self.info = "%s: %s" % (self.printable, self.display(w[self.name]))
+        self.info = "%s: %s" % (self.display_name, self.display(w[self.name]))
 
         return self.NEXT
 
@@ -293,13 +291,13 @@ def start_wizard(session):
 
     name = WizardInputPage(
         "ImageName", "Image Name", "Please provide a name for the image:",
-        title="Image Name", init=ostype if distro == "unknown" else distro)
+        title="Image Name", default=ostype if distro == "unknown" else distro)
 
     descr = WizardInputPage(
         "ImageDescription", "Image Description",
         "Please provide a description for the image:",
-        title="Image Description", init=session['metadata']['DESCRIPTION'] if
-        'DESCRIPTION' in session['metadata'] else '')
+        title="Image Description", default=session['metadata']['DESCRIPTION']
+        if 'DESCRIPTION' in session['metadata'] else '')
 
     def registration_choices():
         return [("Private", "Image is accessible only by this user"),
