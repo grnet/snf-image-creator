@@ -113,7 +113,7 @@ class MetadataMonitor(object):
 
 
 def upload_image(session):
-    """Upload the image to pithos+"""
+    """Upload the image to the storage service"""
     d = session["dialog"]
     image = session['image']
     meta = session['metadata']
@@ -121,7 +121,7 @@ def upload_image(session):
 
     if "account" not in session:
         d.msgbox("You need to select a valid cloud before you can upload "
-                 "images to pithos+", width=SMALL_WIDTH)
+                 "images to it", width=SMALL_WIDTH)
         return False
 
     while 1:
@@ -149,8 +149,8 @@ def upload_image(session):
                 overwrite.append(f)
 
         if len(overwrite) > 0:
-            if d.yesno("The following pithos object(s) already exist(s):\n"
-                       "%s\nDo you want to overwrite them?" %
+            if d.yesno("The following storage service object(s) already "
+                       "exist(s):\n%s\nDo you want to overwrite them?" %
                        "\n".join(overwrite), width=WIDTH, defaultno=1):
                 continue
 
@@ -182,8 +182,9 @@ def upload_image(session):
                 out.success("done")
 
             except ClientError as e:
-                d.msgbox("Error in pithos+ client: %s" % e.message,
-                         title="Pithos+ Client Error", width=SMALL_WIDTH)
+                d.msgbox(
+                    "Error in storage service client: %s" % e.message,
+                    title="Storage Service Client Error", width=SMALL_WIDTH)
                 if 'pithos_uri' in session:
                     del session['pithos_uri']
                 return False
@@ -192,26 +193,26 @@ def upload_image(session):
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename,
+    d.msgbox("Image file `%s' was successfully uploaded" % filename,
              width=SMALL_WIDTH)
 
     return True
 
 
 def register_image(session):
-    """Register image with cyclades"""
+    """Register image with the compute service"""
     d = session["dialog"]
 
     is_public = False
 
     if "account" not in session:
         d.msgbox("You need to select a valid cloud before you "
-                 "can register an images with cyclades", width=SMALL_WIDTH)
+                 "can register an images with it", width=SMALL_WIDTH)
         return False
 
     if "pithos_uri" not in session:
-        d.msgbox("You need to upload the image to pithos+ before you can "
-                 "register it with cyclades", width=SMALL_WIDTH)
+        d.msgbox("You need to upload the image to the cloud before you can "
+                 "register it", width=SMALL_WIDTH)
         return False
 
     while 1:
@@ -248,7 +249,7 @@ def register_image(session):
         out.add(gauge)
         try:
             try:
-                out.output("Registering %s image with Cyclades..." % img_type)
+                out.output("Registering %s image with the cloud..." % img_type)
                 kamaki = Kamaki(session['account'], out)
                 result = kamaki.register(name, session['pithos_uri'], metadata,
                                          is_public)
@@ -266,14 +267,14 @@ def register_image(session):
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
             except ClientError as e:
-                d.msgbox("Error in pithos+ client: %s" % e.message)
+                d.msgbox("Error in storage service client: %s" % e.message)
                 return False
         finally:
             out.remove(gauge)
     finally:
         gauge.cleanup()
 
-    d.msgbox("%s image `%s' was successfully registered with Cyclades as `%s'"
+    d.msgbox("%s image `%s' was successfully registered with the cloud as `%s'"
              % (img_type.title(), session['upload'], name), width=SMALL_WIDTH)
     return True
 
@@ -374,8 +375,8 @@ def kamaki_menu(session):
         choices = [("Add/Edit", "Add/Edit cloud accounts"),
                    ("Delete", "Delete existing cloud accounts"),
                    ("Cloud", "Select cloud account to use: %s" % cloud),
-                   ("Upload", "Upload image to pithos+"),
-                   ("Register", "Register the image to cyclades: %s" % upload)]
+                   ("Upload", "Upload image to the cloud"),
+                   ("Register", "Register image with the cloud: %s" % upload)]
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -791,7 +792,7 @@ def main_menu(session):
             text="Choose one of the following or press <Exit> to exit.",
             width=WIDTH, choices=choices, cancel="Exit", height=13,
             default_item=default_item, menu_height=len(choices),
-            title="Image Creator for ~okeanos (snf-image-creator version %s)" %
+            title="Image Creator for synnefo (snf-image-creator version %s)" %
                   version)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):

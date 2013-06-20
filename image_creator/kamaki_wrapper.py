@@ -163,7 +163,7 @@ class Kamaki(object):
                                       self.CONTAINER, path)
 
     def register(self, name, location, metadata, public=False):
-        """Register an image to ~okeanos"""
+        """Register an image with cyclades"""
 
         # Convert all metadata to strings
         str_metadata = {}

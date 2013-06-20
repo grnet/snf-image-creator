@@ -353,7 +353,7 @@ def create_image(session):
 
         out.output()
         try:
-            out.output("Uploading image to pithos:")
+            out.output("Uploading image to the cloud:")
             account = Kamaki.get_account(wizard['Cloud'])
             assert account, "Cloud: %s is not valid" % wizard['Cloud']
             kamaki = Kamaki(account, out)
@@ -375,7 +375,7 @@ def create_image(session):
 
             is_public = True if wizard['ImageRegistration'] == "Public" else \
                 False
-            out.output('Registering %s image with cyclades ...' %
+            out.output('Registering %s image with the cloud ...' %
                        wizard['ImageRegistration'].lower(), False)
             result = kamaki.register(wizard['ImageName'], pithos_file,
                                      metadata, is_public)
@@ -397,14 +397,17 @@ def create_image(session):
             out.output()
 
         except ClientError as e:
-            raise FatalError("Pithos client: %d %s" % (e.status, e.message))
+            raise FatalError("Storage service client: %d %s" %
+                             (e.status, e.message))
     finally:
         out.remove(with_progress)
 
-    msg = "The %s image was successfully uploaded to Pithos and registered " \
-          "with Cyclades. Would you like to keep a local copy?" \
-          % wizard['ImageRegistration'].lower()
-    if not d.yesno(msg, width=PAGE_WIDTH):
+    text = "The %s image was successfully uploaded to the storage service " \
+           "and registered with the compute service of %s. Would you like " \
+           "to keep a local copy?" % \
+           (wizard['Cloud'], wizard['ImageRegistration'].lower())
+
+    if not d.yesno(text, width=PAGE_WIDTH):
         extract_image(session)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

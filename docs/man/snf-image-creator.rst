@@ -16,6 +16,12 @@ itself.
 
 Options
 -------
+-a URL, --authentication-url=URL
+	use this authentication URL when uploading/registering images
+
+-c CLOUD, --cloud=CLOUD
+        use this saved cloud account to authenticate against a cloud when
+        uploading/registering images
 
 --disable-sysprep=SYSPREP
 	prevent SYSPREP operation from running on the input media
@@ -42,27 +48,26 @@ Options
 	dump image to FILE
 
 --public
-	register image with cyclades as public
+	register image with the storage service as public
 
 --print-sysprep
 	print the enabled and disabled system preparation operations for this
 	input media
 
 -r IMAGENAME, --register=IMAGENAME
-	register the image with cyclades as IMAGENAME
+	register the image with the compute service with name IMAGENAME
 
 -s, --silent
 	output only errors
 
 -t TOKEN, --token=TOKEN
-	use this token when uploading/registering images to a Synnefo
-	deployment
+	use this token when uploading/registering images
 
 --tmpdir=DIR
 	create large temporary image files under DIR
 
 -u FILENAME, --upload=FILENAME
-	upload the image to pithos with name FILENAME
+	save the image to the storage service with remote name FILENAME
 
 --version
 	show program's version number and exit

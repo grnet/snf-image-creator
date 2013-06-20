@@ -28,9 +28,9 @@ snf-image-creator receives the following options:
      -f, --force           overwrite output files if they exist
      -s, --silent          output only errors
      -u FILENAME, --upload=FILENAME
-                           upload the image to pithos with name FILENAME
+                           upload the image to the storage service with name FILENAME
      -r IMAGENAME, --register=IMAGENAME
-                           register the image with ~okeanos as IMAGENAME
+                           register the image with the compute service as IMAGENAME
      -m KEY=VALUE, --metadata=KEY=VALUE
                            add custom KEY=VALUE metadata to the image
      -t TOKEN, --token=TOKEN
@@ -51,15 +51,16 @@ snf-image-creator receives the following options:
                            media
      --no-sysprep          don't perform any system preparation operation
      --no-shrink           don't shrink any partition
-     --public              register image with cyclades as public
+     --public              register image with the compute service as public
      --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
 the image you create, provide a filename using the *-o* option. To upload the
-image to *pithos+*, provide valid cloud API access info (by either using a
-token with *-t* and a URL with *-a* pair or a cloud name with *-c*) and a
-filename using *-u*. If you also want to register the image with *~okeanos*, in
-addition to *-u* provide a registration name using *-r*. All images are
+image to the storage service of a cloud, provide valid cloud API access info
+(by either using a token and a URL with *-t* and *-a* respectively, or a cloud
+name with *-c*) and a remote filename using *-u*. If you also want to register
+the image with the compute service of the cloud, in addition to *-u* provide a
+registration name using *-r*. All images are
 registered as *private*. Only the user that registers the image can create
 VM's out of it. If you want the image to be visible by other user too, use the
 *--public* option.
@@ -187,9 +188,9 @@ following basic information:
    (ex. "Slackware Linux 14.0 with KDE")
  * Registration Type: Private or Public
 
-After confirming, the image will be extracted, uploaded to *pithos+* and
-registered with *~okeanos*. The user will also be given the choice to keep a
-local copy of it.
+After confirming, the image will be extracted, uploaded to the storage service
+and registered with the compute service of the selected cloud. The user will
+also be given the choice to keep a local copy of it.
 
 For most users the functionality this mode provides should be sufficient.
 
@@ -211,9 +212,9 @@ In the *Customize* sub-menu the user can control:
 In the *Register* sub-menu the user can provide:
 
  * Which cloud account to use
- * A *pithos+* filename for the uploaded *diskdump* image
- * A name for the image to use when registering it with *~cyclades*, as well as
-   the registration type (*private* or *public*)
+ * A filename for the uploaded *diskdump* image
+ * A name for the image to use when registering it with the storage service of
+   the cloud, as well as the registration type (*private* or *public*)
 
 By choosing the *Extract* menu entry, the user can dump the image to the local
 file system. Finally, if the user selects *Reset*, the system will ignore
@@ -283,13 +284,13 @@ in *Wizard* or *Expert* mode. Choose *Wizard*.
 
 .. image:: /snapshots/wizard.png
 
-Then you will be asked to provide a name, a description, a registration type
-(*private* or *public*) and the authentication token corresponding to your
-*~okeanos* account. Finally, you'll be asked to confirm the provided data.
+Then you will be asked to select a cloud and provide a name, a description and
+a registration type (*private* or *public*). Finally, you'll be asked to
+confirm the provided data.
 
 .. image:: /snapshots/confirm.png
 
-Choosing *YES* will create and upload the image to your *~okeanos* account.
+Choosing *YES* will create and upload the image to your cloud account.
 
 Limitations
 ===========
@@ -311,13 +312,13 @@ contain primary or logical partitions.
 Para-virtualized drivers
 ------------------------
 
-*~Okeanos* uses the *VirtIO* framework. The disk I/O controller and the
-Ethernet cards on the VM instances are para-virtualized and need special
-*VirtIO* drivers. Those drivers are included in the Linux Kernel mainline since
-version 2.6.25 and are shipped with all the popular Linux distributions. The
-problem is that if the driver for the para-virtualized disk I/O controller is
-built as module, it needs to be preloaded using an initial ramdisk, otherwise
-the VM won't be able to boot.
+Most synnefo deployments uses the *VirtIO* framework. The disk I/O controller
+and the Ethernet cards on the VM instances are para-virtualized and need
+special *VirtIO* drivers. Those drivers are included in the Linux Kernel
+mainline since version 2.6.25 and are shipped with all the popular Linux
+distributions. The problem is that if the driver for the para-virtualized disk
+I/O controller is built as module, it needs to be preloaded using an initial
+ramdisk, otherwise the VM won't be able to boot.
 
 Many popular Linux distributions, like Ubuntu and Debian, will automatically
 create a generic initial ramdisk file that contains many different modules,

@@ -83,12 +83,12 @@ def parse_options(input_args):
 
     parser.add_option("-u", "--upload", dest="upload", type="string",
                       default=False,
-                      help="upload the image to pithos with name FILENAME",
+                      help="upload the image to the cloud with name FILENAME",
                       metavar="FILENAME")
 
     parser.add_option("-r", "--register", dest="register", type="string",
                       default=False,
-                      help="register the image with ~okeanos as IMAGENAME",
+                      help="register the image with a cloud as IMAGENAME",
                       metavar="IMAGENAME")
 
     parser.add_option("-m", "--metadata", dest="metadata", default=[],
@@ -129,7 +129,7 @@ def parse_options(input_args):
                       help="don't shrink any partition", action="store_false")
 
     parser.add_option("--public", dest="public", default=False,
-                      help="register image with cyclades as public",
+                      help="register image with the cloud as public",
                       action="store_true")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
@@ -231,15 +231,16 @@ def image_creator():
 
     if options.upload and not options.force:
         if kamaki.object_exists(options.upload):
-            raise FatalError("Remote pithos object `%s' exists "
+            raise FatalError("Remote storage service object: `%s' exists "
                              "(use --force to overwrite it)." % options.upload)
         if kamaki.object_exists("%s.md5sum" % options.upload):
-            raise FatalError("Remote pithos object `%s.md5sum' exists "
-                             "(use --force to overwrite it)." % options.upload)
+            raise FatalError("Remote storage service object: `%s.md5sum' "
+                             "exists (use --force to overwrite it)." %
+                             options.upload)
 
     if options.register and not options.force:
         if kamaki.object_exists("%s.meta" % options.upload):
-            raise FatalError("Remote pithos object `%s.meta' exists "
+            raise FatalError("Remote storage service object `%s.meta' exists "
                              "(use --force to overwrite it)." % options.upload)
 
     disk = Disk(options.source, out, options.tmp)
@@ -306,7 +307,7 @@ def image_creator():
         try:
             uploaded_obj = ""
             if options.upload:
-                out.output("Uploading image to pithos:")
+                out.output("Uploading image to the storage service:")
                 with open(snapshot, 'rb') as f:
                     uploaded_obj = kamaki.upload(
                         f, size, options.upload,
@@ -323,8 +324,8 @@ def image_creator():
 
             if options.register:
                 img_type = 'public' if options.public else 'private'
-                out.output('Registering %s image with ~okeanos ...' % img_type,
-                           False)
+                out.output('Registering %s image with the compute service ...'
+                           % img_type, False)
                 result = kamaki.register(options.register, uploaded_obj,
                                          metadata, options.public)
                 out.success('done')
@@ -344,7 +345,7 @@ def image_creator():
 
                 out.output()
         except ClientError as e:
-            raise FatalError("Pithos client: %d %s" % (e.status, e.message))
+            raise FatalError("Service client: %d %s" % (e.status, e.message))
 
     finally:
         out.output('cleaning up ...')
