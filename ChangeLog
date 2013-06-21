@@ -1,3 +1,9 @@
+2013-06-21, v0.4
+	* Populate the USERS metadata in Windows images
+	* Support kamaki 0.9 and synnefo 0.14
+	* Change the metadata file format to json
+	* Support the devflow building system
+
 2013-05-27, v0.3
 	* Support media hosting FreeBSD systems
 	* Check if remote files exist when uploading images to pithos
