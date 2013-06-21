@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -30,6 +32,10 @@
 # documentation are those of the authors and should not be
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
+
+"""This package provides various classes for preparing different Operating
+Systems for image creation.
+"""
 
 from image_creator.util import FatalError
 
@@ -77,27 +83,31 @@ class OSBase(object):
         self.root = rootdev
         self.g = ghandler
         self.out = output
-
-        # Collect metadata about the OS
         self.meta = {}
-        self.meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
-        self.meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
-        self.meta['OS'] = self.g.inspect_get_distro(self.root)
-        if self.meta['OS'] == "unknown":
-            self.meta['OS'] = self.meta['OSFAMILY']
-        self.meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
 
-    def _is_sysprep(self, obj):
-        return getattr(obj, 'sysprep', False) and callable(obj)
+    def collect_metadata(self):
+        """Collect metadata about the OS"""
+        try:
+            if not self.mount(readonly=True):
+                raise FatalError("Unable to mount the media read-only")
+
+            self.out.output('Collecting image metadata ...', False)
+            self._do_collect_metadata()
+            self.out.success('done')
+        finally:
+            self.umount()
+
+        self.out.output()
 
     def list_syspreps(self):
-
+        """Returns a list of sysprep objects"""
         objs = [getattr(self, name) for name in dir(self)
                 if not name.startswith('_')]
 
         return [x for x in objs if self._is_sysprep(x) and x.executed is False]
 
     def sysprep_info(self, obj):
+        """Returns information about a sysprep object"""
         assert self._is_sysprep(obj), "Object is not a sysprep"
 
         return (obj.__name__.replace('_', '-'), textwrap.dedent(obj.__doc__))
@@ -157,17 +167,69 @@ class OSBase(object):
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 self.out.output('    %s:\n%s\n' % (name, descr))
 
+    def do_sysprep(self):
+        """Prepare system for image creation."""
+
+        try:
+            if not self.mount(readonly=False):
+                raise FatalError("Unable to mount the media read-write")
+
+            self.out.output('Preparing system for image creation:')
+
+            tasks = self.list_syspreps()
+            enabled = filter(lambda x: x.enabled, tasks)
+
+            size = len(enabled)
+            cnt = 0
+            for task in enabled:
+                cnt += 1
+                self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+                task()
+                setattr(task.im_func, 'executed', True)
+        finally:
+            self.umount()
+
+        self.out.output()
+
+    def mount(self, readonly=False):
+        """Mount image."""
+
+        if getattr(self, "mounted", False):
+            return True
+
+        mount_type = 'read-only' if readonly else 'read-write'
+        self.out.output("Mounting the media %s ..." % mount_type, False)
+
+        if not self._do_mount(readonly):
+            return False
+
+        self.mounted = True
+        self.out.success('done')
+        return True
+
+    def umount(self):
+        """Umount all mounted filesystems."""
+
+        self.out.output("Umounting the media ...", False)
+        self.g.umount_all()
+        self.mounted = False
+        self.out.success('done')
+
+    def _is_sysprep(self, obj):
+        """Checks if an object is a sysprep"""
+        return getattr(obj, 'sysprep', False) and callable(obj)
+
     @add_prefix
-    def ls(self, directory):
+    def _ls(self, directory):
         """List the name of all files under a directory"""
         return self.g.ls(directory)
 
     @add_prefix
-    def find(self, directory):
+    def _find(self, directory):
         """List the name of all files recursively under a directory"""
         return self.g.find(directory)
 
-    def foreach_file(self, directory, action, **kargs):
+    def _foreach_file(self, directory, action, **kargs):
         """Perform an action recursively on all files under a directory.
 
         The following options are allowed:
@@ -204,26 +266,28 @@ class OSBase(object):
                 continue
 
             if has_ftype(f, 'd'):
-                self.foreach_file(full_path, action, **kargs)
+                self._foreach_file(full_path, action, **kargs)
 
             if has_ftype(f, ftype):
                 action(full_path)
 
-    def do_sysprep(self):
-        """Prepere system for image creation."""
+    def _do_collect_metadata(self):
+        """helper method for collect_metadata"""
+        self.meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
+        self.meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
+        self.meta['OS'] = self.g.inspect_get_distro(self.root)
+        if self.meta['OS'] == "unknown":
+            self.meta['OS'] = self.meta['OSFAMILY']
+        self.meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
 
-        self.out.output('Preparing system for image creation:')
+    def _do_mount(self, readonly):
+        """helper method for mount"""
+        try:
+            self.g.mount_options('ro' if readonly else 'rw', self.root, '/')
+        except RuntimeError as msg:
+            self.out.warn("unable to mount the root partition: %s" % msg)
+            return False
 
-        tasks = self.list_syspreps()
-        enabled = filter(lambda x: x.enabled, tasks)
-
-        size = len(enabled)
-        cnt = 0
-        for task in enabled:
-            cnt += 1
-            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
-            task()
-            setattr(task.im_func, 'executed', True)
-        self.out.output()
+        return True
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

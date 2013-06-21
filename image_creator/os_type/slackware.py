@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,6 +33,8 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This module hosts OS-specific code for Slackware Linux"""
+
 from image_creator.os_type.linux import Linux, sysprep
 
 
@@ -46,7 +50,7 @@ class Slackware(Linux):
         # In slackware the metadata about installed packages are
         # stored in /var/log/packages. Clearing all /var/log files
         # will destroy the package management system.
-        self.foreach_file('/var/log', self.g.truncate, ftype='r',
-                          exclude='/var/log/packages')
+        self._foreach_file('/var/log', self.g.truncate, ftype='r',
+                           exclude='/var/log/packages')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

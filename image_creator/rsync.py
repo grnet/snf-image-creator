@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -30,6 +32,8 @@
 # documentation are those of the authors and should not be
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
+
+"""This module provides an interface for the rsync utility"""
 
 import subprocess
 import time
@@ -98,7 +102,7 @@ class Rsync:
                                    stdout=subprocess.PIPE, bufsize=0)
         try:
             total = 0
-            for line in iter(dry_run.stdout.readline, b''):
+            for _ in iter(dry_run.stdout.readline, b''):
                 total += 1
         finally:
             dry_run.communicate()
@@ -113,7 +117,7 @@ class Rsync:
         try:
             t = time.time()
             i = 0
-            for line in iter(run.stdout.readline, b''):
+            for _ in iter(run.stdout.readline, b''):
                 i += 1
                 current = time.time()
                 if current - t > 0.1:
