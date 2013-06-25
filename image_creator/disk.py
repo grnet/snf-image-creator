@@ -174,11 +174,14 @@ class Disk(object):
         snapshot = uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
-            os.write(tablefd, "0 %d snapshot %s %s n 8" %
-                              (int(size), sourcedev, cowdev))
+            try:
+                os.write(tablefd, "0 %d snapshot %s %s n 8" %
+                                  (int(size), sourcedev, cowdev))
+            finally:
+                os.close(tablefd)
+
             dmsetup('create', snapshot, table)
             self._add_cleanup(try_fail_repeat, dmsetup, 'remove', snapshot)
-
         finally:
             os.unlink(table)
         self.out.success('done')

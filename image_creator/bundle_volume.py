@@ -267,8 +267,11 @@ class BundleVolume(object):
         name = os.path.basename(dev) + "_" + uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
-            size = end - start + 1
-            os.write(tablefd, "0 %d linear %s %d" % (size, dev, start))
+            try:
+                size = end - start + 1
+                os.write(tablefd, "0 %d linear %s %d" % (size, dev, start))
+            finally:
+                os.close(tablefd)
             dmsetup('create', "%sp%d" % (name, num), table)
         finally:
             os.unlink(table)
