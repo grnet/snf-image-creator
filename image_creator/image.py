@@ -33,7 +33,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import FatalError
+from image_creator.util import FatalError, check_guestfs_version
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
@@ -64,14 +64,11 @@ class Image(object):
         # file descriptors. This can cause problems especially if the parent
         # process has opened pipes. Since the recovery process is an optional
         # feature of libguestfs, it's better to disable it.
-        self.g.set_recovery_proc(0)
-        version = self.g.version()
-        if version['major'] > 1 or \
-            (version['major'] == 1 and (version['minor'] >= 18 or
-                                        (version['minor'] == 17 and
-                                         version['release'] >= 14))):
-            self.g.set_recovery_proc(1)
+        if check_guestfs_version(self.g, 1, 17, 14) >= 0:
             self.out.output("Enabling recovery proc")
+            self.g.set_recovery_proc(1)
+        else:
+            self.g.set_recovery_proc(0)
 
         #self.g.set_trace(1)
         #self.g.set_verbose(1)

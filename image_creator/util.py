@@ -115,4 +115,23 @@ class MD5:
 
         return checksum
 
+    def check_guestfs_version(ghandler, major, minor, release):
+        """Checks if the version of the used libguestfs is smaller, equal or
+        greater than the one specified by the major, minor and release triplet
+
+        Returns:
+            < 0 if the installed version is smaller than the specified one
+            = 0 if they are equal
+            > 0 if the installed one is greater than the specified one
+        """
+
+        ver = ghandler.version()
+
+        for (a, b) in (ver['major'], major), (ver['minor'], minor), \
+                (ver['release'], release):
+            if a != b:
+                return a - b
+
+        return 0
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
