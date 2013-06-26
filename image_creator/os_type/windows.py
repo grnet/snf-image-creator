@@ -45,9 +45,10 @@ import os
 
 class Windows(OSBase):
     """OS class for Windows"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Windows, self).__init__(rootdev, ghandler, output)
 
+    def _do_collect_metadata(self):
+        """Collect metadata about the OS"""
+        super(Windows, self)._do_collect_metadata()
         self.meta["USERS"] = " ".join(self._get_users())
 
     def _get_users(self):
