@@ -1,3 +1,7 @@
+2013-06-21, v0.4.1
+	* Fix a bug that caused an abnormal termination when trying to
+	  determine the available users in a Windows image
+
 2013-06-21, v0.4
 	* Populate the USERS metadata in Windows images
 	* Support kamaki 0.9 and synnefo 0.14
