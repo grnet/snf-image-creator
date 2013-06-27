@@ -32,11 +32,41 @@ method you choose. There are two installation methods available:
 Install snf-image-creator using packages
 ========================================
 
+Debian
+------
+
+For *Debian 7.0 (wheezy)* you can use our official packages found in our
+development repository.
+
+Add the following line to */etc/apt/sources.list*:
+
+.. code-block:: console
+
+   deb http://apt.dev.grnet.gr wheezy/
+
+And resynchronize the package index files from their sources:
+
+.. code-block:: console
+
+   $ sudo apt-get update
+
+You should be able to list the package by calling:
+
+.. code-block:: console
+
+   $ apt-cache showpkg snf-image-creator
+
+And install the package with this command:
+
+.. code-block:: console
+
+   $ apt-get install snf-image-creator
+
 Ubuntu
 ------
 
-For *Ubuntu 12.04 LTS* and *12.10* systems, you can use our official packages
-found in *grnet/synnefo* Lauchpad PPA.
+For *Ubuntu 12.04 LTS*, *12.10* and *13.04* systems, you can use our official
+packages found in *grnet/synnefo* Lauchpad PPA.
 
 Add the synnefo PPA in your system:
 
@@ -47,7 +77,7 @@ Add the synnefo PPA in your system:
 
 If *apt-add-repository* is missing, first install:
 
-*software-properties-common* (Ubuntu 12.10):
+*software-properties-common* (Ubuntu 12.10 & 13.04):
 
 .. code-block:: console
 
@@ -75,14 +105,6 @@ Install the package by issuing:
 .. note::
    If you are asked during the installation to create/update a
    "supermin appliance", choose "Yes".
-
-.. warning::
-   In *Ubuntu 12.10* the current package of libguestfs (1.18-2) is broken. Take
-   a look at the open `bug report <https://bugs.launchpad.net/ubuntu/quantal/+source/libguestfs/+bug/1086974>`_.
-   Until version 1.18-2ubunut1 is out, you may workaround this problem by
-   creating a symlink like this:
-
-   *sudo ln -s /usr/lib/guestfs /usr/lib/x86_64-linux-gnu/guestfs*
 
 Fedora
 ------

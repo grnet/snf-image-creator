@@ -35,6 +35,7 @@ deployment as private or public image.
 Image Format
 ============
 
-The extracted images are in diskdump format. This is the recommended format for
+The extracted images are in diskdump format, which is a raw dump of a disk
+device (or file). This is the recommended format for
 `snf-image <https://code.grnet.gr/projects/snf-image>`_, the Ganeti OS
 Definition used by `Synnefo <https://code.grnet.gr/projects/synnefo>`_.
