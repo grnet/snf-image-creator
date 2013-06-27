@@ -11,11 +11,11 @@ Properties used during image deployment
      This is a space-seperated list of users, whose password will
      be reset during deployment.
  - SWAP=<n>:<size>
-     If this property is present, cyclades will create a swap
-     partition with given size at the end of the instance's disk.
+     If this property is present, a swap partition with given
+     size will be created at the end of the instance's disk.
      This property only makes sense for Linux images.
 
-Properties used by the ~okeanos User Interface
+Properties used by the synnefo User Interface
 ----------------------------------------------
  - OS
      The value of this property is used to associate the image

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -33,6 +34,11 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This module is the entrance point for the dialog-based version of the
+snf-image-creator program. The main function will create a dialog where the
+user is asked if he wants to use the program in expert or wizard mode.
+"""
+
 import dialog
 import sys
 import os
@@ -40,6 +46,7 @@ import stat
 import textwrap
 import signal
 import optparse
+import types
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError
@@ -157,6 +164,39 @@ def select_file(d, media):
     return media
 
 
+def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
+                 **kwargs):
+    """Display a form box.
+
+    fields is in the form: [(label1, item1, item_length1), ...]
+    """
+
+    cmd = ["--form", text, str(height), str(width), str(form_height)]
+
+    label_len = 0
+    for field in fields:
+        if len(field[0]) > label_len:
+            label_len = len(field[0])
+
+    input_len = width - label_len - 1
+
+    line = 1
+    for field in fields:
+        label = field[0]
+        item = field[1]
+        item_len = field[2]
+        cmd.extend((label, str(line), str(1), item, str(line),
+                   str(label_len + 1), str(input_len), str(item_len)))
+        line += 1
+
+    code, output = self._perform(*(cmd,), **kwargs)
+
+    if not output:
+        return (code, [])
+
+    return (code, output.splitlines())
+
+
 def main():
 
     d = dialog.Dialog(dialog="dialog")
@@ -174,6 +214,10 @@ def main():
 
     dialog._common_args_syntax["no_label"] = \
         lambda string: ("--no-label", string)
+
+    # Monkey-patch pythondialog to include support for form dialog boxes
+    if not hasattr(dialog, 'form'):
+        d.form = types.MethodType(_dialog_form, d)
 
     usage = "Usage: %prog [options] [<input_media>]"
     parser = optparse.OptionParser(version=version, usage=usage)
