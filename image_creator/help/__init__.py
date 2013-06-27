@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,11 +33,14 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This package hosts the help files of the programe."""
+
 import sys
 import os
 
 
 def get_help_file(name):
+    """Returns the full path of a helpfile"""
     dirname = os.path.dirname(sys.modules[__name__].__file__)
     return "%s%s%s.rst" % (dirname, os.sep, name)
 

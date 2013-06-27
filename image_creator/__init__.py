@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,6 +33,10 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-__version__ = '0.3'
+"""Package for creating images to be used with Synnefo open source cloud
+software.
+"""
+
+from image_creator.version import __version__
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

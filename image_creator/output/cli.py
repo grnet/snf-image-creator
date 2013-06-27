@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -61,7 +63,7 @@ def success(msg, new_line, colored, stream):
 
 
 def clear(stream):
-    #clear the page
+    """Clears the terminal screen."""
     if stream.isatty():
         stream.write('\033[H\033[2J')
 

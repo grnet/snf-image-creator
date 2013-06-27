@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -30,6 +32,12 @@
 # documentation are those of the authors and should not be
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
+
+"""This package is intended to provide output classes for printing messages and
+progress bars. The user can change the output behaviour of the program by
+subclassing the Output class and assigning the derived one as the output class
+of the various parts of the image-creator package.
+"""
 
 
 class Output(object):
