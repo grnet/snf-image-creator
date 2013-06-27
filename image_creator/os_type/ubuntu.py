@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,6 +33,8 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This module hosts OS-specific code for Ubuntu Linux"""
+
 from image_creator.os_type.linux import Linux
 
 
@@ -39,6 +43,10 @@ class Ubuntu(Linux):
     def __init__(self, rootdev, ghandler, output):
         super(Ubuntu, self).__init__(rootdev, ghandler, output)
 
+    def _do_collect_metadata(self):
+        """Collect metadata about the OS"""
+
+        super(Ubuntu, self)._do_collect_metadata()
         apps = self.g.inspect_list_applications(self.root)
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':

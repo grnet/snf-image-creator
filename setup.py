@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or

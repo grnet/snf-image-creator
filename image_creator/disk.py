@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -31,6 +33,8 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""Module hosting the Disk class."""
+
 from image_creator.util import get_command
 from image_creator.util import try_fail_repeat
 from image_creator.util import free_space
@@ -50,7 +54,26 @@ losetup = get_command('losetup')
 blockdev = get_command('blockdev')
 
 
-TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
+def get_tmp_dir(default=None):
+    """Check tmp directory candidates and return the one with the most
+    available space.
+    """
+    if default is not None:
+        return default
+
+    TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
+
+    space = map(free_space, TMP_CANDIDATES)
+
+    max_idx = 0
+    max_val = space[0]
+    for i, val in zip(range(len(space)), space):
+        if val > max_val:
+            max_val = val
+            max_idx = i
+
+    # Return the candidate path with more available space
+    return TMP_CANDIDATES[max_idx]
 
 
 class Disk(object):
@@ -71,28 +94,9 @@ class Disk(object):
         self.out = output
         self.meta = {}
         self.tmp = tempfile.mkdtemp(prefix='.snf_image_creator.',
-                                    dir=self._get_tmp_dir(tmp))
+                                    dir=get_tmp_dir(tmp))
 
         self._add_cleanup(shutil.rmtree, self.tmp)
-
-    def _get_tmp_dir(self, default=None):
-        """Check tmp directory candidates and return the one with the most
-        available space.
-        """
-        if default is not None:
-            return default
-
-        space = map(free_space, TMP_CANDIDATES)
-
-        max_idx = 0
-        max_val = space[0]
-        for i, val in zip(range(len(space)), space):
-            if val > max_val:
-                max_val = val
-                max_idx = i
-
-        # Return the candidate path with more available space
-        return TMP_CANDIDATES[max_idx]
 
     def _add_cleanup(self, job, *args):
         """Add a new job in the cleanup list"""

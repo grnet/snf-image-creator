@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
+#
 # Copyright 2012 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
@@ -33,18 +33,23 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
+"""This module implements the "expert" mode of the dialog-based version of
+snf-image-creator.
+"""
+
 import os
 import textwrap
 import StringIO
+import json
 
 from image_creator import __version__ as version
-from image_creator.util import MD5
+from image_creator.util import MD5, FatalError
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, extract_metadata_string
+    extract_image, extract_metadata_string, add_cloud, edit_cloud
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -108,15 +113,15 @@ class MetadataMonitor(object):
 
 
 def upload_image(session):
-    """Upload the image to pithos+"""
+    """Upload the image to the storage service"""
     d = session["dialog"]
     image = session['image']
     meta = session['metadata']
     size = image.size
 
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos credentials before you "
-                 "can upload images to pithos+", width=SMALL_WIDTH)
+        d.msgbox("You need to select a valid cloud before you can upload "
+                 "images to it", width=SMALL_WIDTH)
         return False
 
     while 1:
@@ -144,8 +149,8 @@ def upload_image(session):
                 overwrite.append(f)
 
         if len(overwrite) > 0:
-            if d.yesno("The following pithos object(s) already exist(s):\n"
-                       "%s\nDo you want to overwrite them?" %
+            if d.yesno("The following storage service object(s) already "
+                       "exist(s):\n%s\nDo you want to overwrite them?" %
                        "\n".join(overwrite), width=WIDTH, defaultno=1):
                 continue
 
@@ -177,8 +182,9 @@ def upload_image(session):
                 out.success("done")
 
             except ClientError as e:
-                d.msgbox("Error in pithos+ client: %s" % e.message,
-                         title="Pithos+ Client Error", width=SMALL_WIDTH)
+                d.msgbox(
+                    "Error in storage service client: %s" % e.message,
+                    title="Storage Service Client Error", width=SMALL_WIDTH)
                 if 'pithos_uri' in session:
                     del session['pithos_uri']
                 return False
@@ -187,26 +193,26 @@ def upload_image(session):
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image file `%s' was successfully uploaded to pithos+" % filename,
+    d.msgbox("Image file `%s' was successfully uploaded" % filename,
              width=SMALL_WIDTH)
 
     return True
 
 
 def register_image(session):
-    """Register image with cyclades"""
+    """Register image with the compute service"""
     d = session["dialog"]
 
     is_public = False
 
     if "account" not in session:
-        d.msgbox("You need to provide your ~okeanos credentians before you "
-                 "can register an images with cyclades", width=SMALL_WIDTH)
+        d.msgbox("You need to select a valid cloud before you "
+                 "can register an images with it", width=SMALL_WIDTH)
         return False
 
     if "pithos_uri" not in session:
-        d.msgbox("You need to upload the image to pithos+ before you can "
-                 "register it with cyclades", width=SMALL_WIDTH)
+        d.msgbox("You need to upload the image to the cloud before you can "
+                 "register it", width=SMALL_WIDTH)
         return False
 
     while 1:
@@ -243,14 +249,14 @@ def register_image(session):
         out.add(gauge)
         try:
             try:
-                out.output("Registering %s image with Cyclades..." % img_type)
+                out.output("Registering %s image with the cloud..." % img_type)
                 kamaki = Kamaki(session['account'], out)
-                kamaki.register(name, session['pithos_uri'], metadata,
-                                is_public)
+                result = kamaki.register(name, session['pithos_uri'], metadata,
+                                         is_public)
                 out.success('done')
                 # Upload metadata file
                 out.output("Uploading metadata file...")
-                metastring = extract_metadata_string(session)
+                metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])
@@ -261,39 +267,116 @@ def register_image(session):
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
             except ClientError as e:
-                d.msgbox("Error in pithos+ client: %s" % e.message)
+                d.msgbox("Error in storage service client: %s" % e.message)
                 return False
         finally:
             out.remove(gauge)
     finally:
         gauge.cleanup()
 
-    d.msgbox("%s image `%s' was successfully registered with Cyclades as `%s'"
+    d.msgbox("%s image `%s' was successfully registered with the cloud as `%s'"
              % (img_type.title(), session['upload'], name), width=SMALL_WIDTH)
+    return True
+
+
+def modify_clouds(session):
+    """Modify existing cloud accounts"""
+    d = session['dialog']
+
+    while 1:
+        clouds = Kamaki.get_clouds()
+        if not len(clouds):
+            if not add_cloud(session):
+                break
+            continue
+
+        choices = []
+        for (name, cloud) in clouds.items():
+            descr = cloud['description'] if 'description' in cloud else ''
+            choices.append((name, descr))
+
+        (code, choice) = d.menu(
+            "In this menu you can edit existing cloud accounts or add new "
+            " ones. Press <Edit> to edit an existing account or <Add> to add "
+            " a new one. Press <Back> or hit <ESC> when done.", height=18,
+            width=WIDTH, choices=choices, menu_height=10, ok_label="Edit",
+            extra_button=1, extra_label="Add", cancel="Back", help_button=1,
+            title="Clouds")
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return True
+        elif code == d.DIALOG_OK:  # Edit button
+            edit_cloud(session, choice)
+        elif code == d.DIALOG_EXTRA:  # Add button
+            add_cloud(session)
+
+
+def delete_clouds(session):
+    """Delete existing cloud accounts"""
+    d = session['dialog']
+
+    choices = []
+    for (name, cloud) in Kamaki.get_clouds().items():
+        descr = cloud['description'] if 'description' in cloud else ''
+        choices.append((name, descr, 0))
+
+    if len(choices) == 0:
+        d.msgbox("No available clouds to delete!", width=SMALL_WIDTH)
+        return True
+
+    (code, to_delete) = d.checklist("Choose which cloud accounts to delete:",
+                                    choices=choices, width=WIDTH)
+
+    if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        return False
+
+    if not len(to_delete):
+        d.msgbox("Nothing selected!", width=SMALL_WIDTH)
+        return False
+
+    if not d.yesno("Are you sure you want to remove the selected cloud "
+                   "accounts?", width=WIDTH, defaultno=1):
+        for i in to_delete:
+            Kamaki.remove_cloud(i)
+            if 'cloud' in session and session['cloud'] == i:
+                del session['cloud']
+                if 'account' in session:
+                    del session['account']
+    else:
+        return False
+
+    d.msgbox("%d cloud accounts were deleted." % len(to_delete),
+             width=SMALL_WIDTH)
     return True
 
 
 def kamaki_menu(session):
     """Show kamaki related actions"""
     d = session['dialog']
-    default_item = "Account"
+    default_item = "Cloud"
 
-    if 'account' not in session:
-        token = Kamaki.get_token()
-        if token:
-            session['account'] = Kamaki.get_account(token)
+    if 'cloud' not in session:
+        cloud = Kamaki.get_default_cloud_name()
+        if cloud:
+            session['cloud'] = cloud
+            session['account'] = Kamaki.get_account(cloud)
             if not session['account']:
                 del session['account']
-                Kamaki.save_token('')  # The token was not valid. Remove it
+        else:
+            default_item = "Add/Edit"
 
     while 1:
-        account = session["account"]['username'] if "account" in session else \
-            "<none>"
+        cloud = session["cloud"] if "cloud" in session else "<none>"
+        if 'account' not in session and 'cloud' in session:
+            cloud += " <invalid>"
+
         upload = session["upload"] if "upload" in session else "<none>"
 
-        choices = [("Account", "Change your ~okeanos account: %s" % account),
-                   ("Upload", "Upload image to pithos+"),
-                   ("Register", "Register the image to cyclades: %s" % upload)]
+        choices = [("Add/Edit", "Add/Edit cloud accounts"),
+                   ("Delete", "Delete existing cloud accounts"),
+                   ("Cloud", "Select cloud account to use: %s" % cloud),
+                   ("Upload", "Upload image to the cloud"),
+                   ("Register", "Register image with the cloud: %s" % upload)]
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -304,26 +387,56 @@ def kamaki_menu(session):
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
-        if choice == "Account":
-            default_item = "Account"
-            (code, answer) = d.inputbox(
-                "Please provide your ~okeanos authentication token:",
-                init=session["account"]['auth_token'] if "account" in session
-                else '', width=WIDTH)
+        if choice == "Add/Edit":
+            if modify_clouds(session):
+                default_item = "Cloud"
+        elif choice == "Delete":
+            if delete_clouds(session):
+                if len(Kamaki.get_clouds()):
+                    default_item = "Cloud"
+                else:
+                    default_time = "Add/Edit"
+            else:
+                default_time = "Delete"
+        elif choice == "Cloud":
+            default_item = "Cloud"
+            clouds = Kamaki.get_clouds()
+            if not len(clouds):
+                d.msgbox("No clouds available. Please add a new cloud!",
+                         width=SMALL_WIDTH)
+                default_item = "Add/Edit"
+                continue
+
+            if 'cloud' not in session:
+                session['cloud'] = clouds.keys()[0]
+
+            choices = []
+            for name, info in clouds.items():
+                default = 1 if session['cloud'] == name else 0
+                descr = info['description'] if 'description' in info else ""
+                choices.append((name, descr, default))
+
+            (code, answer) = d.radiolist("Please select a cloud:",
+                                         width=WIDTH, choices=choices)
             if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
                 continue
-            if len(answer) == 0 and "account" in session:
-                    del session["account"]
             else:
-                token = answer.strip()
-                session['account'] = Kamaki.get_account(token)
+                session['account'] = Kamaki.get_account(answer)
+
+                if session['account'] is None:  # invalid account
+                    if not d.yesno("The cloud %s' is not valid! Would you "
+                                   "like to edit it?" % answer, width=WIDTH):
+                        if edit_cloud(session, answer):
+                            session['account'] = Kamaki.get_account(answer)
+                            Kamaki.set_default_cloud(answer)
+
                 if session['account'] is not None:
-                    Kamaki.save_token(token)
+                    session['cloud'] = answer
+                    Kamaki.set_default_cloud(answer)
                     default_item = "Upload"
                 else:
                     del session['account']
-                    d.msgbox("The token you provided is not valid!",
-                             width=SMALL_WIDTH)
+                    del session['cloud']
         elif choice == "Upload":
             if upload_image(session):
                 default_item = "Register"
@@ -568,30 +681,19 @@ def sysprep(session):
             try:
                 image.out.add(infobox)
                 try:
-                    image.mount(readonly=False)
-                    try:
-                        err = "Unable to execute the system preparation " \
-                            "tasks. Couldn't mount the media%s."
-                        title = "System Preparation"
-                        if not image.mounted:
-                            d.msgbox(err % "", title=title, width=SMALL_WIDTH)
-                            return
-                        elif image.mounted_ro:
-                            d.msgbox(err % " read-write", title=title,
-                                     width=SMALL_WIDTH)
-                            return
+                    # The checksum is invalid. We have mounted the image rw
+                    if 'checksum' in session:
+                        del session['checksum']
 
-                        # The checksum is invalid. We have mounted the image rw
-                        if 'checksum' in session:
-                            del session['checksum']
-
-                        # Monitor the metadata changes during syspreps
-                        with MetadataMonitor(session, image.os.meta):
+                    # Monitor the metadata changes during syspreps
+                    with MetadataMonitor(session, image.os.meta):
+                        try:
                             image.os.do_sysprep()
                             infobox.finalize()
-
-                    finally:
-                        image.umount()
+                        except FatalError as e:
+                            title = "System Preparation"
+                            d.msgbox("System Preparation failed: %s" % e,
+                                     title=title, width=SMALL_WIDTH)
                 finally:
                     image.out.remove(infobox)
             finally:
@@ -675,8 +777,8 @@ def main_menu(session):
 
     update_background_title(session)
 
-    choices = [("Customize", "Customize image & ~okeanos deployment options"),
-               ("Register", "Register image to ~okeanos"),
+    choices = [("Customize", "Customize image & cloud deployment options"),
+               ("Register", "Register image to a cloud"),
                ("Extract", "Dump image to local file system"),
                ("Reset", "Reset everything and start over again"),
                ("Help", "Get help for using snf-image-creator")]
@@ -690,7 +792,7 @@ def main_menu(session):
             text="Choose one of the following or press <Exit> to exit.",
             width=WIDTH, choices=choices, cancel="Exit", height=13,
             default_item=default_item, menu_height=len(choices),
-            title="Image Creator for ~okeanos (snf-image-creator version %s)" %
+            title="Image Creator for synnefo (snf-image-creator version %s)" %
                   version)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
