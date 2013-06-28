@@ -43,8 +43,8 @@ import time
 
 class Linux(Unix):
     """OS class for Linux"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Linux, self).__init__(rootdev, ghandler, output)
+    def __init__(self, image):
+        super(Linux, self).__init__(image)
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
 

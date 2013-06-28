@@ -42,8 +42,6 @@ import re
 
 class Freebsd(Unix):
     """OS class for FreeBSD Unix-like os"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Freebsd, self).__init__(rootdev, ghandler, output)
 
     @sysprep()
     def cleanup_password(self, print_header=True):

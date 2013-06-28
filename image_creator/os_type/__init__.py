@@ -79,10 +79,13 @@ def sysprep(enabled=True):
 class OSBase(object):
     """Basic operating system class"""
 
-    def __init__(self, rootdev, ghandler, output):
-        self.root = rootdev
-        self.g = ghandler
-        self.out = output
+    def __init__(self, image):
+        self.image = image
+
+        self.root = image.root
+        self.g = image.g
+        self.out = image.out
+
         self.meta = {}
 
     def collect_metadata(self):

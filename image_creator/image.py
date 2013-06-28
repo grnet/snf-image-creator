@@ -118,7 +118,7 @@ class Image(object):
             self.enable()
 
         cls = os_cls(self.distro, self.ostype)
-        self._os = cls(self.root, self.g, self.out)
+        self._os = cls(self)
 
         self._os.collect_metadata()
 
