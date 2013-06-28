@@ -157,7 +157,7 @@ def upload_image(session):
         session['upload'] = filename
         break
 
-    gauge = GaugeOutput(d, "Image Upload", "Uploading...")
+    gauge = GaugeOutput(d, "Image Upload", "Uploading ...")
     try:
         out = image.out
         out.add(gauge)
@@ -175,7 +175,7 @@ def upload_image(session):
                                       "Calculating block hashes",
                                       "Uploading missing blocks")
                 # Upload md5sum file
-                out.output("Uploading md5sum file...")
+                out.output("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
                               remote_path="%s.md5sum" % filename)
@@ -243,26 +243,27 @@ def register_image(session):
             metadata[key] = 'yes'
 
     img_type = "public" if is_public else "private"
-    gauge = GaugeOutput(d, "Image Registration", "Registering image...")
+    gauge = GaugeOutput(d, "Image Registration", "Registering image ...")
     try:
         out = session['image'].out
         out.add(gauge)
         try:
             try:
-                out.output("Registering %s image with the cloud..." % img_type)
+                out.output("Registering %s image with the cloud ..." %
+                           img_type)
                 kamaki = Kamaki(session['account'], out)
                 result = kamaki.register(name, session['pithos_uri'], metadata,
                                          is_public)
                 out.success('done')
                 # Upload metadata file
-                out.output("Uploading metadata file...")
+                out.output("Uploading metadata file ...")
                 metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])
                 out.success("done")
                 if is_public:
-                    out.output("Sharing metadata and md5sum files...")
+                    out.output("Sharing metadata and md5sum files ...")
                     kamaki.share("%s.meta" % session['upload'])
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
@@ -800,7 +801,7 @@ def main_menu(session):
                 break
         elif choice == "Reset":
             if confirm_reset(d):
-                d.infobox("Resetting snf-image-creator. Please wait...",
+                d.infobox("Resetting snf-image-creator. Please wait ...",
                           width=SMALL_WIDTH)
                 raise Reset
         elif choice == "Help":
