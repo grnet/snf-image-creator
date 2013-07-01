@@ -37,21 +37,25 @@
 Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep
-from image_creator.util import FatalError, check_guestfs_version
+from image_creator.util import FatalError, check_guestfs_version, get_command
 
 import hivex
 import tempfile
 import os
+import time
+import random
+
+kvm = get_command('kvm')
 
 
 class Windows(OSBase):
     """OS class for Windows"""
 
     @sysprep(enabled=False)
-    def remove_user_accounts(self, print_header=True):
-        """Remove all user accounts with id greater than 1000"""
+    def test(self, print_header=True):
+        """test sysprep"""
         pass
- 
+
     def do_sysprep(self):
         """Prepare system for image creation."""
 
@@ -74,10 +78,25 @@ class Windows(OSBase):
             ret = self.g.kill_subprocess()
 
         self.out.success('done')
-
-        self.out.output("Starting windows VM ...", False)
         try:
-            pass
+            self.out.output("Starting windows VM ...", False)
+
+            def random_mac():
+                mac = [0x00, 0x16, 0x3e,
+                       random.randint(0x00, 0x7f),
+                       random.randint(0x00, 0xff),
+                       random.randint(0x00, 0xff)]
+                return ':'.join(map(lambda x: "%02x" % x, mac))
+
+            vm = kvm('-smp', '1', '-m', '1024', '-drive',
+                     'file=%s,format=raw,cache=none,if=virtio' %
+                     self.image.device,
+                     '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
+                     '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' %
+                     random_mac(), '-vnc', ':0', _bg=True)
+            time.sleep(30)
+            self.out.success('done')
+            vm.wait()
         finally:
             self.out.output("Relaunching helper VM (may take a while) ...",
                             False)
