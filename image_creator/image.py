@@ -45,12 +45,11 @@ from sendfile import sendfile
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
-    def __init__(self, device, output, bootable=True, meta={}):
+    def __init__(self, device, output, meta={}):
         """Create a new Image instance"""
 
         self.device = device
         self.out = output
-        self.bootable = bootable
         self.meta = meta
         self.progress_bar = None
         self.guestfs_device = None
