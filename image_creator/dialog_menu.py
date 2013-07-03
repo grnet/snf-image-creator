@@ -619,6 +619,41 @@ def exclude_tasks(session):
     return True
 
 
+def sysprep_params(session):
+
+    d = session['dialog']
+    image = session['image']
+
+    available = image.os.sysprep_params
+    needed = image.os.needed_sysprep_params()
+
+    if len(needed) == 0:
+        return True
+
+    fields = []
+    for param in needed:
+        default = available[param.name] if param.name in available else ""
+        fields.append(("%s: " % param.description, default, param.length))
+
+    txt = "Please provide the following system preparation parameters:"
+    code, output = d.form(txt, height=13, width=WIDTH, form_height=len(fields),
+                          fields=fields)
+
+    if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        return False
+
+    sysprep_params = {}
+    for i in range(len(fields)):
+        if needed[i].validator(output[i]):
+            image.os.sysprep_params[needed[i].name] = output[i]
+        else:
+            d.msgbox("The value you provided for parameter: %s is not valid" %
+                     name, width=SMALL_WIDTH)
+            return False
+
+    return True
+
+
 def sysprep(session):
     """Perform various system preperation tasks on the image"""
     d = session['dialog']
@@ -681,6 +716,9 @@ def sysprep(session):
             if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
                 d.msgbox("No system preperation task is selected!",
                          title="System Preperation", width=SMALL_WIDTH)
+                continue
+
+            if not sysprep_params(session):
                 continue
 
             infobox = InfoBoxOutput(d, "Image Configuration")

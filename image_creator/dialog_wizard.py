@@ -208,6 +208,36 @@ class WizardInputPage(WizardPage):
         return self.NEXT
 
 
+class WizardFormPage(WizardPage):
+    """Represents a Form in a wizard"""
+
+    def __init__(self, name, display_name, text, fields, **kargs):
+        super(WizardFormPage, self).__init__(name, display_name, text, **kargs)
+        self.fields = fields
+
+    def run(self, session, title):
+        d = session['dialog']
+        w = session['wizard']
+
+        field_lenght = len(self.fields())
+        form_height = field_lenght if field_lenght < PAGE_HEIGHT - 4 \
+            else PAGET_HEIGHT - 4
+
+        (code, output) = d.form(
+            self.text, width=PAGE_WIDTH, height=PAGE_HEIGHT,
+            form_height=form_height, ok_label="Next", cancel="Back",
+            fields=self.fields(), title=title)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return self.PREV
+
+        w[self.name] = self.validate(output)
+        self.default = output
+        self.info = "%s: %s" % (self.display_name, self.display(w[self.name]))
+
+        return self.NEXT
+
+
 class WizardMenuPage(WizardPageWthChoices):
     """Represents a menu dialog with available choices in a wizard"""
 
@@ -250,9 +280,11 @@ class WizardMenuPage(WizardPageWthChoices):
 def start_wizard(session):
     """Run the image creation wizard"""
 
-    distro = session['image'].distro
-    ostype = session['image'].ostype
+    image = session['image']
+    distro = image.distro
+    ostype = image.ostype
 
+    # Create Cloud Wizard Page
     def cloud_choices():
         choices = []
         for (name, cloud) in Kamaki.get_clouds().items():
@@ -279,7 +311,7 @@ def start_wizard(session):
                 if edit_cloud(session, cloud):
                     return cloud
 
-            raise WizardInvalidData
+            raise WizardReloadPage
 
         return cloud
 
@@ -289,16 +321,52 @@ def start_wizard(session):
         choices=cloud_choices, extra_label="Add", extra=cloud_add,
         title="Clouds", validate=cloud_validate, fallback=cloud_none_available)
 
+    # Create Image Name Wizard Page
     name = WizardInputPage(
         "ImageName", "Image Name", "Please provide a name for the image:",
         title="Image Name", default=ostype if distro == "unknown" else distro)
 
+    # Create Image Description Wizard Page
     descr = WizardInputPage(
         "ImageDescription", "Image Description",
         "Please provide a description for the image:",
         title="Image Description", default=session['metadata']['DESCRIPTION']
         if 'DESCRIPTION' in session['metadata'] else '')
 
+    # Create Sysprep Params Wizard Page
+    needed = image.os.needed_sysprep_params()
+
+    def sysprep_params_fields():
+        fields = []
+        available = image.os.sysprep_params
+        for param in needed:
+            text = param.description
+            default = available[param.name] if param.name in available else ""
+            fields.append(("%s: " % text, default, param.length))
+        return fields
+
+    def sysprep_params_validate(answer):
+        params = {}
+        for i in range(len(answer)):
+            if needed[i].validator(answer):
+                params[needed[i].name] = answer[i]
+            else:
+                session['dialog'].msgbox("Invalid value for parameter `%s'" %
+                                         needed[i].name)
+                raise WizardReloadPage
+        return params
+
+    def sysprep_params_display(params):
+        return ",".join(["%s=%s" % (key, val) for key, val in params.items()])
+
+    sysprep_params = WizardFormPage(
+        "SysprepParams", "Sysprep Parameters",
+        "Prease fill in the following system preparation parameters:",
+        title="System Preparation Parameters", fields=sysprep_params_fields,
+        display=sysprep_params_display, validate=sysprep_params_validate
+    ) if len(needed) != 0 else None
+
+    # Create Image Registration Wizard Page
     def registration_choices():
         return [("Private", "Image is accessible only by this user"),
                 ("Public", "Everyone can create VMs from this image")]
@@ -313,6 +381,8 @@ def start_wizard(session):
     w.add_page(cloud)
     w.add_page(name)
     w.add_page(descr)
+    if sysprep_params is not None:
+        w.add_page(sysprep_params)
     w.add_page(registration)
 
     if w.run():
@@ -336,6 +406,7 @@ def create_image(session):
         out.clear()
 
         #Sysprep
+        image.os.sysprep_params.update(wizard['SysprepParams'])
         image.os.do_sysprep()
         metadata = image.os.meta
 

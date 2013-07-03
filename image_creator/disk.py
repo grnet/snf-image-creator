@@ -187,10 +187,10 @@ class Disk(object):
         self.out.success('done')
         return "/dev/mapper/%s" % snapshot
 
-    def get_image(self, media):
+    def get_image(self, media, **kargs):
         """Returns a newly created Image instance."""
 
-        image = Image(media, self.out)
+        image = Image(media, self.out, **kargs)
         self._images.append(image)
         image.enable()
         return image

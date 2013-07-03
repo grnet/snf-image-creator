@@ -45,12 +45,16 @@ from sendfile import sendfile
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
-    def __init__(self, device, output, meta={}):
+    def __init__(self, device, output, **kargs):
         """Create a new Image instance"""
 
         self.device = device
         self.out = output
-        self.meta = meta
+
+        self.meta = kargs['meta'] if 'meta' in kargs else {}
+        self.sysprep_params = \
+            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+
         self.progress_bar = None
         self.guestfs_device = None
         self.size = 0
@@ -117,7 +121,7 @@ class Image(object):
             self.enable()
 
         cls = os_cls(self.distro, self.ostype)
-        self._os = cls(self)
+        self._os = cls(self, sysprep_params=self.sysprep_params)
 
         self._os.collect_metadata()
 

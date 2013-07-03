@@ -41,6 +41,7 @@ from image_creator.util import FatalError
 
 import textwrap
 import re
+from collections import namedtuple
 
 
 def os_cls(distro, osfamily):
@@ -79,12 +80,18 @@ def sysprep(enabled=True):
 class OSBase(object):
     """Basic operating system class"""
 
-    def __init__(self, image):
+    SysprepParam = namedtuple('SysprepParam',
+                              'name description length validator')
+
+    def __init__(self, image, **kargs):
         self.image = image
 
         self.root = image.root
         self.g = image.g
         self.out = image.out
+
+        self.sysprep_params = \
+            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
 
         self.meta = {}
 
@@ -101,6 +108,12 @@ class OSBase(object):
             self.umount()
 
         self.out.output()
+
+    def needed_sysprep_params(self):
+        """Returns a list of needed sysprep parameters. Each element in the
+        list is a SysprepParam object.
+        """
+        return []
 
     def list_syspreps(self):
         """Returns a list of sysprep objects"""
