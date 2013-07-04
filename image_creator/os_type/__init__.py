@@ -183,6 +183,23 @@ class OSBase(object):
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 self.out.output('    %s:\n%s\n' % (name, descr))
 
+    def print_sysprep_params(self):
+        """Print the system preparation parameter the user may use"""
+
+        self.out.output("Needed system preparation parameters:")
+
+        params = self.needed_sysprep_params()
+
+        if len(params) == 0:
+            self.out.output("(none)")
+            return
+
+        for param in params:
+            self.out.output("\t%s (%s): %s" %
+                            (param.description, param.name,
+                             self.sysprep_params[param.name] if param.name in
+                             self.sysprep_params else "(none)"))
+
     def do_sysprep(self):
         """Prepare system for image creation."""
 
