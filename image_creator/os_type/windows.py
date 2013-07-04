@@ -44,6 +44,7 @@ import tempfile
 import os
 import time
 import random
+import subprocess
 
 kvm = get_command('kvm')
 
@@ -51,16 +52,57 @@ kvm = get_command('kvm')
 class Windows(OSBase):
     """OS class for Windows"""
 
-    @sysprep(enabled=False)
-    def test(self, print_header=True):
-        """test sysprep"""
-        pass
+    def needed_sysprep_params(self):
+        """Returns a list of needed sysprep parameters. Each element in the
+        list is a SysprepParam object.
+        """
+
+        password = self.SysprepParam(
+            'password', 'Image Administrator Password', 20, lambda x: True)
+
+        return [password]
+
+    @sysprep(enabled=True)
+    def disable_ipv6_privacy_extensions(self, print_header=True):
+        """Disable IPv6 privacy extensions"""
+
+        if print_header:
+            self.out.output("Disabling IPv6 privacy extensions")
+
+        out, err, rc = self._guest_exec(
+            'netsh interface ipv6 set global randomizeidentifiers=disabled '
+            'store=persistent')
+
+        if rc != 0:
+            raise FatalError("Unable to disable IPv6 privacy extensions: %s" %
+                             err)
+
+    @sysprep(enabled=True)
+    def microsoft_sysprep(self, print_header=True):
+        """Run the Micorsoft System Preparation Tool on the Image. After this
+        runs, no other task may run.
+        """
+
+        if print_header:
+            self.out.output("Executing sysprep on the image (may take more "
+                            "than 10 minutes)")
+
+        out, err, rc = self._guest_exec(r'C:\windows\system32\sysprep\sysprep '
+                                        r'/quiet /generalize /oobe /shutdown')
+        self.syspreped = True
+        if rc != 0:
+            raise FatalError("Unable to perform sysprep: %s" % err)
 
     def do_sysprep(self):
         """Prepare system for image creation."""
 
         if getattr(self, 'syspreped', False):
             raise FatalError("Image is already syspreped!")
+
+        txt = "System preparation parameter: `%s' is needed but missing!"
+        for param in self.needed_sysprep_params():
+            if param[0] not in self.sysprep_params:
+                raise FatalError(txt % param[0])
 
         self.mount(readonly=False)
         try:
@@ -94,10 +136,38 @@ class Windows(OSBase):
                      '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
                      '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' %
                      random_mac(), '-vnc', ':0', _bg=True)
-            time.sleep(30)
+            time.sleep(60)
             self.out.success('done')
+
+            tasks = self.list_syspreps()
+            enabled = filter(lambda x: x.enabled, tasks)
+
+            size = len(enabled)
+
+            # Make sure the ms sysprep is the last task to run if it is enabled
+            enabled = filter(
+                lambda x: x.im_func.func_name != 'microsoft_sysprep', enabled)
+
+            ms_sysprep_enabled = False
+            if len(enabled) != size:
+                enabled.append(self.ms_sysprep)
+                ms_sysprep_enabled = True
+
+            cnt = 0
+            for task in enabled:
+                cnt += 1
+                self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+                task()
+                setattr(task.im_func, 'executed', True)
+
+            if not ms_sysprep_enabled:
+                self._shutdown()
+
             vm.wait()
         finally:
+            if vm.process.alive:
+                vm.terminate()
+
             self.out.output("Relaunching helper VM (may take a while) ...",
                             False)
             self.g.launch()
@@ -106,7 +176,16 @@ class Windows(OSBase):
         if disabled_uac:
             self._update_uac_remote_setting(0)
 
-        self.syspreped = True
+    def _shutdown(self):
+        """Shuts down the windows VM"""
+
+        self.out.output("Shutting down windows VM ...", False)
+        out, err, rc = self._guest_exec(r'shutdown /s /t 5')
+
+        if rc != 0:
+            raise FatalError("Unable to perform shutdown: %s" % err)
+
+        self.out.success('done')
 
     def _registry_file_path(self, regfile):
         """Retrieves the case sensitive path to a registry file"""
@@ -204,5 +283,18 @@ class Windows(OSBase):
 
         # Filter out the guest account
         return filter(lambda x: x != "Guest", users)
+
+    def _guest_exec(self, command):
+        user = "Administrator%" + self.sysprep_params['password']
+        addr = 'localhost'
+        runas = '--runas=%s' % user
+        winexe = subprocess.Popen(
+            ['winexe', '-U', user, "//%s" % addr, runas, command],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        result = winexe.communicate()
+        rc = winexe.poll()
+
+        return (result[0], result[1], rc)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
