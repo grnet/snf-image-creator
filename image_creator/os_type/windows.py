@@ -44,9 +44,12 @@ import tempfile
 import os
 import time
 import random
+import string
 import subprocess
 
 kvm = get_command('kvm')
+
+BOOT_TIMEOUT = 300
 
 
 class Windows(OSBase):
@@ -69,29 +72,23 @@ class Windows(OSBase):
         if print_header:
             self.out.output("Disabling IPv6 privacy extensions")
 
-        out, err, rc = self._guest_exec(
-            'netsh interface ipv6 set global randomizeidentifiers=disabled '
-            'store=persistent')
-
-        if rc != 0:
-            raise FatalError("Unable to disable IPv6 privacy extensions: %s" %
-                             err)
+        self._guest_exec('netsh interface ipv6 set global '
+                         'randomizeidentifiers=disabled store=persistent')
 
     @sysprep(enabled=True)
     def microsoft_sysprep(self, print_header=True):
-        """Run the Micorsoft System Preparation Tool on the Image. After this
-        runs, no other task may run.
+        """Run the Microsoft System Preparation Tool on the Image. This will
+        remove system-specific data and will make the image ready to be
+        deployed. After this no other task may run.
         """
 
         if print_header:
             self.out.output("Executing sysprep on the image (may take more "
                             "than 10 minutes)")
 
-        out, err, rc = self._guest_exec(r'C:\windows\system32\sysprep\sysprep '
-                                        r'/quiet /generalize /oobe /shutdown')
+        self._guest_exec(r'C:\Windows\system32\sysprep\sysprep '
+                         r'/quiet /generalize /oobe /shutdown')
         self.syspreped = True
-        if rc != 0:
-            raise FatalError("Unable to perform sysprep: %s" % err)
 
     def do_sysprep(self):
         """Prepare system for image creation."""
@@ -107,6 +104,7 @@ class Windows(OSBase):
         self.mount(readonly=False)
         try:
             disabled_uac = self._update_uac_remote_setting(1)
+            token = self._enable_os_monitor()
         finally:
             self.umount()
 
@@ -120,24 +118,27 @@ class Windows(OSBase):
             ret = self.g.kill_subprocess()
 
         self.out.success('done')
+
+        vm = None
+        monitor = None
         try:
             self.out.output("Starting windows VM ...", False)
+            monitorfd, monitor = tempfile.mkstemp()
+            os.close(monitorfd)
+            vm, display = self._create_vm(monitor)
+            self.out.success("started (console on vnc display: %d)." % display)
 
-            def random_mac():
-                mac = [0x00, 0x16, 0x3e,
-                       random.randint(0x00, 0x7f),
-                       random.randint(0x00, 0xff),
-                       random.randint(0x00, 0xff)]
-                return ':'.join(map(lambda x: "%02x" % x, mac))
+            self.out.output("Waiting for OS to boot ...", False)
+            if not self._wait_on_file(monitor, token):
+                raise FatalError("Windows booting timed out.")
+            else:
+                self.out.success('done')
 
-            vm = kvm('-smp', '1', '-m', '1024', '-drive',
-                     'file=%s,format=raw,cache=none,if=virtio' %
-                     self.image.device,
-                     '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-                     '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' %
-                     random_mac(), '-vnc', ':0', _bg=True)
-            time.sleep(60)
+            self.out.output("Disabling automatic logon ...", False)
+            self._disable_autologon()
             self.out.success('done')
+
+            self.out.output('Preparing system from image creation:')
 
             tasks = self.list_syspreps()
             enabled = filter(lambda x: x.enabled, tasks)
@@ -160,13 +161,18 @@ class Windows(OSBase):
                 task()
                 setattr(task.im_func, 'executed', True)
 
+            self.out.output("Shutting down windows VM ...", False)
             if not ms_sysprep_enabled:
                 self._shutdown()
+            self.out.success("done")
 
             vm.wait()
         finally:
-            if vm.process.alive:
-                vm.terminate()
+            if monitor is not None:
+                os.unlink(monitor)
+
+            if vm is not None:
+                self._destroy_vm(vm)
 
             self.out.output("Relaunching helper VM (may take a while) ...",
                             False)
@@ -176,16 +182,62 @@ class Windows(OSBase):
         if disabled_uac:
             self._update_uac_remote_setting(0)
 
+    def _create_vm(self, monitor):
+        """Create a VM with the image attached as the disk
+
+            monitor: a file to be used to monitor when the OS is up
+        """
+
+        def random_mac():
+            mac = [0x00, 0x16, 0x3e,
+                   random.randint(0x00, 0x7f),
+                   random.randint(0x00, 0xff),
+                   random.randint(0x00, 0xff)]
+
+            return ':'.join(map(lambda x: "%02x" % x, mac))
+
+        # Use ganeti's VNC port range for a random vnc port
+        vnc_port = random.randint(11000, 14999)
+        display = vnc_port - 5900
+
+        vm = kvm('-smp', '1', '-m', '1024', '-drive',
+                 'file=%s,format=raw,cache=none,if=virtio' % self.image.device,
+                 '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
+                 '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' %
+                 random_mac(), '-vnc', ':%d' % display, '-serial',
+                 'file:%s' % monitor, _bg=True)
+
+        return vm, display
+
+    def _destroy_vm(self, vm):
+        """Destroy a VM previously created by _create_vm"""
+        if vm.process.alive:
+            vm.terminate()
+
     def _shutdown(self):
         """Shuts down the windows VM"""
+        self._guest_exec(r'shutdown /s /t 5')
 
-        self.out.output("Shutting down windows VM ...", False)
-        out, err, rc = self._guest_exec(r'shutdown /s /t 5')
+    def _wait_on_file(self, fname, msg):
+        """Wait until a message appears on a file"""
 
-        if rc != 0:
-            raise FatalError("Unable to perform shutdown: %s" % err)
+        for i in range(BOOT_TIMEOUT):
+            time.sleep(1)
+            with open(fname) as f:
+                for line in f:
+                    if line.startswith(msg):
+                        return True
+        return False
 
-        self.out.success('done')
+    def _disable_autologon(self):
+        """Disable automatic logon on the windows image"""
+
+        winlogon = \
+            r'"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"'
+
+        self._guest_exec('REG DELETE %s /v DefaultUserName /f' % winlogon)
+        self._guest_exec('REG DELETE %s /v DefaultPassword /f' % winlogon)
+        self._guest_exec('REG DELETE %s /v AutoAdminLogon /f' % winlogon)
 
     def _registry_file_path(self, regfile):
         """Retrieves the case sensitive path to a registry file"""
@@ -198,6 +250,80 @@ class Windows(OSBase):
             raise FatalError("Unable to retrieve registry file: %s. Reason: %s"
                              % (regfile, str(e)))
         return path
+
+    def _enable_os_monitor(self):
+        """Add a script in the registry that will send a random string to the
+        first serial port when the windows image finishes booting.
+        """
+
+        token = "".join(random.choice(string.ascii_letters) for x in range(16))
+
+        path = self._registry_file_path('SOFTWARE')
+        softwarefd, software = tempfile.mkstemp()
+        try:
+            os.close(softwarefd)
+            self.g.download(path, software)
+
+            h = hivex.Hivex(software, write=True)
+
+            # Enable automatic logon.
+            # This is needed because we need to execute a script that we add in
+            # the RunOnce registry entry and those programs only get executed
+            # when a user logs on. There is a RunServicesOnce registry entry
+            # whose keys get executed in the background when the logon dialog
+            # box first appears, but they seem to only work with services and
+            # not arbitrary command line expressions :-(
+            #
+            # Instructions on how to turn on automatic logon in Windows can be
+            # found here: http://support.microsoft.com/kb/324737
+            #
+            # Warning: Registry change will not work if the “Logon Banner” is
+            # defined on the server either by a Group Policy object (GPO) or by
+            # a local policy.
+
+            winlogon = h.root()
+            for child in ('Microsoft', 'Windows NT', 'CurrentVersion',
+                          'Winlogon'):
+                winlogon = h.node_get_child(winlogon, child)
+
+            h.node_set_value(
+                winlogon,
+                {'key': 'DefaultUserName', 't': 1,
+                 'value': "Administrator".encode('utf-16le')})
+            h.node_set_value(
+                winlogon,
+                {'key': 'DefaultPassword', 't': 1,
+                 'value':  self.sysprep_params['password'].encode('utf-16le')})
+            h.node_set_value(
+                winlogon,
+                {'key': 'AutoAdminLogon', 't': 1,
+                 'value': "1".encode('utf-16le')})
+
+            key = h.root()
+            for child in ('Microsoft', 'Windows', 'CurrentVersion'):
+                key = h.node_get_child(key, child)
+
+            runonce = h.node_get_child(key, "RunOnce")
+            if runonce is None:
+                runonce = h.node_add_child(key, "RunOnce")
+
+            value = (
+                r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
+                r'-ExecutionPolicy RemoteSigned '
+                r'"&{$port=new-Object System.IO.Ports.SerialPort COM1,9600,'
+                r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
+                r'$port.Close()}"').encode('utf-16le')
+
+            h.node_set_value(runonce,
+                             {'key': "BootMonitor", 't': 1, 'value': value})
+
+            h.commit(None)
+
+            self.g.upload(software, path)
+        finally:
+            os.unlink(software)
+
+        return token
 
     def _update_uac_remote_setting(self, value):
         """Updates the registry key value:
@@ -284,7 +410,9 @@ class Windows(OSBase):
         # Filter out the guest account
         return filter(lambda x: x != "Guest", users)
 
-    def _guest_exec(self, command):
+    def _guest_exec(self, command, fatal=True):
+        """Execute a command on a windows VM"""
+
         user = "Administrator%" + self.sysprep_params['password']
         addr = 'localhost'
         runas = '--runas=%s' % user
@@ -292,9 +420,14 @@ class Windows(OSBase):
             ['winexe', '-U', user, "//%s" % addr, runas, command],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        result = winexe.communicate()
+        stdout, stderr = winexe.communicate()
         rc = winexe.poll()
 
-        return (result[0], result[1], rc)
+        if rc != 0 and fatal:
+            reason = stderr if len(stderr) else stdout
+            raise FatalError("Command: `%s' failed. Reason: %s" %
+                             (command, reason))
+
+        return (stdout, stderr, rc)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
