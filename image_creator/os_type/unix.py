@@ -87,57 +87,41 @@ class Unix(OSBase):
 
         return True
 
-    @sysprep()
-    def cleanup_cache(self, print_header=True):
+    @sysprep('Removing files u)nder /var/cache')
+    def cleanup_cache(self):
         """Remove all regular files under /var/cache"""
-
-        if print_header:
-            self.out.output('Removing files under /var/cache')
 
         self._foreach_file('/var/cache', self.g.rm, ftype='r')
 
-    @sysprep()
-    def cleanup_tmp(self, print_header=True):
+    @sysprep('Removing files under /tmp and /var/tmp')
+    def cleanup_tmp(self):
         """Remove all files under /tmp and /var/tmp"""
-
-        if print_header:
-            self.out.output('Removing files under /tmp and /var/tmp')
 
         self._foreach_file('/tmp', self.g.rm_rf, maxdepth=1)
         self._foreach_file('/var/tmp', self.g.rm_rf, maxdepth=1)
 
-    @sysprep()
-    def cleanup_log(self, print_header=True):
+    @sysprep('Emptying all files under /var/log')
+    def cleanup_log(self):
         """Empty all files under /var/log"""
-
-        if print_header:
-            self.out.output('Emptying all files under /var/log')
 
         self._foreach_file('/var/log', self.g.truncate, ftype='r')
 
-    @sysprep(enabled=False)
-    def cleanup_mail(self, print_header=True):
+    @sysprep('Removing files under /var/mail & /var/spool/mail', enabled=False)
+    def cleanup_mail(self):
         """Remove all files under /var/mail and /var/spool/mail"""
-
-        if print_header:
-            self.out.output('Removing files under /var/mail & /var/spool/mail')
 
         if self.g.is_dir('/var/spool/mail'):
             self._foreach_file('/var/spool/mail', self.g.rm_rf, maxdepth=1)
 
         self._foreach_file('/var/mail', self.g.rm_rf, maxdepth=1)
 
-    @sysprep()
-    def cleanup_userdata(self, print_header=True):
+    @sysprep('Removing sensitive user data')
+    def cleanup_userdata(self):
         """Delete sensitive userdata"""
 
         homedirs = ['/root']
         if self.g.is_dir('/home/'):
             homedirs += self._ls('/home/')
-
-        if print_header:
-            self.out.output("Removing sensitive user data under %s" %
-                            " ".join(homedirs))
 
         for homedir in homedirs:
             for data in self.sensitive_userdata:

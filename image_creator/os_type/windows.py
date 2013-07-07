@@ -65,26 +65,19 @@ class Windows(OSBase):
 
         return [password]
 
-    @sysprep(enabled=True)
-    def disable_ipv6_privacy_extensions(self, print_header=True):
+    @sysprep('Disabling IPv6 privacy extensions')
+    def disable_ipv6_privacy_extensions(self):
         """Disable IPv6 privacy extensions"""
-
-        if print_header:
-            self.out.output("Disabling IPv6 privacy extensions")
 
         self._guest_exec('netsh interface ipv6 set global '
                          'randomizeidentifiers=disabled store=persistent')
 
-    @sysprep(enabled=True)
-    def microsoft_sysprep(self, print_header=True):
+    @sysprep('Executing sysprep on the image (may take more that 10 minutes)')
+    def microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool on the Image. This will
         remove system-specific data and will make the image ready to be
         deployed. After this no other task may run.
         """
-
-        if print_header:
-            self.out.output("Executing sysprep on the image (may take more "
-                            "than 10 minutes)")
 
         self._guest_exec(r'C:\Windows\system32\sysprep\sysprep '
                          r'/quiet /generalize /oobe /shutdown')

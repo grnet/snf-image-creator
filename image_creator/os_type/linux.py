@@ -48,13 +48,9 @@ class Linux(Unix):
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
 
-    @sysprep(enabled=False)
-    def remove_user_accounts(self, print_header=True):
+    @sysprep('Removing user accounts with id greater that 1000', enabled=False)
+    def remove_user_accounts(self):
         """Remove all user accounts with id greater than 1000"""
-
-        if print_header:
-            self.out.output("Removing all user accounts with id greater than "
-                            "1000")
 
         if 'USERS' not in self.meta:
             return
@@ -105,13 +101,9 @@ class Linux(Unix):
             if self.g.is_dir(home) and home.startswith('/home/'):
                 self.g.rm_rf(home)
 
-    @sysprep()
-    def cleanup_passwords(self, print_header=True):
+    @sysprep('Cleaning up password & locking all user accounts')
+    def cleanup_passwords(self):
         """Remove all passwords and lock all user accounts"""
-
-        if print_header:
-            self.out.output("Cleaning up passwords & locking all user "
-                            "accounts")
 
         shadow = []
 
@@ -124,14 +116,11 @@ class Linux(Unix):
 
         self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
-    @sysprep()
-    def fix_acpid(self, print_header=True):
+    @sysprep('Fixing acpid powerdown action')
+    def fix_acpid(self):
         """Replace acpid powerdown action scripts to immediately shutdown the
         system without checking if a GUI is running.
         """
-
-        if print_header:
-            self.out.output('Fixing acpid powerdown action')
 
         powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
                           'shutdown -h now "Power button pressed"\n'
@@ -185,30 +174,24 @@ class Linux(Unix):
 
         self.out.warn("No acpi power button event found!")
 
-    @sysprep()
-    def remove_persistent_net_rules(self, print_header=True):
+    @sysprep('Removing persistent network interface names')
+    def remove_persistent_net_rules(self):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
         """
 
-        if print_header:
-            self.out.output('Removing persistent network interface names')
-
         rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
         if self.g.is_file(rule_file):
             self.g.rm(rule_file)
 
-    @sysprep()
-    def remove_swap_entry(self, print_header=True):
+    @sysprep('Removing swap entry from fstab')
+    def remove_swap_entry(self):
         """Remove swap entry from /etc/fstab. If swap is the last partition
         then the partition will be removed when shrinking is performed. If the
         swap partition is not the last partition in the disk or if you are not
         going to shrink the image you should probably disable this.
         """
-
-        if print_header:
-            self.out.output('Removing swap entry from fstab')
 
         new_fstab = ""
         fstab = self.g.cat('/etc/fstab')
@@ -222,15 +205,11 @@ class Linux(Unix):
 
         self.g.write('/etc/fstab', new_fstab)
 
-    @sysprep()
-    def use_persistent_block_device_names(self, print_header=True):
+    @sysprep('Replacing fstab & grub non-persistent device references')
+    def use_persistent_block_device_names(self):
         """Scan fstab & grub configuration files and replace all non-persistent
         device references with UUIDs.
         """
-
-        if print_header:
-            self.out.output("Replacing fstab & grub non-persistent device "
-                            "references")
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()

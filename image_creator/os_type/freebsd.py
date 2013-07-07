@@ -43,13 +43,9 @@ import re
 class Freebsd(Unix):
     """OS class for FreeBSD Unix-like os"""
 
-    @sysprep()
-    def cleanup_password(self, print_header=True):
+    @sysprep("Cleaning up passwords & locking all user accounts")
+    def cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
-
-        if print_header:
-            self.out.output("Cleaning up passwords & locking all user "
-                            "accounts")
 
         master_passwd = []
 

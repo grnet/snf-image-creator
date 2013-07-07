@@ -42,6 +42,7 @@ from image_creator.util import FatalError
 import textwrap
 import re
 from collections import namedtuple
+from functools import wraps
 
 
 def os_cls(distro, osfamily):
@@ -67,14 +68,22 @@ def add_prefix(target):
     return wrapper
 
 
-def sysprep(enabled=True):
+def sysprep(message, enabled=True):
     """Decorator for system preparation tasks"""
-    def wrapper(func):
+    def wrapper1(func):
         func.sysprep = True
         func.enabled = enabled
         func.executed = False
-        return func
-    return wrapper
+
+        @wraps(func)
+        def wrapper2(self, print_message=True):
+            if print_message:
+                self.out.output(message)
+            return func(self)
+
+        return wrapper2
+
+    return wrapper1
 
 
 class OSBase(object):
