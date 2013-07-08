@@ -632,9 +632,6 @@ def sysprep(session):
 
     wrapper = textwrap.TextWrapper(width=WIDTH - 5)
 
-    help_title = "System Preperation Tasks"
-    sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
-
     syspreps = image.os.list_syspreps()
 
     if len(syspreps) == 0:
@@ -645,6 +642,10 @@ def sysprep(session):
     while 1:
         choices = []
         index = 0
+
+        help_title = "System Preperation Tasks"
+        sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
+
         for sysprep in syspreps:
             name, descr = image.os.sysprep_info(sysprep)
             display_name = name.replace('-', ' ').capitalize()
