@@ -59,7 +59,6 @@ class Windows(OSBase):
         """Returns a list of needed sysprep parameters. Each element in the
         list is a SysprepParam object.
         """
-
         password = self.SysprepParam(
             'password', 'Image Administrator Password', 20, lambda x: True)
 
@@ -72,11 +71,37 @@ class Windows(OSBase):
         self._guest_exec('netsh interface ipv6 set global '
                          'randomizeidentifiers=disabled store=persistent')
 
+    @sysprep('Disabling Teredo interface')
+    def disable_teredo(self):
+        """Disable Teredo interface"""
+
+        self._guest_exec('netsh interface teredo set state disabled')
+
+    @sysprep('Disabling ISATAP Adapters')
+    def disable_isatap(self):
+        """Disable ISATAP Adapters"""
+
+        self._guest_exec('netsh interface isa set state disabled')
+
+    @sysprep('Enabling ping responses')
+    def enable_pings(self):
+        """Enable ping responces"""
+
+        self._guest_exec('netsh firewall set icmpsetting 8')
+
+    @sysprep('Setting the system clock to UTC')
+    def utc(self):
+        """Set the hardware clock to UTC"""
+
+        path = r'HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation'
+        self._guest_exec(
+            r'REG ADD %s /v RealTimeIsUniversal /t REG_DWORD /d 1 /f' % path)
+
     @sysprep('Executing sysprep on the image (may take more that 10 minutes)')
     def microsoft_sysprep(self):
-        """Run the Microsoft System Preparation Tool on the Image. This will
-        remove system-specific data and will make the image ready to be
-        deployed. After this no other task may run.
+        """Run the Microsoft System Preparation Tool. This will remove
+        system-specific data and will make the image ready to be deployed.
+        After this no other task may run.
         """
 
         self._guest_exec(r'C:\Windows\system32\sysprep\sysprep '
@@ -144,7 +169,7 @@ class Windows(OSBase):
 
             ms_sysprep_enabled = False
             if len(enabled) != size:
-                enabled.append(self.ms_sysprep)
+                enabled.append(self.microsoft_sysprep)
                 ms_sysprep_enabled = True
 
             cnt = 0
