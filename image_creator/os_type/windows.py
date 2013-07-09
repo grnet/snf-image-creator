@@ -123,6 +123,15 @@ class Windows(OSBase):
         try:
             disabled_uac = self._update_uac_remote_setting(1)
             token = self._enable_os_monitor()
+
+            # disable the firewalls
+            firewall_states = self._update_firewalls(0, 0, 0)
+
+            # Delete the pagefile. It will be recreated when the system boots
+            systemroot = self.g.inspect_get_windows_systemroot(self.root)
+            pagefile = "%s/pagefile.sys" % systemroot
+            self.g.rm_rf(self.g.case_sensitive_path(pagefile))
+
         finally:
             self.umount()
 
@@ -179,12 +188,14 @@ class Windows(OSBase):
                 task()
                 setattr(task.im_func, 'executed', True)
 
-            self.out.output("Shutting down windows VM ...", False)
+            self.out.output("Sending shut down command ...", False)
             if not ms_sysprep_enabled:
                 self._shutdown()
             self.out.success("done")
 
+            self.out.output("Waiting for windows to shut down ...", False)
             vm.wait()
+            self.out.success("done")
         finally:
             if monitor is not None:
                 os.unlink(monitor)
@@ -197,8 +208,14 @@ class Windows(OSBase):
             self.g.launch()
             self.out.success('done')
 
-        if disabled_uac:
-            self._update_uac_remote_setting(0)
+            self.mount(readonly=False)
+            try:
+                if disabled_uac:
+                    self._update_uac_remote_setting(0)
+
+                self._update_firewalls(*firewall_states)
+            finally:
+                self.umount()
 
     def _create_vm(self, monitor):
         """Create a VM with the image attached as the disk
@@ -342,6 +359,65 @@ class Windows(OSBase):
             os.unlink(software)
 
         return token
+
+    def _update_firewalls(self, domain, public, standard):
+        """Enables or disables the firewall for the Domain, the Public and the
+        Standard profile. Returns a triplete with the old values.
+
+        1 will enable a firewall and 0 will disable it
+        """
+
+        if domain not in (0, 1):
+            raise ValueError("Valid values for domain parameter are 0 and 1")
+
+        if public not in (0, 1):
+            raise ValueError("Valid values for public parameter are 0 and 1")
+
+        if standard not in (0, 1):
+            raise ValueError("Valid values for standard parameter are 0 and 1")
+
+        path = self._registry_file_path("SYSTEM")
+        systemfd, system = tempfile.mkstemp()
+        try:
+            os.close(systemfd)
+            self.g.download(path, system)
+
+            h = hivex.Hivex(system, write=True)
+
+            select = h.node_get_child(h.root(), 'Select')
+            current_value = h.node_get_value(select, 'Current')
+
+            # expecting a little endian dword
+            assert h.value_type(current_value)[1] == 4
+            current = "%03d" % h.value_dword(current_value)
+
+            firewall_policy = h.root()
+            for child in ('ControlSet%s' % current, 'services', 'SharedAccess',
+                          'Parameters', 'FirewallPolicy'):
+                firewall_policy = h.node_get_child(firewall_policy, child)
+
+            old_values = []
+            new_values = [domain, public, standard]
+            for profile in ('Domain', 'Public', 'Standard'):
+                node = h.node_get_child(firewall_policy, '%sProfile' % profile)
+
+                old_value = h.node_get_value(node, 'EnableFirewall')
+
+                # expecting a little endian dword
+                assert h.value_type(old_value)[1] == 4
+                old_values.append(h.value_dword(old_value))
+
+                new_value = '\x00' if new_values.pop(0) == 0 else '\x01'
+                h.node_set_value(node, {'key': 'EnableFirewall', 't': 4L,
+                                        'value': '%s\x00\x00\x00' % new_value})
+
+            h.commit(None)
+            self.g.upload(system, path)
+
+        finally:
+            os.unlink(system)
+
+        return old_values
 
     def _update_uac_remote_setting(self, value):
         """Updates the registry key value:
