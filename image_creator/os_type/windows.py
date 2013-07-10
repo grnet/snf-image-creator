@@ -46,6 +46,7 @@ import time
 import random
 import string
 import subprocess
+import struct
 
 kvm = get_command('kvm')
 
@@ -175,7 +176,6 @@ class Windows(OSBase):
 
             tasks = self.list_syspreps()
             enabled = filter(lambda x: x.enabled, tasks)
-
             size = len(enabled)
 
             # Make sure the ms sysprep is the last task to run if it is enabled
@@ -358,6 +358,14 @@ class Windows(OSBase):
             h.node_set_value(runonce,
                              {'key': "BootMonitor", 't': 1, 'value': value})
 
+            value = (
+                r'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
+                r'\policies\system /v LocalAccountTokenFilterPolicy'
+                r' /t REG_DWORD /d 1 /f').encode('utf-16le')
+
+            h.node_set_value(runonce,
+                             {'key': "UpdateRegistry", 't': 1, 'value': value})
+
             h.commit(None)
 
             self.g.upload(software, path)
@@ -413,9 +421,9 @@ class Windows(OSBase):
                 assert h.value_type(old_value)[1] == 4
                 old_values.append(h.value_dword(old_value))
 
-                new_value = '\x00' if new_values.pop(0) == 0 else '\x01'
-                h.node_set_value(node, {'key': 'EnableFirewall', 't': 4L,
-                                        'value': '%s\x00\x00\x00' % new_value})
+                h.node_set_value(
+                    node, {'key': 'EnableFirewall', 't': 4L,
+                           'value': struct.pack("<I", new_values.pop(0))})
 
             h.commit(None)
             self.g.upload(system, path)
@@ -468,9 +476,8 @@ class Windows(OSBase):
             elif value == 0:
                 return False
 
-            new_value = {
-                'key': "LocalAccountTokenFilterPolicy", 't': 4L,
-                'value': '%s\x00\x00\x00' % '\x00' if value == 0 else '\x01'}
+            new_value = {'key': "LocalAccountTokenFilterPolicy", 't': 4L,
+                         'value': struct.pack("<I", value)}
 
             h.node_set_value(key, new_value)
             h.commit(None)
