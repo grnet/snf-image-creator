@@ -68,12 +68,15 @@ def add_prefix(target):
     return wrapper
 
 
-def sysprep(message, enabled=True):
+def sysprep(message, enabled=True, **kwargs):
     """Decorator for system preparation tasks"""
     def wrapper1(func):
         func.sysprep = True
         func.enabled = enabled
         func.executed = False
+
+        for key, val in kwargs.items():
+            setattr(func, key, val)
 
         @wraps(func)
         def wrapper2(self, print_message=True):
