@@ -89,6 +89,12 @@ class Windows(OSBase):
 
         self._guest_exec('netsh firewall set icmpsetting 8')
 
+    @sysprep('Disabling hibernation support')
+    def disable_hibernation(self):
+        """Disable hibernation support and remove the hibernation file"""
+
+        self._guest_exec(r'powercfg.exe /hibernate off')
+
     @sysprep('Setting the system clock to UTC')
     def utc(self):
         """Set the hardware clock to UTC"""
