@@ -104,6 +104,13 @@ class Windows(OSBase):
         self._guest_exec(
             r'REG ADD %s /v RealTimeIsUniversal /t REG_DWORD /d 1 /f' % path)
 
+    @sysprep('Clearing the event logs')
+    def clear_logs(self):
+        """Clear all the event logs"""
+
+        self._guest_exec(
+            r"cmd /q /c for /f %l in ('wevtutil el') do wevtutil cl %l")
+
     @sysprep('Executing sysprep on the image (may take more that 10 minutes)')
     def microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool. This will remove
