@@ -135,7 +135,7 @@ CentOS
 ------
 
 For *CentOS 6* you can use our official packages hosted at the *synnefo*
-repository of the openSUSE Build Service.
+repository of the OpenSUSE Build Service.
 
 Add the *synnefo* repository for *CentOS 6* to the yum repositories list:
 
@@ -145,6 +145,38 @@ Add the *synnefo* repository for *CentOS 6* to the yum repositories list:
    $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_CentOS-6/home:GRNET:synnefo.repo
 
 Check the `Fedora <#fedora>`_ instructions on how to install the software.
+
+OpenSUSE
+--------
+
+For *OpenSUSE 12.3* you can use our official packages hosted at the *synnefo*
+repository of the OpenSUSE Build Service.
+
+Add the *Virtualization* repository for *OpenSUSE 12.3* to *YaST* with the
+*Zypper* package manager:
+
+.. code-block:: console
+
+   $ zypper ar -f http://download.opensuse.org/repositories/Virtualization/openSUSE_12.3/Virtualization.repo
+
+Add the *synnefo* repository:
+
+.. code-block:: console
+
+   $ zypper ar -f http://download.opensuse.org/repositories/home:/GRNET:/synnefo/openSUSE_12.3/home:GRNET:synnefo.repo
+
+To list the *snf-image-creator* package use the following command:
+
+.. code-block:: console
+
+   $ zypper se snf-image-creator
+
+Install the package by issuing:
+
+.. code-block:: console
+
+   $ zypper in snf-image-creator
+
 
 Arch Linux
 ----------
