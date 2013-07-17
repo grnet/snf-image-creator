@@ -1,3 +1,6 @@
+2013-07-17, v0.4.2
+	* Fix a dialog bug affecting only OpenSUSE
+
 2013-06-21, v0.4.1
 	* Fix a bug that caused an abnormal termination when trying to
 	  determine the available users in a Windows image
