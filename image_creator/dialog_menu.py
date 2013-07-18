@@ -327,6 +327,7 @@ def delete_clouds(session):
 
     (code, to_delete) = d.checklist("Choose which cloud accounts to delete:",
                                     choices=choices, width=WIDTH)
+    to_delete = map(lambda x: x.strip('"'), to_delete)  # Needed for OpenSUSE
 
     if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
         return False
@@ -538,6 +539,7 @@ def delete_properties(session):
 
     (code, to_delete) = d.checklist("Choose which properties to delete:",
                                     choices=choices, width=WIDTH)
+    to_delete = map(lambda x: x.strip('"'), to_delete)  # needed for OpenSUSE
 
     # If the user exits with ESC or CANCEL, the returned tag list is empty.
     for i in to_delete:
@@ -587,6 +589,7 @@ def exclude_tasks(session):
             choices=choices, height=19, list_height=8, width=WIDTH,
             help_button=1, extra_button=1, extra_label="No Config",
             title="Exclude Configuration Tasks")
+        tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
@@ -661,6 +664,7 @@ def sysprep(session):
             "run on the image. Press <Help> to see details about the system "
             "preparation tasks.", title="Run system preparation tasks",
             choices=choices, width=70, ok_label="Run", help_button=1)
+        tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
