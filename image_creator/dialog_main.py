@@ -199,6 +199,10 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
 
 def main():
 
+    # In OpenSUSE dialog is buggy under xterm
+    if os.environ['TERM'] == 'xterm':
+        os.environ['TERM'] = 'linux'
+
     d = dialog.Dialog(dialog="dialog")
 
     # Add extra button in dialog library
