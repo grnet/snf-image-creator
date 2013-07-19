@@ -55,6 +55,22 @@ BOOT_TIMEOUT = 300
 
 class Windows(OSBase):
     """OS class for Windows"""
+    def __init__(self, image, **kargs):
+        super(Windows, self).__init__(image, **kargs)
+
+        device = self.g.part_to_dev(self.root)
+
+        self.last_part_num = self.g.part_list(device)[-1]['part_num']
+        self.last_drive = None
+        self.system_drive = None
+
+        for drive, partition in self.g.inspect_get_drive_mappings(self.root):
+            if partition == "%s%d" % (device, self.last_part_num):
+                self.last_drive = drive
+            if partition == self.root:
+                self.system_drive = drive
+
+        assert self.system_drive
 
     def needed_sysprep_params(self):
         """Returns a list of needed sysprep parameters. Each element in the
@@ -122,6 +138,11 @@ class Windows(OSBase):
                          r'/quiet /generalize /oobe /shutdown')
         self.syspreped = True
 
+    @sysprep('Shrinking the last filesystem')
+    def shrink(self):
+        """Shrink the last filesystem. Make sure the filesystem is defragged"""
+        pass
+
     def do_sysprep(self):
         """Prepare system for image creation."""
 
@@ -175,6 +196,8 @@ class Windows(OSBase):
             else:
                 self.out.success('done')
 
+            time.sleep(5)  # Just to be sure everything is up
+
             self.out.output("Disabling automatic logon ...", False)
             self._disable_autologon()
             self.out.success('done')
@@ -185,9 +208,19 @@ class Windows(OSBase):
             enabled = filter(lambda x: x.enabled, tasks)
             size = len(enabled)
 
+            # Make sure shrink runs in the end, before ms sysprep
+            enabled = filter(lambda x: self.sysprep_info(x).name != 'shrink',
+                             enabled)
+
+            shrink_enabled = False
+            if len(enabled) != size:
+                enabled.append(self.shrink)
+                shrink_enabled = True
+
             # Make sure the ms sysprep is the last task to run if it is enabled
             enabled = filter(
-                lambda x: x.im_func.func_name != 'microsoft_sysprep', enabled)
+                lambda x: self.sysprep_info(x).name != 'microsoft-sysprep',
+                enabled)
 
             ms_sysprep_enabled = False
             if len(enabled) != size:
@@ -248,12 +281,12 @@ class Windows(OSBase):
         vnc_port = random.randint(11000, 14999)
         display = vnc_port - 5900
 
-        vm = kvm('-smp', '1', '-m', '1024', '-drive',
-                 'file=%s,format=raw,cache=none,if=virtio' % self.image.device,
-                 '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-                 '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' %
-                 random_mac(), '-vnc', ':%d' % display, '-serial',
-                 'file:%s' % monitor, _bg=True)
+        vm = kvm(
+            '-smp', '1', '-m', '1024', '-drive',
+            'file=%s,format=raw,cache=unsafe,if=virtio' % self.image.device,
+            '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
+            '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
+            '-vnc', ':%d' % display, '-serial', 'file:%s' % monitor, _bg=True)
 
         return vm, display
 
@@ -531,7 +564,7 @@ class Windows(OSBase):
         addr = 'localhost'
         runas = '--runas=%s' % user
         winexe = subprocess.Popen(
-            ['winexe', '-U', user, "//%s" % addr, runas, command],
+            ['winexe', '-U', user, runas, "//%s" % addr, command],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         stdout, stderr = winexe.communicate()
