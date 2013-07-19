@@ -138,7 +138,10 @@ class OSBase(object):
         """Returns information about a sysprep object"""
         assert self._is_sysprep(obj), "Object is not a sysprep"
 
-        return (obj.__name__.replace('_', '-'), textwrap.dedent(obj.__doc__))
+        SysprepInfo = namedtuple("SysprepInfo", "name description")
+
+        return SysprepInfo(obj.__name__.replace('_', '-'),
+                           textwrap.dedent(obj.__doc__))
 
     def get_sysprep_by_name(self, name):
         """Returns the sysprep object with the given name"""
