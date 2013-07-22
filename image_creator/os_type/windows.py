@@ -141,7 +141,62 @@ class Windows(OSBase):
     @sysprep('Shrinking the last filesystem')
     def shrink(self):
         """Shrink the last filesystem. Make sure the filesystem is defragged"""
-        pass
+
+        # Query for the maximum number of reclaimable bytes
+        cmd = (
+            r'cmd /Q /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
+            r'ECHO SELECT DISK 0 > %SCRIPT% & ' +
+            'ECHO SELECT PARTITION %d >> %%SCRIPT%% & ' % self.last_part_num +
+            r'ECHO SHRINK QUERYMAX >> %SCRIPT% & ' +
+            r'ECHO EXIT >> %SCRIPT% & ' +
+            r'DISKPART /S %SCRIPT% & ' +
+            r'IF ERRORLEVEL 1 EXIT /B 1 & ' +
+            r'DEL /Q %SCRIPT%"')
+
+        stdout, stderr, rc = self._guest_exec(cmd)
+
+        querymax = None
+        for line in stdout.splitlines():
+            # diskpart will return something like this:
+            #
+            #   The maximum number of reclaimable bytes is: xxxx MB
+            #
+            if line.find('reclaimable') >= 0:
+                querymax = line.split(':')[1].split()[0].strip()
+                assert querymax.isdigit(), \
+                    "Number of reclaimable bytes not a number"
+
+        if querymax is None:
+            FatalError("Error in shrinking! "
+                       "Couldn't find the max number of reclaimable bytes!")
+
+        querymax = int(querymax)
+        # From ntfsresize:
+        # Practically the smallest shrunken size generally is at around
+        # "used space" + (20-200 MB). Please also take into account that
+        # Windows might need about 50-100 MB free space left to boot safely.
+        # I'll give 100MB extra space just to be sure
+        querymax -= 100
+
+        if querymax < 0:
+            self.out.warn("Not enought available space to shrink the image!")
+            return
+
+        cmd = (
+            r'cmd /Q /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
+            r'ECHO SELECT DISK 0 > %SCRIPT% & ' +
+            'ECHO SELECT PARTITION %d >> %%SCRIPT%% & ' % self.last_part_num +
+            'ECHO SHRINK DESIRED=%d >> %%SCRIPT%% & ' % querymax +
+            r'ECHO EXIT >> %SCRIPT% & ' +
+            r'DISKPART /S %SCRIPT% & ' +
+            r'IF ERRORLEVEL 1 EXIT /B 1 & ' +
+            r'DEL /Q %SCRIPT%"')
+
+        stdout, stderr, rc = self._guest_exec(cmd)
+
+        for line in stdout.splitlines():
+            if line.find('shrunk') >= 0:
+                self.out.output(line)
 
     def do_sysprep(self):
         """Prepare system for image creation."""
