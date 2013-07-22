@@ -249,9 +249,8 @@ class Windows(OSBase):
             if not self._wait_on_file(monitor, token):
                 raise FatalError("Windows booting timed out.")
             else:
+                time.sleep(10)  # Just to be sure everything is up
                 self.out.success('done')
-
-            time.sleep(5)  # Just to be sure everything is up
 
             self.out.output("Disabling automatic logon ...", False)
             self._disable_autologon()
@@ -627,6 +626,8 @@ class Windows(OSBase):
 
         if rc != 0 and fatal:
             reason = stderr if len(stderr) else stdout
+            self.out.output("Command: `%s' failed. Reason: %s" %
+                            (command, reason))
             raise FatalError("Command: `%s' failed. Reason: %s" %
                              (command, reason))
 
