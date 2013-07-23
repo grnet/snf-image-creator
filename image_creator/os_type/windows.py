@@ -52,6 +52,56 @@ kvm = get_command('kvm')
 
 BOOT_TIMEOUT = 300
 
+# For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
+KMS_CLIENT_SETUP_KEYS = {
+    "Windows 8 Professional": "NG4HW-VH26C-733KW-K6F98-J8CK4",
+    "Windows 8 Professional N": "XCVCF-2NXM9-723PB-MHCB7-2RYQQ",
+    "Windows 8 Enterprise": "32JNW-9KQ84-P47T8-D8GGY-CWCK7",
+    "Windows 8 Enterprise N": "JMNMF-RHW7P-DMY6X-RF3DR-X2BQT",
+    "Windows Server 2012 Core": "BN3D2-R7TKB-3YPBD-8DRP2-27GG4",
+    "Windows Server 2012 Core N": "8N2M2-HWPGY-7PGT9-HGDD8-GVGGY",
+    "Windows Server 2012 Core Single Language":
+    "2WN2H-YGCQR-KFX6K-CD6TF-84YXQ",
+    "Windows Server 2012 Core Country Specific":
+    "4K36P-JN4VD-GDC6V-KDT89-DYFKP",
+    "Windows Server 2012 Server Standard": "XC9B7-NBPP2-83J2H-RHMBY-92BT4",
+    "Windows Server 2012 Standard Core": "XC9B7-NBPP2-83J2H-RHMBY-92BT4",
+    "Windows Server 2012 MultiPoint Standard": "HM7DN-YVMH3-46JC3-XYTG7-CYQJJ",
+    "Windows Server 2012 MultiPoint Premium": "XNH6W-2V9GX-RGJ4K-Y8X6F-QGJ2G",
+    "Windows Server 2012 Datacenter": "48HP8-DN98B-MYWDG-T2DCC-8W83P",
+    "Windows Server 2012 Datacenter Core": "48HP8-DN98B-MYWDG-T2DCC-8W83P",
+    "Windows 7 Professional": "FJ82H-XT6CR-J8D7P-XQJJ2-GPDD4",
+    "Windows 7 Professional N": "MRPKT-YTG23-K7D7T-X2JMM-QY7MG",
+    "Windows 7 Professional E": "W82YF-2Q76Y-63HXB-FGJG9-GF7QX",
+    "Windows 7 Enterprise": "33PXH-7Y6KF-2VJC9-XBBR8-HVTHH",
+    "Windows 7 Enterprise N": "YDRBP-3D83W-TY26F-D46B2-XCKRJ",
+    "Windows 7 Enterprise E": "C29WB-22CC8-VJ326-GHFJW-H9DH4",
+    "Windows Server 2008 R2 Web": "6TPJF-RBVHG-WBW2R-86QPH-6RTM4",
+    "Windows Server 2008 R2 HPC edition": "TT8MH-CG224-D3D7Q-498W2-9QCTX",
+    "Windows Server 2008 R2 Standard": "YC6KT-GKW9T-YTKYR-T4X34-R7VHC",
+    "Windows Server 2008 R2 Enterprise": "489J6-VHDMP-X63PK-3K798-CPX3Y",
+    "Windows Server 2008 R2 Datacenter": "74YFP-3QFB3-KQT8W-PMXWJ-7M648",
+    "Windows Server 2008 R2 for Itanium-based Systems":
+    "GT63C-RJFQ3-4GMB6-BRFB9-CB83V",
+    "Windows Vista Business": "YFKBB-PQJJV-G996G-VWGXY-2V3X8",
+    "Windows Vista Business N": "HMBQG-8H2RH-C77VX-27R82-VMQBT",
+    "Windows Vista Enterprise": "VKK3X-68KWM-X2YGT-QR4M6-4BWMV",
+    "Windows Vista Enterprise N": "VTC42-BM838-43QHV-84HX6-XJXKV",
+    "Windows Web Server 2008": "WYR28-R7TFJ-3X2YQ-YCY4H-M249D",
+    "Windows Server 2008 Standard": "TM24T-X9RMF-VWXK6-X8JC9-BFGM2",
+    "Windows Server 2008 Standard without Hyper-V":
+    "W7VD6-7JFBR-RX26B-YKQ3Y-6FFFJ",
+    "Windows Server 2008 Enterprise":
+    "YQGMW-MPWTJ-34KDK-48M3W-X4Q6V",
+    "Windows Server 2008 Enterprise without Hyper-V":
+    "39BXF-X8Q23-P2WWT-38T2F-G3FPG",
+    "Windows Server 2008 HPC": "RCTX3-KWVHP-BR6TB-RB6DM-6X7HP",
+    "Windows Server 2008 Datacenter": "7M67G-PC374-GR742-YH8V4-TCBY3",
+    "Windows Server 2008 Datacenter without Hyper-V":
+    "22XQ2-VRXRG-P8D42-K34TD-G3QQC",
+    "Windows Server 2008 for Itanium-Based Systems":
+    "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
+
 
 class Windows(OSBase):
     """OS class for Windows"""
@@ -71,6 +121,8 @@ class Windows(OSBase):
                 self.system_drive = drive
 
         assert self.system_drive
+
+        self.product_name = self.g.inspect_get_product_name(self.root)
 
     def needed_sysprep_params(self):
         """Returns a list of needed sysprep parameters. Each element in the
@@ -137,6 +189,25 @@ class Windows(OSBase):
         self._guest_exec(r'C:\Windows\system32\sysprep\sysprep '
                          r'/quiet /generalize /oobe /shutdown')
         self.syspreped = True
+
+    @sysprep('Converting the image into a KMS client', enabled=False)
+    def kms_client_setup(self):
+        """Install the appropriate KMS client setup key to the image to convert
+        it to a KMS client. Computers that are running volume licensing
+        editions of Windows 8, Windows Server 2012, Windows 7, Windows Server
+        2008 R2, Windows Vista, and Windows Server 2008 are, by default, KMS
+        clients with no additional configuration needed.
+        """
+        try:
+            setup_key = KMS_CLIENT_SETUP_KEYS[self.product_name]
+        except KeyError:
+            self.out.warn(
+                "Don't know the KMS client setup key for product: `%s'" %
+                self.product_name)
+            return
+
+        self._guest_exec(
+            "cscript \Windows\system32\slmgr.vbs /ipk %s" % setup_key)
 
     @sysprep('Shrinking the last filesystem')
     def shrink(self):
