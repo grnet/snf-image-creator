@@ -689,8 +689,8 @@ class Windows(OSBase):
         addr = 'localhost'
         runas = '--runas=%s' % user
         winexe = subprocess.Popen(
-            ['winexe', '-U', user, runas, "//%s" % addr, command],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            ['winexe', '-U', user, runas, "--uninstall", "//%s" % addr,
+             command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         stdout, stderr = winexe.communicate()
         rc = winexe.poll()
