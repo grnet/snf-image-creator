@@ -38,6 +38,7 @@ Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep
 from image_creator.util import FatalError, check_guestfs_version, get_command
+from image_creator.winexe import WinEXE, WinexeTimeout
 
 import hivex
 import tempfile
@@ -685,15 +686,15 @@ class Windows(OSBase):
     def _guest_exec(self, command, fatal=True):
         """Execute a command on a windows VM"""
 
-        user = "Administrator%" + self.sysprep_params['password']
-        addr = 'localhost'
-        runas = '--runas=%s' % user
-        winexe = subprocess.Popen(
-            ['winexe', '-U', user, runas, "--uninstall", "//%s" % addr,
-             command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        passwd = self.sysprep_params['password']
 
-        stdout, stderr = winexe.communicate()
-        rc = winexe.poll()
+        winexe = WinEXE('Administrator', passwd, 'localhost')
+        winexe.runas('Administrator', passwd).uninstall()
+
+        try:
+            (stdout, stderr, rc) = winexe.run(command)
+        except WinexeTimeout:
+            FatalError("Command: `%s' timeout out." % command)
 
         if rc != 0 and fatal:
             reason = stderr if len(stderr) else stdout
