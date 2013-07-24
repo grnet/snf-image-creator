@@ -318,11 +318,8 @@ class Windows(OSBase):
             self.out.success("started (console on vnc display: %d)." % display)
 
             self.out.output("Waiting for OS to boot ...", False)
-            if not self._wait_on_file(monitor, token):
-                raise FatalError("Windows booting timed out.")
-            else:
-                time.sleep(10)  # Just to be sure everything is up
-                self.out.success('done')
+            self._wait_vm_boot(vm, monitor, token)
+            self.out.success('done')
 
             self.out.output("Disabling automatic logon ...", False)
             self._disable_autologon()
@@ -425,8 +422,8 @@ class Windows(OSBase):
         """Shuts down the windows VM"""
         self._guest_exec(r'shutdown /s /t 5')
 
-    def _wait_on_file(self, fname, msg):
-        """Wait until a message appears on a file"""
+    def _wait_vm_boot(self, vm, fname, msg):
+        """Wait until a message appears on a file or the vm process dies"""
 
         for i in range(BOOT_TIMEOUT):
             time.sleep(1)
@@ -434,7 +431,9 @@ class Windows(OSBase):
                 for line in f:
                     if line.startswith(msg):
                         return True
-        return False
+            if not vm.process.alive:
+                raise FatalError("Windows VM died unexpectedly!")
+        raise FatalError("Windows booting timed out!")
 
     def _disable_autologon(self):
         """Disable automatic logon on the windows image"""
