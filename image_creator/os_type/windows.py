@@ -154,7 +154,7 @@ class Windows(OSBase):
 
     @sysprep('Enabling ping responses')
     def enable_pings(self):
-        """Enable ping responces"""
+        """Enable ping responses"""
 
         self._guest_exec('netsh firewall set icmpsetting 8')
 
@@ -179,7 +179,7 @@ class Windows(OSBase):
         self._guest_exec(
             r"cmd /q /c for /f %l in ('wevtutil el') do wevtutil cl %l")
 
-    @sysprep('Executing sysprep on the image (may take more that 10 minutes)')
+    @sysprep('Executing Sysprep on the image (may take more that 10 minutes)')
     def microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool. This will remove
         system-specific data and will make the image ready to be deployed.
@@ -697,10 +697,10 @@ class Windows(OSBase):
 
         if rc != 0 and fatal:
             reason = stderr if len(stderr) else stdout
-            self.out.output("Command: `%s' failed. Reason: %s" %
-                            (command, reason))
-            raise FatalError("Command: `%s' failed. Reason: %s" %
-                             (command, reason))
+            self.out.output("Command: `%s' failed (rc=%d). Reason: %s" %
+                            (command, rc, reason))
+            raise FatalError("Command: `%s' failed (rc=%d). Reason: %s" %
+                             (command, rc, reason))
 
         return (stdout, stderr, rc)
 
