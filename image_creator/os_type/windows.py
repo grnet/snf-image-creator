@@ -649,18 +649,48 @@ class Windows(OSBase):
 
             h = hivex.Hivex(sam)
 
-            key = h.root()
-            # Navigate to /SAM/Domains/Account/Users/Names
-            for child in ('SAM', 'Domains', 'Account', 'Users', 'Names'):
-                key = h.node_get_child(key, child)
+            # Navigate to /SAM/Domains/Account/Users
+            users_node = h.root()
+            for child in ('SAM', 'Domains', 'Account', 'Users'):
+                users_node = h.node_get_child(users_node, child)
 
-            users = [h.node_name(x) for x in h.node_children(key)]
+            # Navigate to /SAM/Domains/Account/Users/Names
+            names_node = h.node_get_child(users_node, 'Names')
+
+            # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%
+            # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\Names\%Username%
+            #
+            # The RID (relative identifier) of each user is stored as the type!
+            # (not the value) of the default key of the node under Names whose
+            # name is the user's username. Under the RID node, there in a F
+            # value that contains information about this user account.
+            #
+            # See sam.h of the chntpw project on how to translate the F value
+            # of an account in the registry. Bytes 56 & 57 are the account type
+            # and status flags. The first bit is the 'account disabled' bit
+            disabled = lambda f: int(f[56].encode('hex'), 16) & 0x01
+
+            users = []
+            for user_node in h.node_children(names_node):
+                username = h.node_name(user_node)
+                rid = h.value_type(h.node_get_value(user_node, ""))[0]
+                # if RID is 500 (=0x1f4), the corresponding node name under
+                # Users is '000001F4'
+                key = ("%8.x" % rid).replace(' ', '0').upper()
+                rid_node = h.node_get_child(users_node, key)
+                f_value = h.value_value(h.node_get_value(rid_node, 'F'))[1]
+
+                if disabled(f_value):
+                    self.out.warn("Found disabled `%s' account!" % username)
+                    continue
+
+                users.append(username)
 
         finally:
             os.unlink(sam)
 
         # Filter out the guest account
-        return filter(lambda x: x != "Guest", users)
+        return users
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
