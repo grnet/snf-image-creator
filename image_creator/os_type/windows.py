@@ -217,13 +217,13 @@ class Windows(OSBase):
 
         # Query for the maximum number of reclaimable bytes
         cmd = (
-            r'cmd /Q /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
+            r'cmd /Q /V:ON /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
             r'ECHO SELECT DISK 0 > %SCRIPT% & ' +
             'ECHO SELECT PARTITION %d >> %%SCRIPT%% & ' % self.last_part_num +
             r'ECHO SHRINK QUERYMAX >> %SCRIPT% & ' +
             r'ECHO EXIT >> %SCRIPT% & ' +
             r'DISKPART /S %SCRIPT% & ' +
-            r'IF ERRORLEVEL 1 EXIT /B 1 & ' +
+            r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
         stdout, stderr, rc = self._guest_exec(cmd)
@@ -255,14 +255,16 @@ class Windows(OSBase):
             self.out.warn("Not enought available space to shrink the image!")
             return
 
+        self.out.output("\tReclaiming %dMB ..." % querymax)
+
         cmd = (
-            r'cmd /Q /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
+            r'cmd /Q /V:ON /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
             r'ECHO SELECT DISK 0 > %SCRIPT% & ' +
             'ECHO SELECT PARTITION %d >> %%SCRIPT%% & ' % self.last_part_num +
             'ECHO SHRINK DESIRED=%d >> %%SCRIPT%% & ' % querymax +
             r'ECHO EXIT >> %SCRIPT% & ' +
             r'DISKPART /S %SCRIPT% & ' +
-            r'IF ERRORLEVEL 1 EXIT /B 1 & ' +
+            r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
         stdout, stderr, rc = self._guest_exec(cmd)
