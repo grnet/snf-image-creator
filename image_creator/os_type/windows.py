@@ -43,15 +43,16 @@ from image_creator.winexe import WinEXE, WinexeTimeout
 import hivex
 import tempfile
 import os
+import signal
 import time
 import random
 import string
 import subprocess
 import struct
 
-kvm = get_command('kvm')
-
 BOOT_TIMEOUT = 300
+SHUTDOWN_TIMEOUT = 120
+CONNECTION_RETRIES = 5
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -314,18 +315,23 @@ class Windows(OSBase):
             self.out.output("Starting windows VM ...", False)
             monitorfd, monitor = tempfile.mkstemp()
             os.close(monitorfd)
-            vm, display = self._create_vm(monitor)
-            self.out.success("started (console on vnc display: %d)." % display)
+            vm = _VM(self.image.device, monitor)
+            self.out.success("started (console on vnc display: %d)." %
+                             vm.display)
 
             self.out.output("Waiting for OS to boot ...", False)
             self._wait_vm_boot(vm, monitor, token)
+            self.out.success('done')
+
+            self.out.output("Checking connectivity to the VM ...", False)
+            self._check_connectivity()
             self.out.success('done')
 
             self.out.output("Disabling automatic logon ...", False)
             self._disable_autologon()
             self.out.success('done')
 
-            self.out.output('Preparing system from image creation:')
+            self.out.output('Preparing system for image creation:')
 
             tasks = self.list_syspreps()
             enabled = filter(lambda x: x.enabled, tasks)
@@ -363,60 +369,31 @@ class Windows(OSBase):
             self.out.success("done")
 
             self.out.output("Waiting for windows to shut down ...", False)
-            vm.wait()
+            vm.wait(SHUTDOWN_TIMEOUT)
             self.out.success("done")
         finally:
             if monitor is not None:
                 os.unlink(monitor)
 
-            if vm is not None:
-                self._destroy_vm(vm)
-
-            self.out.output("Relaunching helper VM (may take a while) ...",
-                            False)
-            self.g.launch()
-            self.out.success('done')
-
-            self.mount(readonly=False)
             try:
-                if disabled_uac:
-                    self._update_uac_remote_setting(0)
-
-                self._update_firewalls(*firewall_states)
+                if vm is not None:
+                    self.out.output("Destroying windows VM ...", False)
+                    vm.destroy()
+                    self.out.success("done")
             finally:
-                self.umount()
+                self.out.output("Relaunching helper VM (may take a while) ...",
+                                False)
+                self.g.launch()
+                self.out.success('done')
 
-    def _create_vm(self, monitor):
-        """Create a VM with the image attached as the disk
+                self.mount(readonly=False)
+                try:
+                    if disabled_uac:
+                        self._update_uac_remote_setting(0)
 
-            monitor: a file to be used to monitor when the OS is up
-        """
-
-        def random_mac():
-            mac = [0x00, 0x16, 0x3e,
-                   random.randint(0x00, 0x7f),
-                   random.randint(0x00, 0xff),
-                   random.randint(0x00, 0xff)]
-
-            return ':'.join(map(lambda x: "%02x" % x, mac))
-
-        # Use ganeti's VNC port range for a random vnc port
-        vnc_port = random.randint(11000, 14999)
-        display = vnc_port - 5900
-
-        vm = kvm(
-            '-smp', '1', '-m', '1024', '-drive',
-            'file=%s,format=raw,cache=unsafe,if=virtio' % self.image.device,
-            '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-            '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
-            '-vnc', ':%d' % display, '-serial', 'file:%s' % monitor, _bg=True)
-
-        return vm, display
-
-    def _destroy_vm(self, vm):
-        """Destroy a VM previously created by _create_vm"""
-        if vm.process.alive:
-            vm.terminate()
+                    self._update_firewalls(*firewall_states)
+                finally:
+                    self.umount()
 
     def _shutdown(self):
         """Shuts down the windows VM"""
@@ -431,9 +408,10 @@ class Windows(OSBase):
                 for line in f:
                     if line.startswith(msg):
                         return True
-            if not vm.process.alive:
+            if not vm.isalive():
                 raise FatalError("Windows VM died unexpectedly!")
-        raise FatalError("Windows booting timed out!")
+
+        raise FatalError("Windows VM booting timed out!")
 
     def _disable_autologon(self):
         """Disable automatic logon on the windows image"""
@@ -682,6 +660,28 @@ class Windows(OSBase):
         # Filter out the guest account
         return filter(lambda x: x != "Guest", users)
 
+    def _check_connectivity(self):
+        """Check if winexe works on the Windows VM"""
+
+        passwd = self.sysprep_params['password']
+        winexe = WinEXE('Administrator', passwd, 'localhost')
+        winexe.uninstall().debug(9)
+
+        for i in range(CONNECTION_RETRIES):
+            (stdout, stderr, rc) = winexe.run('cmd /C')
+            if rc == 0:
+                return True
+            log = tempfile.NamedTemporaryFile(delete=False)
+            try:
+                log.file.write(stdout)
+            finally:
+                log.close()
+            self.out.output("failed! See: `%' for the full output" % log.name)
+            if i < CONNECTION_RETRIES - 1:
+                self.out.output("Retrying ...", False)
+        raise FatalError("Connection to the VM failed after %d retries" %
+                         CONNECTION_RETRIES)
+
     def _guest_exec(self, command, fatal=True):
         """Execute a command on a windows VM"""
 
@@ -703,5 +703,80 @@ class Windows(OSBase):
                              (command, rc, reason))
 
         return (stdout, stderr, rc)
+
+
+class _VM(object):
+    """Windows Virtual Machine"""
+    def __init__(self, disk, serial):
+        """Create _VM instance
+
+            disk: VM's hard disk
+            serial: File to save the output of the serial port
+        """
+
+        self.disk = disk
+        self.serial = serial
+
+        def random_mac():
+            mac = [0x00, 0x16, 0x3e,
+                   random.randint(0x00, 0x7f),
+                   random.randint(0x00, 0xff),
+                   random.randint(0x00, 0xff)]
+
+            return ':'.join(map(lambda x: "%02x" % x, mac))
+
+        # Use ganeti's VNC port range for a random vnc port
+        self.display = random.randint(11000, 14999) - 5900
+
+        args = [
+            'kvm', '-smp', '1', '-m', '1024', '-drive',
+            'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
+            '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
+            '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
+            '-vnc', ':%d' % self.display, '-serial', 'file:%s' % self.serial,
+            '-monitor', 'stdio']
+
+        self.process = subprocess.Popen(args, stdin=subprocess.PIPE,
+                                        stdout=subprocess.PIPE)
+
+    def isalive(self):
+        """Check if the VM is still alive"""
+        return self.process.poll() is None
+
+    def destroy(self):
+        """Destroy the VM"""
+
+        if not self.isalive():
+            return
+
+        def handler(signum, frame):
+            self.process.terminate()
+            time.sleep(1)
+            if self.isalive():
+                self.process.kill()
+            self.process.wait()
+            self.out.output("timed-out")
+            raise FatalError("VM destroy timed-out")
+
+        signal.signal(signal.SIGALRM, handler)
+
+        signal.alarm(SHUTDOWN_TIMEOUT)
+        self.process.communicate(input="system_powerdown\n")
+        signal.alarm(0)
+
+    def wait(self, timeout=0):
+        """Wait for the VM to terminate"""
+
+        def handler(signum, frame):
+            self.destroy()
+            raise FatalError("VM wait timed-out.")
+
+        signal.signal(signal.SIGALRM, handler)
+
+        signal.alarm(timeout)
+        stdout, stderr = self.process.communicate()
+        signal.alarm(0)
+
+        return (stdout, stderr, self.process.poll())
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
