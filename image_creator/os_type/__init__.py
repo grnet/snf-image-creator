@@ -70,7 +70,7 @@ def add_prefix(target):
 
 def sysprep(message, enabled=True, **kwargs):
     """Decorator for system preparation tasks"""
-    def wrapper1(func):
+    def wrapper(func):
         func.sysprep = True
         func.enabled = enabled
         func.executed = False
@@ -79,21 +79,57 @@ def sysprep(message, enabled=True, **kwargs):
             setattr(func, key, val)
 
         @wraps(func)
-        def wrapper2(self, print_message=True):
+        def inner(self, print_message=True):
             if print_message:
                 self.out.output(message)
             return func(self)
 
-        return wrapper2
+        return inner
 
-    return wrapper1
+    return wrapper
+
+
+def add_sysprep_param(name, descr, maxlen, default=None,
+                      validator=lambda x: True):
+    """Decorator for init that adds the definition for a system preparation
+    parameter
+    """
+    def wrapper(func):
+
+        @wraps(func)
+        def inner(self, *args, **kwargs):
+
+            func(self, *args, **kwargs)
+
+            if not hasattr(self, 'needed_sysprep_params'):
+                self.needed_sysprep_params = {}
+            getattr(self, 'needed_sysprep_params')[name] = \
+                self.SysprepParam(descr, maxlen, validator)
+        return inner
+
+    return wrapper
+
+
+def del_sysprep_param(name):
+    """Decorator for init that deletes a previously added sysprep parameter
+    definition .
+    """
+    def wrapper(func):
+
+        @wraps(func)
+        def inner(self, *args, **kwargs):
+            del self.needed_sysprep_params[nam]
+            func(self, *args, **kwargs)
+
+        return inner
+
+    return wrapper
 
 
 class OSBase(object):
     """Basic operating system class"""
 
-    SysprepParam = namedtuple('SysprepParam',
-                              'name description length validator')
+    SysprepParam = namedtuple('SysprepParam', 'description maxlen validator')
 
     def __init__(self, image, **kargs):
         self.image = image
@@ -120,12 +156,6 @@ class OSBase(object):
             self.umount()
 
         self.out.output()
-
-    def needed_sysprep_params(self):
-        """Returns a list of needed sysprep parameters. Each element in the
-        list is a SysprepParam object.
-        """
-        return []
 
     def list_syspreps(self):
         """Returns a list of sysprep objects"""

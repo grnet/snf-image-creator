@@ -334,25 +334,26 @@ def start_wizard(session):
         if 'DESCRIPTION' in session['metadata'] else '')
 
     # Create Sysprep Params Wizard Page
-    needed = image.os.needed_sysprep_params()
+    needed = image.os.needed_sysprep_params
+    param_names = needed.keys()
 
     def sysprep_params_fields():
         fields = []
         available = image.os.sysprep_params
-        for param in needed:
-            text = param.description
-            default = available[param.name] if param.name in available else ""
-            fields.append(("%s: " % text, default, param.length))
+        for name in param_names:
+            text = needed[name].description
+            default = available[name] if name in available else ""
+            fields.append(("%s: " % text, default, needed[name].maxlen))
         return fields
 
     def sysprep_params_validate(answer):
         params = {}
         for i in range(len(answer)):
-            if needed[i].validator(answer):
-                params[needed[i].name] = answer[i]
+            if needed[param_names[i]].validator(answer):
+                params[param_names[i]] = answer[i]
             else:
                 session['dialog'].msgbox("Invalid value for parameter `%s'" %
-                                         needed[i].name)
+                                         param_names[i])
                 raise WizardReloadPage
         return params
 

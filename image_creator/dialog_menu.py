@@ -625,15 +625,17 @@ def sysprep_params(session):
     image = session['image']
 
     available = image.os.sysprep_params
-    needed = image.os.needed_sysprep_params()
+    needed = image.os.needed_sysprep_params
+    names = needed.keys()
 
     if len(needed) == 0:
         return True
 
     fields = []
-    for param in needed:
-        default = available[param.name] if param.name in available else ""
-        fields.append(("%s: " % param.description, default, param.length))
+    for name in names:
+        param = needed[name]
+        default = available[name] if name in available else ""
+        fields.append(("%s: " % param.description, default, param.maxlen))
 
     txt = "Please provide the following system preparation parameters:"
     code, output = d.form(txt, height=13, width=WIDTH, form_height=len(fields),
@@ -644,8 +646,9 @@ def sysprep_params(session):
 
     sysprep_params = {}
     for i in range(len(fields)):
-        if needed[i].validator(output[i]):
-            image.os.sysprep_params[needed[i].name] = output[i]
+        param = needed[names[i]]
+        if param.validator(output[i]):
+            image.os.sysprep_params[names[i]] = output[i]
         else:
             d.msgbox("The value you provided for parameter: %s is not valid" %
                      name, width=SMALL_WIDTH)

@@ -36,7 +36,7 @@
 """This module hosts OS-specific code common for the various Microsoft
 Windows OSs."""
 
-from image_creator.os_type import OSBase, sysprep
+from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError, check_guestfs_version, get_command
 from image_creator.winexe import WinEXE, WinexeTimeout
 
@@ -107,6 +107,8 @@ KMS_CLIENT_SETUP_KEYS = {
 
 class Windows(OSBase):
     """OS class for Windows"""
+
+    @add_sysprep_param('password', 'Image Administrator Password', 20)
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -125,15 +127,6 @@ class Windows(OSBase):
         assert self.system_drive
 
         self.product_name = self.g.inspect_get_product_name(self.root)
-
-    def needed_sysprep_params(self):
-        """Returns a list of needed sysprep parameters. Each element in the
-        list is a SysprepParam object.
-        """
-        password = self.SysprepParam(
-            'password', 'Image Administrator Password', 20, lambda x: True)
-
-        return [password]
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -280,9 +273,9 @@ class Windows(OSBase):
             raise FatalError("Image is already syspreped!")
 
         txt = "System preparation parameter: `%s' is needed but missing!"
-        for param in self.needed_sysprep_params():
-            if param[0] not in self.sysprep_params:
-                raise FatalError(txt % param[0])
+        for param in self.needed_sysprep_params:
+            if param not in self.sysprep_params:
+                raise FatalError(txt % param)
 
         self.mount(readonly=False)
         try:
