@@ -64,72 +64,61 @@ def os_cls(distro, osfamily):
 def add_prefix(target):
     def wrapper(self, *args):
         prefix = args[0]
-        return map(lambda x: prefix + x, target(self, *args))
+        return [prefix + path for path in target(self, *args)]
     return wrapper
 
 
 def sysprep(message, enabled=True, **kwargs):
     """Decorator for system preparation tasks"""
-    def wrapper(func):
-        func.sysprep = True
-        func.enabled = enabled
-        func.executed = False
+    def wrapper(method):
+        method.sysprep = True
+        method.enabled = enabled
+        method.executed = False
 
         for key, val in kwargs.items():
-            setattr(func, key, val)
+            setattr(method, key, val)
 
-        @wraps(func)
+        @wraps(method)
         def inner(self, print_message=True):
             if print_message:
                 self.out.output(message)
-            return func(self)
+            return method(self)
 
         return inner
-
     return wrapper
 
 
-def add_sysprep_param(name, descr, maxlen, default=None,
-                      validator=lambda x: True):
-    """Decorator for init that adds the definition for a system preparation
-    parameter
+def add_sysprep_param(name, default, description, validator=lambda x: True):
+    """Decorator for __init__ that adds the definition for a system preparation
+    parameter in an instance of a os_type class
     """
-    def wrapper(func):
-
-        @wraps(func)
+    def wrapper(init):
+        @wraps(init)
         def inner(self, *args, **kwargs):
-
-            func(self, *args, **kwargs)
-
-            if not hasattr(self, 'needed_sysprep_params'):
-                self.needed_sysprep_params = {}
-            getattr(self, 'needed_sysprep_params')[name] = \
-                self.SysprepParam(descr, maxlen, validator)
+            init(self, *args, **kwargs)
+            self.needed_sysprep_params[name] = \
+                self.SysprepParam(default, description, validator)
         return inner
-
     return wrapper
 
 
 def del_sysprep_param(name):
-    """Decorator for init that deletes a previously added sysprep parameter
-    definition .
+    """Decorator for __init__ that deletes a previously added sysprep parameter
+    definition from an instance of a os_type class.
     """
     def wrapper(func):
-
         @wraps(func)
         def inner(self, *args, **kwargs):
-            del self.needed_sysprep_params[nam]
+            del self.needed_sysprep_params[name]
             func(self, *args, **kwargs)
-
         return inner
-
     return wrapper
 
 
 class OSBase(object):
     """Basic operating system class"""
 
-    SysprepParam = namedtuple('SysprepParam', 'description maxlen validator')
+    SysprepParam = namedtuple('SysprepParam', 'default description validator')
 
     def __init__(self, image, **kargs):
         self.image = image
@@ -138,10 +127,12 @@ class OSBase(object):
         self.g = image.g
         self.out = image.out
 
+        self.needed_sysprep_params = {}
         self.sysprep_params = \
             kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
 
         self.meta = {}
+        self.mounted = False
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
@@ -202,8 +193,8 @@ class OSBase(object):
         """Print enabled and disabled system preparation operations."""
 
         syspreps = self.list_syspreps()
-        enabled = filter(lambda x: x.enabled, syspreps)
-        disabled = filter(lambda x: not x.enabled, syspreps)
+        enabled = [sysprep for sysprep in syspreps if sysprep.enabled]
+        disabled = [sysprep for sysprep in syspreps if not sysprep.enabled]
 
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = '\t'
@@ -233,16 +224,14 @@ class OSBase(object):
 
         self.out.output("Needed system preparation parameters:")
 
-        params = self.needed_sysprep_params()
-
-        if len(params) == 0:
+        if len(self.needed_sysprep_params) == 0:
             self.out.output("(none)")
             return
 
-        for param in params:
+        for name, param in self.needed_sysprep_params.items():
             self.out.output("\t%s (%s): %s" %
-                            (param.description, param.name,
-                             self.sysprep_params[param.name] if param.name in
+                            (param.description, name,
+                             self.sysprep_params[name] if name in
                              self.sysprep_params else "(none)"))
 
     def do_sysprep(self):
@@ -254,8 +243,7 @@ class OSBase(object):
 
             self.out.output('Preparing system for image creation:')
 
-            tasks = self.list_syspreps()
-            enabled = filter(lambda x: x.enabled, tasks)
+            enabled = [task for task in self.list_syspreps() if task.enabled]
 
             size = len(enabled)
             cnt = 0

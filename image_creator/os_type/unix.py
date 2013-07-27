@@ -35,8 +35,6 @@
 
 """This module hosts OS-specific code common to all Unix-like OSs."""
 
-import re
-
 from image_creator.os_type import OSBase, sysprep
 
 
@@ -87,7 +85,7 @@ class Unix(OSBase):
 
         return True
 
-    @sysprep('Removing files u)nder /var/cache')
+    @sysprep('Removing files under /var/cache')
     def cleanup_cache(self):
         """Remove all regular files under /var/cache"""
 

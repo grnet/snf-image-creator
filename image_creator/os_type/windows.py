@@ -37,7 +37,7 @@
 Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
-from image_creator.util import FatalError, check_guestfs_version, get_command
+from image_creator.util import FatalError, check_guestfs_version
 from image_creator.winexe import WinEXE, WinexeTimeout
 
 import hivex
@@ -108,7 +108,7 @@ KMS_CLIENT_SETUP_KEYS = {
 class Windows(OSBase):
     """OS class for Windows"""
 
-    @add_sysprep_param('password', 'Image Administrator Password', 20)
+    @add_sysprep_param('password', None, 'Image Administrator Password')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -127,6 +127,7 @@ class Windows(OSBase):
         assert self.system_drive
 
         self.product_name = self.g.inspect_get_product_name(self.root)
+        self.syspreped = False
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -202,7 +203,7 @@ class Windows(OSBase):
             return
 
         self._guest_exec(
-            "cscript \Windows\system32\slmgr.vbs /ipk %s" % setup_key)
+            r"cscript \Windows\system32\slmgr.vbs /ipk %s" % setup_key)
 
     @sysprep('Shrinking the last filesystem')
     def shrink(self):
@@ -273,8 +274,8 @@ class Windows(OSBase):
             raise FatalError("Image is already syspreped!")
 
         txt = "System preparation parameter: `%s' is needed but missing!"
-        for param in self.needed_sysprep_params:
-            if param not in self.sysprep_params:
+        for name, param in self.needed_sysprep_params.items():
+            if name not in self.sysprep_params:
                 raise FatalError(txt % param)
 
         self.mount(readonly=False)
@@ -298,9 +299,9 @@ class Windows(OSBase):
         # guestfs_shutdown which is the prefered way to shutdown the backend
         # process was introduced in version 1.19.16
         if check_guestfs_version(self.g, 1, 19, 16) >= 0:
-            ret = self.g.shutdown()
+            self.g.shutdown()
         else:
-            ret = self.g.kill_subprocess()
+            self.g.kill_subprocess()
 
         self.out.success('done')
 
@@ -329,22 +330,19 @@ class Windows(OSBase):
             self.out.output('Preparing system for image creation:')
 
             tasks = self.list_syspreps()
-            enabled = filter(lambda x: x.enabled, tasks)
+            enabled = [task for task in tasks if task.enabled]
             size = len(enabled)
 
             # Make sure shrink runs in the end, before ms sysprep
-            enabled = filter(lambda x: self.sysprep_info(x).name != 'shrink',
-                             enabled)
+            enabled = [task for task in enabled if
+                       self.sysprep_info(task).name != 'shrink']
 
-            shrink_enabled = False
             if len(enabled) != size:
                 enabled.append(self.shrink)
-                shrink_enabled = True
 
             # Make sure the ms sysprep is the last task to run if it is enabled
-            enabled = filter(
-                lambda x: self.sysprep_info(x).name != 'microsoft-sysprep',
-                enabled)
+            enabled = [task for task in enabled if
+                       self.sysprep_info(task).name != 'microsoft-sysprep']
 
             ms_sysprep_enabled = False
             if len(enabled) != size:
@@ -397,7 +395,7 @@ class Windows(OSBase):
     def _wait_vm_boot(self, vm, fname, msg):
         """Wait until a message appears on a file or the vm process dies"""
 
-        for i in range(BOOT_TIMEOUT):
+        for _ in range(BOOT_TIMEOUT):
             time.sleep(1)
             with open(fname) as f:
                 for line in f:
@@ -425,9 +423,9 @@ class Windows(OSBase):
         path = "%s/system32/config/%s" % (systemroot, regfile)
         try:
             path = self.g.case_sensitive_path(path)
-        except RuntimeError as e:
+        except RuntimeError as error:
             raise FatalError("Unable to retrieve registry file: %s. Reason: %s"
-                             % (regfile, str(e)))
+                             % (regfile, str(error)))
         return path
 
     def _enable_os_monitor(self):
@@ -634,11 +632,10 @@ class Windows(OSBase):
 
     def _get_users(self):
         """Returns a list of users found in the images"""
-        path = self._registry_file_path('SAM')
         samfd, sam = tempfile.mkstemp()
         try:
             os.close(samfd)
-            self.g.download(path, sam)
+            self.g.download(self._registry_file_path('SAM'), sam)
 
             h = hivex.Hivex(sam)
 
@@ -701,7 +698,7 @@ class Windows(OSBase):
                 log.file.write(stdout)
             finally:
                 log.close()
-            self.out.output("failed! See: `%' for the full output" % log.name)
+            self.out.output("failed! See: `%s' for the full output" % log.name)
             if i < CONNECTION_RETRIES - 1:
                 self.out.output("Retrying ...", False)
         raise FatalError("Connection to the VM failed after %d retries" %
@@ -743,12 +740,13 @@ class _VM(object):
         self.serial = serial
 
         def random_mac():
+            """creates a random mac address"""
             mac = [0x00, 0x16, 0x3e,
                    random.randint(0x00, 0x7f),
                    random.randint(0x00, 0xff),
                    random.randint(0x00, 0xff)]
 
-            return ':'.join(map(lambda x: "%02x" % x, mac))
+            return ':'.join(['%02x' % x for x in mac])
 
         # Use ganeti's VNC port range for a random vnc port
         self.display = random.randint(11000, 14999) - 5900
@@ -780,7 +778,6 @@ class _VM(object):
             if self.isalive():
                 self.process.kill()
             self.process.wait()
-            self.out.output("timed-out")
             raise FatalError("VM destroy timed-out")
 
         signal.signal(signal.SIGALRM, handler)

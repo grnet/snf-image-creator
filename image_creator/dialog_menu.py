@@ -68,6 +68,7 @@ CONFIGURATION_TASKS = [
     ("File injection", ["EnforcePersonality"], ["windows", "linux"])
 ]
 
+SYSPREP_PARAM_MAXLEN = 20
 
 class MetadataMonitor(object):
     """Monitors image metadata chages"""
@@ -397,9 +398,9 @@ def kamaki_menu(session):
                 if len(Kamaki.get_clouds()):
                     default_item = "Cloud"
                 else:
-                    default_time = "Add/Edit"
+                    default_item = "Add/Edit"
             else:
-                default_time = "Delete"
+                default_item = "Delete"
         elif choice == "Cloud":
             default_item = "Cloud"
             clouds = Kamaki.get_clouds()
@@ -620,7 +621,7 @@ def exclude_tasks(session):
 
 
 def sysprep_params(session):
-
+    """Collect the needed sysprep parameters"""
     d = session['dialog']
     image = session['image']
 
@@ -635,7 +636,8 @@ def sysprep_params(session):
     for name in names:
         param = needed[name]
         default = available[name] if name in available else ""
-        fields.append(("%s: " % param.description, default, param.maxlen))
+        fields.append(("%s: " % param.description, default,
+                       SYSPREP_PARAM_MAXLEN))
 
     txt = "Please provide the following system preparation parameters:"
     code, output = d.form(txt, height=13, width=WIDTH, form_height=len(fields),
@@ -644,14 +646,13 @@ def sysprep_params(session):
     if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
         return False
 
-    sysprep_params = {}
     for i in range(len(fields)):
         param = needed[names[i]]
         if param.validator(output[i]):
             image.os.sysprep_params[names[i]] = output[i]
         else:
             d.msgbox("The value you provided for parameter: %s is not valid" %
-                     name, width=SMALL_WIDTH)
+                     names[i], width=SMALL_WIDTH)
             return False
 
     return True

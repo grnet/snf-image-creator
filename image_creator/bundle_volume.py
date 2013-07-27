@@ -304,7 +304,7 @@ class BundleVolume(object):
         mpoints = []
         for entry in self._read_fstable('/proc/mounts'):
             if entry.mpoint.startswith(os.path.abspath(target)):
-                    mpoints.append(entry.mpoint)
+                mpoints.append(entry.mpoint)
 
         mpoints.sort()
         for mpoint in reversed(mpoints):
@@ -336,10 +336,9 @@ class BundleVolume(object):
                 continue
 
             dirname = mpoint
-            basename = ''
             found_ancestor = False
             while dirname != '/':
-                (dirname, basename) = os.path.split(dirname)
+                (dirname, _) = os.path.split(dirname)
                 if dirname in excluded:
                     found_ancestor = True
                     break

@@ -310,7 +310,7 @@ class Linux(Unix):
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
         users = []
-        regexp = re.compile('(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
+        regexp = re.compile(r'(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
 
         for line in self.g.cat('/etc/shadow').splitlines():
             match = regexp.match(line)

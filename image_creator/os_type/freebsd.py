@@ -110,7 +110,7 @@ class Freebsd(Unix):
         # libguestfs can't handle correct freebsd partitions on a GUID
         # Partition Table. We have to do the translation to linux device names
         # ourselves
-        guid_device = re.compile('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
+        guid_device = re.compile(r'^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
 
         mopts = "ufstype=ufs2,%s" % ('ro' if readonly else 'rw')
         for mp, dev in self._mountpoints():

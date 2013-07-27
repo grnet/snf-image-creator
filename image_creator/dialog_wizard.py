@@ -49,6 +49,7 @@ from image_creator.dialog_util import extract_image, update_background_title, \
 
 PAGE_WIDTH = 70
 PAGE_HEIGHT = 10
+SYSPREP_PARAM_MAXLEN = 20
 
 
 class WizardExit(Exception):
@@ -221,7 +222,7 @@ class WizardFormPage(WizardPage):
 
         field_lenght = len(self.fields())
         form_height = field_lenght if field_lenght < PAGE_HEIGHT - 4 \
-            else PAGET_HEIGHT - 4
+            else PAGE_HEIGHT - 4
 
         (code, output) = d.form(
             self.text, width=PAGE_WIDTH, height=PAGE_HEIGHT,
@@ -343,7 +344,7 @@ def start_wizard(session):
         for name in param_names:
             text = needed[name].description
             default = available[name] if name in available else ""
-            fields.append(("%s: " % text, default, needed[name].maxlen))
+            fields.append(("%s: " % text, default, SYSPREP_PARAM_MAXLEN))
         return fields
 
     def sysprep_params_validate(answer):
