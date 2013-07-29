@@ -62,6 +62,7 @@ def os_cls(distro, osfamily):
 
 
 def add_prefix(target):
+    """Decorator that adds a prefix to the result of a function"""
     def wrapper(self, *args):
         prefix = args[0]
         return [prefix + path for path in target(self, *args)]
@@ -98,6 +99,8 @@ def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
             init(self, *args, **kwargs)
             self.needed_sysprep_params[name] = \
                 self.SysprepParam(type, default, descr, validate)
+            if default is not None:
+                self.sysprep_params[name] = default
         return inner
     return wrapper
 

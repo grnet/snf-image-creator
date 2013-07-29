@@ -336,14 +336,15 @@ def start_wizard(session):
 
     # Create Sysprep Params Wizard Page
     needed = image.os.needed_sysprep_params
-    param_names = needed.keys()
+    # Only show the parameters that don't have default values
+    param_names = [param for param in needed if needed[param].default is None]
 
     def sysprep_params_fields():
         fields = []
         available = image.os.sysprep_params
         for name in param_names:
             text = needed[name].description
-            default = available[name] if name in available else ""
+            default = str(available[name]) if name in available else ""
             fields.append(("%s: " % text, default, SYSPREP_PARAM_MAXLEN))
         return fields
 
@@ -359,7 +360,7 @@ def start_wizard(session):
                 pass
 
             session['dialog'].msgbox("Invalid value for parameter `%s'" %
-                                         param_names[i])
+                                     param_names[i])
             raise WizardReloadPage
         return params
 

@@ -50,10 +50,6 @@ import string
 import subprocess
 import struct
 
-BOOT_TIMEOUT = 300
-SHUTDOWN_TIMEOUT = 120
-CONNECTION_RETRIES = 5
-
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
     "Windows 8 Professional": "NG4HW-VH26C-733KW-K6F98-J8CK4",
@@ -104,10 +100,17 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 for Itanium-Based Systems":
     "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
 
+_POSINT = lambda x: type(x) == int and x >= 0
+
 
 class Windows(OSBase):
     """OS class for Windows"""
-
+    @add_sysprep_param(
+        'shutdown_timeout', int, 120, "Shutdown Timeout (seconds)", _POSINT)
+    @add_sysprep_param(
+        'boot_timeout', int, 300, "Boot Timeout (seconds)", _POSINT)
+    @add_sysprep_param(
+        'connection_retries', int, 5, "Connection Retries", _POSINT)
     @add_sysprep_param('password', str, None, 'Image Administrator Password')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
@@ -311,7 +314,7 @@ class Windows(OSBase):
             self.out.output("Starting windows VM ...", False)
             monitorfd, monitor = tempfile.mkstemp()
             os.close(monitorfd)
-            vm = _VM(self.image.device, monitor)
+            vm = _VM(self.image.device, monitor, self.sysprep_params)
             self.out.success("started (console on vnc display: %d)." %
                              vm.display)
 
@@ -362,7 +365,7 @@ class Windows(OSBase):
             self.out.success("done")
 
             self.out.output("Waiting for windows to shut down ...", False)
-            vm.wait(SHUTDOWN_TIMEOUT)
+            vm.wait(self.sysprep_params['shutdown_timeout'])
             self.out.success("done")
         finally:
             if monitor is not None:
@@ -395,7 +398,7 @@ class Windows(OSBase):
     def _wait_vm_boot(self, vm, fname, msg):
         """Wait until a message appears on a file or the vm process dies"""
 
-        for _ in range(BOOT_TIMEOUT):
+        for _ in range(self.sysprep_params['boot_timeout']):
             time.sleep(1)
             with open(fname) as f:
                 for line in f:
@@ -685,11 +688,17 @@ class Windows(OSBase):
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
 
+        retries = self.sysprep_params['connection_retries']
+        # If the connection_retries parameter is set to 0 disable the
+        # connectivity check
+        if retries == 0:
+            return True
+
         passwd = self.sysprep_params['password']
         winexe = WinEXE('Administrator', passwd, 'localhost')
         winexe.uninstall().debug(9)
 
-        for i in range(CONNECTION_RETRIES):
+        for i in range(retries):
             (stdout, stderr, rc) = winexe.run('cmd /C')
             if rc == 0:
                 return True
@@ -699,10 +708,11 @@ class Windows(OSBase):
             finally:
                 log.close()
             self.out.output("failed! See: `%s' for the full output" % log.name)
-            if i < CONNECTION_RETRIES - 1:
-                self.out.output("Retrying ...", False)
-        raise FatalError("Connection to the VM failed after %d retries" %
-                         CONNECTION_RETRIES)
+            if i < retries - 1:
+                self.out.output("retrying ...", False)
+
+        raise FatalError("Connection to the Windows VM failed after %d retries"
+                         % retries)
 
     def _guest_exec(self, command, fatal=True):
         """Execute a command on a windows VM"""
@@ -729,7 +739,7 @@ class Windows(OSBase):
 
 class _VM(object):
     """Windows Virtual Machine"""
-    def __init__(self, disk, serial):
+    def __init__(self, disk, serial, params):
         """Create _VM instance
 
             disk: VM's hard disk
@@ -738,6 +748,7 @@ class _VM(object):
 
         self.disk = disk
         self.serial = serial
+        self.params = params
 
         def random_mac():
             """creates a random mac address"""
@@ -782,7 +793,7 @@ class _VM(object):
 
         signal.signal(signal.SIGALRM, handler)
 
-        signal.alarm(SHUTDOWN_TIMEOUT)
+        signal.alarm(self.params['shutdown_timeout'])
         self.process.communicate(input="system_powerdown\n")
         signal.alarm(0)
 

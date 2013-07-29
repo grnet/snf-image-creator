@@ -70,6 +70,7 @@ CONFIGURATION_TASKS = [
 
 SYSPREP_PARAM_MAXLEN = 20
 
+
 class MetadataMonitor(object):
     """Monitors image metadata chages"""
     def __init__(self, session, meta):
@@ -632,33 +633,39 @@ def sysprep_params(session):
     if len(needed) == 0:
         return True
 
-    fields = []
-    for name in names:
-        param = needed[name]
-        default = available[name] if name in available else ""
-        fields.append(("%s: " % param.description, default,
-                       SYSPREP_PARAM_MAXLEN))
+    while 1:
+        fields = []
+        for name in names:
+            param = needed[name]
+            default = str(available[name]) if name in available else ""
+            fields.append(("%s: " % param.description, default,
+                           SYSPREP_PARAM_MAXLEN))
 
-    txt = "Please provide the following system preparation parameters:"
-    code, output = d.form(txt, height=13, width=WIDTH, form_height=len(fields),
-                          fields=fields)
+        txt = "Please provide the following system preparation parameters:"
+        code, output = d.form(txt, height=13, width=WIDTH,
+                              form_height=len(fields), fields=fields)
 
-    if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-        return False
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
 
-    for i in range(len(fields)):
-        param = needed[names[i]]
-        try:
-            value = param.type(output[i])
-            if param.validate(value):
-                image.os.sysprep_params[names[i]] = value
-                continue
-        except ValueError:
-            pass
+        def check_params():
+            for i in range(len(fields)):
+                param = needed[names[i]]
+                try:
+                    value = param.type(output[i])
+                    if param.validate(value):
+                        image.os.sysprep_params[names[i]] = value
+                        continue
+                except ValueError:
+                    pass
 
-        d.msgbox("The value you provided for parameter: `%s' is not valid" %
-                 names[i], width=SMALL_WIDTH)
-        return False
+                d.msgbox("Invalid value for parameter: `%s'" % names[i],
+                         width=SMALL_WIDTH)
+                return False
+            return True
+
+        if check_params():
+            break
 
     return True
 
