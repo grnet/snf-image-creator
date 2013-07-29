@@ -108,7 +108,7 @@ KMS_CLIENT_SETUP_KEYS = {
 class Windows(OSBase):
     """OS class for Windows"""
 
-    @add_sysprep_param('password', None, 'Image Administrator Password')
+    @add_sysprep_param('password', str, None, 'Image Administrator Password')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 

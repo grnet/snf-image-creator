@@ -88,7 +88,7 @@ def sysprep(message, enabled=True, **kwargs):
     return wrapper
 
 
-def add_sysprep_param(name, default, description, validator=lambda x: True):
+def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
     """Decorator for __init__ that adds the definition for a system preparation
     parameter in an instance of a os_type class
     """
@@ -97,7 +97,7 @@ def add_sysprep_param(name, default, description, validator=lambda x: True):
         def inner(self, *args, **kwargs):
             init(self, *args, **kwargs)
             self.needed_sysprep_params[name] = \
-                self.SysprepParam(default, description, validator)
+                self.SysprepParam(type, default, descr, validate)
         return inner
     return wrapper
 
@@ -118,7 +118,8 @@ def del_sysprep_param(name):
 class OSBase(object):
     """Basic operating system class"""
 
-    SysprepParam = namedtuple('SysprepParam', 'default description validator')
+    SysprepParam = namedtuple('SysprepParam',
+                              ['type', 'default', 'description', 'validate'])
 
     def __init__(self, image, **kargs):
         self.image = image

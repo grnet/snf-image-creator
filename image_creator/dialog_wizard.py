@@ -350,12 +350,17 @@ def start_wizard(session):
     def sysprep_params_validate(answer):
         params = {}
         for i in range(len(answer)):
-            if needed[param_names[i]].validator(answer):
-                params[param_names[i]] = answer[i]
-            else:
-                session['dialog'].msgbox("Invalid value for parameter `%s'" %
+            try:
+                value = needed[param_names[i]].type(answer[i])
+                if needed[param_names[i]].validate(value):
+                    params[param_names[i]] = value
+                    continue
+            except ValueError:
+                pass
+
+            session['dialog'].msgbox("Invalid value for parameter `%s'" %
                                          param_names[i])
-                raise WizardReloadPage
+            raise WizardReloadPage
         return params
 
     def sysprep_params_display(params):

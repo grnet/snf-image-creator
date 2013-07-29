@@ -648,12 +648,17 @@ def sysprep_params(session):
 
     for i in range(len(fields)):
         param = needed[names[i]]
-        if param.validator(output[i]):
-            image.os.sysprep_params[names[i]] = output[i]
-        else:
-            d.msgbox("The value you provided for parameter: %s is not valid" %
-                     names[i], width=SMALL_WIDTH)
-            return False
+        try:
+            value = param.type(output[i])
+            if param.validate(value):
+                image.os.sysprep_params[names[i]] = value
+                continue
+        except ValueError:
+            pass
+
+        d.msgbox("The value you provided for parameter: `%s' is not valid" %
+                 names[i], width=SMALL_WIDTH)
+        return False
 
     return True
 
