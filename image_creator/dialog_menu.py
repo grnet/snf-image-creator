@@ -628,12 +628,12 @@ def sysprep_params(session):
 
     available = image.os.sysprep_params
     needed = image.os.needed_sysprep_params
-    names = needed.keys()
 
     if len(needed) == 0:
         return True
 
-    while 1:
+    def print_form(names, extra_button=False):
+        """print the dialog form providing sysprep_params"""
         fields = []
         for name in names:
             param = needed[name]
@@ -641,30 +641,50 @@ def sysprep_params(session):
             fields.append(("%s: " % param.description, default,
                            SYSPREP_PARAM_MAXLEN))
 
+        kwargs = {}
+        if extra_button:
+            kwargs['extra_button'] = 1
+            kwargs['extra_label'] = "Advanced"
+
         txt = "Please provide the following system preparation parameters:"
-        code, output = d.form(txt, height=13, width=WIDTH,
-                              form_height=len(fields), fields=fields)
+        return d.form(txt, height=13, width=WIDTH, form_height=len(fields),
+                      fields=fields, **kwargs)
+
+    def check_params(names, values):
+        """check if the provided sysprep parameters have leagal values"""
+        for i in range(len(names)):
+            param = needed[names[i]]
+            try:
+                normalized = param.type(values[i])
+                if param.validate(normalized):
+                    image.os.sysprep_params[names[i]] = normalized
+                    continue
+            except ValueError:
+                pass
+
+            d.msgbox("Invalid value for parameter: `%s'" % names[i],
+                     width=SMALL_WIDTH)
+            return False
+        return True
+
+    simple_names = [k for k, v in needed.items() if v.default is None]
+    advanced_names = [k for k, v in needed.items() if v.default is not None]
+
+    while 1:
+        code, output = print_form(simple_names, extra_button=True)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
+        if code == d.DIALOG_EXTRA:
+            while 1:
+                code, output = print_form(advanced_names)
+                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                    break
+                if check_params(advanced_names, output):
+                    break
+            continue
 
-        def check_params():
-            for i in range(len(fields)):
-                param = needed[names[i]]
-                try:
-                    value = param.type(output[i])
-                    if param.validate(value):
-                        image.os.sysprep_params[names[i]] = value
-                        continue
-                except ValueError:
-                    pass
-
-                d.msgbox("Invalid value for parameter: `%s'" % names[i],
-                         width=SMALL_WIDTH)
-                return False
-            return True
-
-        if check_params():
+        if check_params(simple_names, output):
             break
 
     return True
