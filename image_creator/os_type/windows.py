@@ -37,7 +37,8 @@
 Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
-from image_creator.util import FatalError, check_guestfs_version
+from image_creator.util import FatalError, check_guestfs_version, \
+    get_kvm_binary
 from image_creator.winexe import WinEXE, WinexeTimeout
 
 import hivex
@@ -762,8 +763,13 @@ class _VM(object):
         # Use ganeti's VNC port range for a random vnc port
         self.display = random.randint(11000, 14999) - 5900
 
+        kvm = get_kvm_binary()
+
+        if kvm is None:
+            FatalError("Can't find the kvm binary")
+
         args = [
-            'kvm', '-smp', '1', '-m', '1024', '-drive',
+            kvm, '-smp', '1', '-m', '1024', '-drive',
             'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
             '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
