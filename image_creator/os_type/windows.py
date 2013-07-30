@@ -292,8 +292,11 @@ class Windows(OSBase):
 
             # Delete the pagefile. It will be recreated when the system boots
             systemroot = self.g.inspect_get_windows_systemroot(self.root)
-            pagefile = "%s/pagefile.sys" % systemroot
-            self.g.rm_rf(self.g.case_sensitive_path(pagefile))
+            try:
+                pagefile = "%s/pagefile.sys" % systemroot
+                self.g.rm_rf(self.g.case_sensitive_path(pagefile))
+            except RuntimeError:
+                pass
 
         finally:
             self.umount()
