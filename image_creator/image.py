@@ -33,7 +33,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import FatalError
+from image_creator.util import FatalError, check_guestfs_version
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
@@ -45,13 +45,16 @@ from sendfile import sendfile
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
-    def __init__(self, device, output, bootable=True, meta={}):
+    def __init__(self, device, output, **kargs):
         """Create a new Image instance"""
 
         self.device = device
         self.out = output
-        self.bootable = bootable
-        self.meta = meta
+
+        self.meta = kargs['meta'] if 'meta' in kargs else {}
+        self.sysprep_params = \
+            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+
         self.progress_bar = None
         self.guestfs_device = None
         self.size = 0
@@ -64,14 +67,11 @@ class Image(object):
         # file descriptors. This can cause problems especially if the parent
         # process has opened pipes. Since the recovery process is an optional
         # feature of libguestfs, it's better to disable it.
-        self.g.set_recovery_proc(0)
-        version = self.g.version()
-        if version['major'] > 1 or \
-            (version['major'] == 1 and (version['minor'] >= 18 or
-                                        (version['minor'] == 17 and
-                                         version['release'] >= 14))):
-            self.g.set_recovery_proc(1)
+        if check_guestfs_version(self.g, 1, 17, 14) >= 0:
             self.out.output("Enabling recovery proc")
+            self.g.set_recovery_proc(1)
+        else:
+            self.g.set_recovery_proc(0)
 
         #self.g.set_trace(1)
         #self.g.set_verbose(1)
@@ -121,7 +121,7 @@ class Image(object):
             self.enable()
 
         cls = os_cls(self.distro, self.ostype)
-        self._os = cls(self.root, self.g, self.out)
+        self._os = cls(self, sysprep_params=self.sysprep_params)
 
         self._os.collect_metadata()
 

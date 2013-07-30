@@ -121,6 +121,14 @@ def parse_options(input_args):
                       "input media", default=[], action="append",
                       metavar="SYSPREP")
 
+    parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
+                      default=False, help="print the needed sysprep parameters"
+                      " for this input media", action="store_true")
+
+    parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
+                      help="Add KEY=VALUE system preparation parameter",
+                      action="append")
+
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
                       help="don't perform any system preparation operation",
                       action="store_false")
@@ -170,6 +178,16 @@ def parse_options(input_args):
         meta[key] = value
     options.metadata = meta
 
+    sysprep_params = {}
+    for p in options.sysprep_params:
+        try:
+            key, value = p.split('=', 1)
+        except ValueError:
+            raise FatalError("Sysprep parameter optiont: `%s' is not in "
+                             "KEY=VALUE format." % p)
+        sysprep_params[key] = value
+    options.sysprep_params = sysprep_params
+
     return options
 
 
@@ -177,9 +195,9 @@ def image_creator():
     options = parse_options(sys.argv[1:])
 
     if options.outfile is None and not options.upload and not \
-            options.print_sysprep:
-        raise FatalError("At least one of `-o', `-u' or `--print-sysprep' "
-                         "must be set")
+            options.print_sysprep and not options.print_sysprep_params:
+        raise FatalError("At least one of `-o', `-u', `--print-sysprep' or "
+                         "`--print-sysprep-params' must be set")
 
     if options.silent:
         out = SilentOutput()
@@ -253,7 +271,7 @@ def image_creator():
     try:
         snapshot = disk.snapshot()
 
-        image = disk.get_image(snapshot)
+        image = disk.get_image(snapshot, sysprep_params=options.sysprep_params)
 
         for sysprep in options.disabled_syspreps:
             image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
@@ -263,6 +281,10 @@ def image_creator():
 
         if options.print_sysprep:
             image.os.print_syspreps()
+            out.output()
+
+        if options.print_sysprep_params:
+            image.os.print_sysprep_params()
             out.output()
 
         if options.outfile is None and not options.upload:

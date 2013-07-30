@@ -42,16 +42,10 @@ import re
 
 class Freebsd(Unix):
     """OS class for FreeBSD Unix-like os"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Freebsd, self).__init__(rootdev, ghandler, output)
 
-    @sysprep()
-    def cleanup_password(self, print_header=True):
+    @sysprep("Cleaning up passwords & locking all user accounts")
+    def cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
-
-        if print_header:
-            self.out.output("Cleaning up passwords & locking all user "
-                            "accounts")
 
         master_passwd = []
 
@@ -116,7 +110,7 @@ class Freebsd(Unix):
         # libguestfs can't handle correct freebsd partitions on a GUID
         # Partition Table. We have to do the translation to linux device names
         # ourselves
-        guid_device = re.compile('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
+        guid_device = re.compile(r'^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
 
         mopts = "ufstype=ufs2,%s" % ('ro' if readonly else 'rw')
         for mp, dev in self._mountpoints():

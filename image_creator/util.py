@@ -41,6 +41,7 @@ import sh
 import hashlib
 import time
 import os
+import re
 
 
 class FatalError(Exception):
@@ -61,6 +62,24 @@ def get_command(command):
         return sh.__getattr__(command)
     except sh.CommandNotFound as e:
         return find_sbin_command(command, e)
+
+
+def get_kvm_binary():
+    """Returns the path to the kvm binary"""
+
+    uname = get_command('uname')
+    which = get_command('which')
+
+    machine = str(uname('-m'))
+    if re.match('i[3-6]86', machine):
+        machine = 'i386'
+
+    binary = which('qemu-system-%s' % machine)
+
+    if binary is None:
+        return which('kvm')
+
+    return binary
 
 
 def try_fail_repeat(command, *args):
@@ -85,6 +104,26 @@ def free_space(dirname):
     """Compute the free space in a directory"""
     stat = os.statvfs(dirname)
     return stat.f_bavail * stat.f_frsize
+
+
+def check_guestfs_version(ghandler, major, minor, release):
+    """Checks if the version of the used libguestfs is smaller, equal or
+    greater than the one specified by the major, minor and release triplet
+
+    Returns:
+        < 0 if the installed version is smaller than the specified one
+        = 0 if they are equal
+        > 0 if the installed one is greater than the specified one
+    """
+
+    ver = ghandler.version()
+
+    for (a, b) in (ver['major'], major), (ver['minor'], minor), \
+            (ver['release'], release):
+        if a != b:
+            return a - b
+
+    return 0
 
 
 class MD5:

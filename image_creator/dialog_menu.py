@@ -68,6 +68,8 @@ CONFIGURATION_TASKS = [
     ("File injection", ["EnforcePersonality"], ["windows", "linux"])
 ]
 
+SYSPREP_PARAM_MAXLEN = 20
+
 
 class MetadataMonitor(object):
     """Monitors image metadata chages"""
@@ -397,9 +399,9 @@ def kamaki_menu(session):
                 if len(Kamaki.get_clouds()):
                     default_item = "Cloud"
                 else:
-                    default_time = "Add/Edit"
+                    default_item = "Add/Edit"
             else:
-                default_time = "Delete"
+                default_item = "Delete"
         elif choice == "Cloud":
             default_item = "Cloud"
             clouds = Kamaki.get_clouds()
@@ -619,6 +621,75 @@ def exclude_tasks(session):
     return True
 
 
+def sysprep_params(session):
+    """Collect the needed sysprep parameters"""
+    d = session['dialog']
+    image = session['image']
+
+    available = image.os.sysprep_params
+    needed = image.os.needed_sysprep_params
+
+    if len(needed) == 0:
+        return True
+
+    def print_form(names, extra_button=False):
+        """print the dialog form providing sysprep_params"""
+        fields = []
+        for name in names:
+            param = needed[name]
+            default = str(available[name]) if name in available else ""
+            fields.append(("%s: " % param.description, default,
+                           SYSPREP_PARAM_MAXLEN))
+
+        kwargs = {}
+        if extra_button:
+            kwargs['extra_button'] = 1
+            kwargs['extra_label'] = "Advanced"
+
+        txt = "Please provide the following system preparation parameters:"
+        return d.form(txt, height=13, width=WIDTH, form_height=len(fields),
+                      fields=fields, **kwargs)
+
+    def check_params(names, values):
+        """check if the provided sysprep parameters have leagal values"""
+        for i in range(len(names)):
+            param = needed[names[i]]
+            try:
+                normalized = param.type(values[i])
+                if param.validate(normalized):
+                    image.os.sysprep_params[names[i]] = normalized
+                    continue
+            except ValueError:
+                pass
+
+            d.msgbox("Invalid value for parameter: `%s'" % names[i],
+                     width=SMALL_WIDTH)
+            return False
+        return True
+
+    simple_names = [k for k, v in needed.items() if v.default is None]
+    advanced_names = [k for k, v in needed.items() if v.default is not None]
+
+    while 1:
+        code, output = print_form(simple_names, extra_button=True)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+        if code == d.DIALOG_EXTRA:
+            while 1:
+                code, output = print_form(advanced_names)
+                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                    break
+                if check_params(advanced_names, output):
+                    break
+            continue
+
+        if check_params(simple_names, output):
+            break
+
+    return True
+
+
 def sysprep(session):
     """Perform various system preperation tasks on the image"""
     d = session['dialog']
@@ -681,6 +752,9 @@ def sysprep(session):
             if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
                 d.msgbox("No system preperation task is selected!",
                          title="System Preperation", width=SMALL_WIDTH)
+                continue
+
+            if not sysprep_params(session):
                 continue
 
             infobox = InfoBoxOutput(d, "Image Configuration")

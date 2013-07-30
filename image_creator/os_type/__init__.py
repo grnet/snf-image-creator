@@ -41,6 +41,8 @@ from image_creator.util import FatalError
 
 import textwrap
 import re
+from collections import namedtuple
+from functools import wraps
 
 
 def os_cls(distro, osfamily):
@@ -60,30 +62,81 @@ def os_cls(distro, osfamily):
 
 
 def add_prefix(target):
+    """Decorator that adds a prefix to the result of a function"""
     def wrapper(self, *args):
         prefix = args[0]
-        return map(lambda x: prefix + x, target(self, *args))
+        return [prefix + path for path in target(self, *args)]
     return wrapper
 
 
-def sysprep(enabled=True):
+def sysprep(message, enabled=True, **kwargs):
     """Decorator for system preparation tasks"""
+    def wrapper(method):
+        method.sysprep = True
+        method.enabled = enabled
+        method.executed = False
+
+        for key, val in kwargs.items():
+            setattr(method, key, val)
+
+        @wraps(method)
+        def inner(self, print_message=True):
+            if print_message:
+                self.out.output(message)
+            return method(self)
+
+        return inner
+    return wrapper
+
+
+def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
+    """Decorator for __init__ that adds the definition for a system preparation
+    parameter in an instance of a os_type class
+    """
+    def wrapper(init):
+        @wraps(init)
+        def inner(self, *args, **kwargs):
+            init(self, *args, **kwargs)
+            self.needed_sysprep_params[name] = \
+                self.SysprepParam(type, default, descr, validate)
+            if default is not None:
+                self.sysprep_params[name] = default
+        return inner
+    return wrapper
+
+
+def del_sysprep_param(name):
+    """Decorator for __init__ that deletes a previously added sysprep parameter
+    definition from an instance of a os_type class.
+    """
     def wrapper(func):
-        func.sysprep = True
-        func.enabled = enabled
-        func.executed = False
-        return func
+        @wraps(func)
+        def inner(self, *args, **kwargs):
+            del self.needed_sysprep_params[name]
+            func(self, *args, **kwargs)
+        return inner
     return wrapper
 
 
 class OSBase(object):
     """Basic operating system class"""
 
-    def __init__(self, rootdev, ghandler, output):
-        self.root = rootdev
-        self.g = ghandler
-        self.out = output
+    SysprepParam = namedtuple('SysprepParam',
+                              ['type', 'default', 'description', 'validate'])
+
+    def __init__(self, image, **kargs):
+        self.image = image
+
+        self.root = image.root
+        self.g = image.g
+        self.out = image.out
+
+        self.needed_sysprep_params = {}
+        self.sysprep_params = \
+            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+
         self.meta = {}
+        self.mounted = False
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
@@ -110,7 +163,10 @@ class OSBase(object):
         """Returns information about a sysprep object"""
         assert self._is_sysprep(obj), "Object is not a sysprep"
 
-        return (obj.__name__.replace('_', '-'), textwrap.dedent(obj.__doc__))
+        SysprepInfo = namedtuple("SysprepInfo", "name description")
+
+        return SysprepInfo(obj.__name__.replace('_', '-'),
+                           textwrap.dedent(obj.__doc__))
 
     def get_sysprep_by_name(self, name):
         """Returns the sysprep object with the given name"""
@@ -141,8 +197,8 @@ class OSBase(object):
         """Print enabled and disabled system preparation operations."""
 
         syspreps = self.list_syspreps()
-        enabled = filter(lambda x: x.enabled, syspreps)
-        disabled = filter(lambda x: not x.enabled, syspreps)
+        enabled = [sysprep for sysprep in syspreps if sysprep.enabled]
+        disabled = [sysprep for sysprep in syspreps if not sysprep.enabled]
 
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = '\t'
@@ -167,6 +223,21 @@ class OSBase(object):
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 self.out.output('    %s:\n%s\n' % (name, descr))
 
+    def print_sysprep_params(self):
+        """Print the system preparation parameter the user may use"""
+
+        self.out.output("Needed system preparation parameters:")
+
+        if len(self.needed_sysprep_params) == 0:
+            self.out.output("(none)")
+            return
+
+        for name, param in self.needed_sysprep_params.items():
+            self.out.output("\t%s (%s): %s" %
+                            (param.description, name,
+                             self.sysprep_params[name] if name in
+                             self.sysprep_params else "(none)"))
+
     def do_sysprep(self):
         """Prepare system for image creation."""
 
@@ -176,8 +247,7 @@ class OSBase(object):
 
             self.out.output('Preparing system for image creation:')
 
-            tasks = self.list_syspreps()
-            enabled = filter(lambda x: x.enabled, tasks)
+            enabled = [task for task in self.list_syspreps() if task.enabled]
 
             size = len(enabled)
             cnt = 0
