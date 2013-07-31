@@ -138,6 +138,13 @@ class OSBase(object):
         self.meta = {}
         self.mounted = False
 
+        # Many guestfs compilations don't support scrub
+        self._scrub_support = True
+        try:
+            self.g.available(['scrub'])
+        except RuntimeError:
+            self._scrub_support = False
+
     def collect_metadata(self):
         """Collect metadata about the OS"""
         try:
