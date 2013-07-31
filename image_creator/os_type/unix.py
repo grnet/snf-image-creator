@@ -139,12 +139,17 @@ class Unix(OSBase):
             self.out.output("Removing sensitive user data under %s" %
                             " ".join(homedirs))
 
+        action = self.g.rm_rf
+        if self._scrub_support:
+            action = self.g.scrub_file
+        else:
+            self.out.warn("Sensitive data won't be scrubbed (not supported)")
         for homedir in homedirs:
             for data in self.sensitive_userdata:
                 fname = "%s/%s" % (homedir, data)
                 if self.g.is_file(fname):
-                    self.g.scrub_file(fname)
+                    action(fname)
                 elif self.g.is_dir(fname):
-                    self._foreach_file(fname, self.g.scrub_file, ftype='r')
+                    self._foreach_file(fname, action, ftype='r')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
