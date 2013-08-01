@@ -93,6 +93,12 @@ class Image(object):
             self.out.warn("Guestfs is already enabled")
             return
 
+        # Before version 1.18.4 the behaviour of kill_subprocess was different
+        # and you need to reset the guestfs handler to relaunch a previously
+        # shut down qemu backend
+        if check_guestfs_version(self.g, 1, 18, 4) < 0:
+            self.g = guestfs.GuestFS()
+
         self.g.add_drive_opts(self.device, readonly=0, format="raw")
 
         # Before version 1.17.14 the recovery process, which is a fork of the
@@ -119,6 +125,10 @@ class Image(object):
         # self.g.delete_event_callback(eh)
         # self.progressbar.success('done')
         # self.progressbar = None
+
+        if check_guestfs_version(self.g, 1, 18, 4) < 0:
+            self.g.inspect_os()  # some calls need this
+
         self.out.success('done')
 
     def disable_guestfs(self):
