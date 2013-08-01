@@ -128,7 +128,6 @@ class OSBase(object):
         self.image = image
 
         self.root = image.root
-        self.g = image.g
         self.out = image.out
 
         self.needed_sysprep_params = {}
@@ -141,7 +140,7 @@ class OSBase(object):
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
         try:
-            self.g.available(['scrub'])
+            self.image.g.available(['scrub'])
         except RuntimeError:
             self._scrub_support = False
 
@@ -288,7 +287,7 @@ class OSBase(object):
         """Umount all mounted filesystems."""
 
         self.out.output("Umounting the media ...", False)
-        self.g.umount_all()
+        self.image.g.umount_all()
         self.mounted = False
         self.out.success('done')
 
@@ -299,12 +298,12 @@ class OSBase(object):
     @add_prefix
     def _ls(self, directory):
         """List the name of all files under a directory"""
-        return self.g.ls(directory)
+        return self.image.g.ls(directory)
 
     @add_prefix
     def _find(self, directory):
         """List the name of all files recursively under a directory"""
-        return self.g.find(directory)
+        return self.image.g.find(directory)
 
     def _foreach_file(self, directory, action, **kargs):
         """Perform an action recursively on all files under a directory.
@@ -333,7 +332,7 @@ class OSBase(object):
         ftype = None if 'ftype' not in kargs else kargs['ftype']
         has_ftype = lambda x, y: y is None and True or x['ftyp'] == y
 
-        for f in self.g.readdir(directory):
+        for f in self.image.g.readdir(directory):
             if f['name'] in ('.', '..'):
                 continue
 
@@ -350,17 +349,19 @@ class OSBase(object):
 
     def _do_collect_metadata(self):
         """helper method for collect_metadata"""
-        self.meta['ROOT_PARTITION'] = "%d" % self.g.part_to_partnum(self.root)
-        self.meta['OSFAMILY'] = self.g.inspect_get_type(self.root)
-        self.meta['OS'] = self.g.inspect_get_distro(self.root)
+        self.meta['ROOT_PARTITION'] = \
+            "%d" % self.image.g.part_to_partnum(self.root)
+        self.meta['OSFAMILY'] = self.image.g.inspect_get_type(self.root)
+        self.meta['OS'] = self.image.g.inspect_get_distro(self.root)
         if self.meta['OS'] == "unknown":
             self.meta['OS'] = self.meta['OSFAMILY']
-        self.meta['DESCRIPTION'] = self.g.inspect_get_product_name(self.root)
+        self.meta['DESCRIPTION'] = self.image.g.inspect_get_product_name(self.root)
 
     def _do_mount(self, readonly):
         """helper method for mount"""
         try:
-            self.g.mount_options('ro' if readonly else 'rw', self.root, '/')
+            self.image.g.mount_options(
+                'ro' if readonly else 'rw', self.root, '/')
         except RuntimeError as msg:
             self.out.warn("unable to mount the root partition: %s" % msg)
             return False

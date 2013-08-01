@@ -116,13 +116,13 @@ class Windows(OSBase):
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
-        device = self.g.part_to_dev(self.root)
+        device = self.image.g.part_to_dev(self.root)
 
-        self.last_part_num = self.g.part_list(device)[-1]['part_num']
+        self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
         self.last_drive = None
         self.system_drive = None
 
-        for drive, partition in self.g.inspect_get_drive_mappings(self.root):
+        for drive, partition in self.image.g.inspect_get_drive_mappings(self.root):
             if partition == "%s%d" % (device, self.last_part_num):
                 self.last_drive = drive
             if partition == self.root:
@@ -130,7 +130,7 @@ class Windows(OSBase):
 
         assert self.system_drive
 
-        self.product_name = self.g.inspect_get_product_name(self.root)
+        self.product_name = self.image.g.inspect_get_product_name(self.root)
         self.syspreped = False
 
     @sysprep('Disabling IPv6 privacy extensions')
@@ -291,10 +291,10 @@ class Windows(OSBase):
             firewall_states = self._update_firewalls(0, 0, 0)
 
             # Delete the pagefile. It will be recreated when the system boots
-            systemroot = self.g.inspect_get_windows_systemroot(self.root)
+            systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
             try:
                 pagefile = "%s/pagefile.sys" % systemroot
-                self.g.rm_rf(self.g.case_sensitive_path(pagefile))
+                self.image.g.rm_rf(self.image.g.case_sensitive_path(pagefile))
             except RuntimeError:
                 pass
 
@@ -302,13 +302,13 @@ class Windows(OSBase):
             self.umount()
 
         self.out.output("Shutting down helper VM ...", False)
-        self.g.sync()
+        self.image.g.sync()
         # guestfs_shutdown which is the prefered way to shutdown the backend
         # process was introduced in version 1.19.16
         if check_guestfs_version(self.g, 1, 19, 16) >= 0:
-            self.g.shutdown()
+            self.image.g.shutdown()
         else:
-            self.g.kill_subprocess()
+            self.image.g.kill_subprocess()
 
         self.out.success('done')
 
@@ -383,7 +383,7 @@ class Windows(OSBase):
             finally:
                 self.out.output("Relaunching helper VM (may take a while) ...",
                                 False)
-                self.g.launch()
+                self.image.g.launch()
                 self.out.success('done')
 
                 self.mount(readonly=False)
@@ -426,10 +426,10 @@ class Windows(OSBase):
     def _registry_file_path(self, regfile):
         """Retrieves the case sensitive path to a registry file"""
 
-        systemroot = self.g.inspect_get_windows_systemroot(self.root)
+        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
         path = "%s/system32/config/%s" % (systemroot, regfile)
         try:
-            path = self.g.case_sensitive_path(path)
+            path = self.image.g.case_sensitive_path(path)
         except RuntimeError as error:
             raise FatalError("Unable to retrieve registry file: %s. Reason: %s"
                              % (regfile, str(error)))
@@ -446,7 +446,7 @@ class Windows(OSBase):
         softwarefd, software = tempfile.mkstemp()
         try:
             os.close(softwarefd)
-            self.g.download(path, software)
+            self.image.g.download(path, software)
 
             h = hivex.Hivex(software, write=True)
 
@@ -511,7 +511,7 @@ class Windows(OSBase):
 
             h.commit(None)
 
-            self.g.upload(software, path)
+            self.image.g.upload(software, path)
         finally:
             os.unlink(software)
 
@@ -537,7 +537,7 @@ class Windows(OSBase):
         systemfd, system = tempfile.mkstemp()
         try:
             os.close(systemfd)
-            self.g.download(path, system)
+            self.image.g.download(path, system)
 
             h = hivex.Hivex(system, write=True)
 
@@ -569,7 +569,7 @@ class Windows(OSBase):
                            'value': struct.pack("<I", new_values.pop(0))})
 
             h.commit(None)
-            self.g.upload(system, path)
+            self.image.g.upload(system, path)
 
         finally:
             os.unlink(system)
@@ -598,7 +598,7 @@ class Windows(OSBase):
         softwarefd, software = tempfile.mkstemp()
         try:
             os.close(softwarefd)
-            self.g.download(path, software)
+            self.image.g.download(path, software)
 
             h = hivex.Hivex(software, write=True)
 
@@ -625,7 +625,7 @@ class Windows(OSBase):
             h.node_set_value(key, new_value)
             h.commit(None)
 
-            self.g.upload(software, path)
+            self.image.g.upload(software, path)
 
         finally:
             os.unlink(software)
@@ -642,7 +642,7 @@ class Windows(OSBase):
         samfd, sam = tempfile.mkstemp()
         try:
             os.close(samfd)
-            self.g.download(self._registry_file_path('SAM'), sam)
+            self.image.g.download(self._registry_file_path('SAM'), sam)
 
             h = hivex.Hivex(sam)
 

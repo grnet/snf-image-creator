@@ -49,7 +49,7 @@ class Freebsd(Unix):
 
         master_passwd = []
 
-        for line in self.g.cat('/etc/master.passwd').splitlines():
+        for line in self.image.g.cat('/etc/master.passwd').splitlines():
 
             # Check for empty or comment lines
             if len(line.split('#')[0]) == 0:
@@ -62,10 +62,11 @@ class Freebsd(Unix):
 
             master_passwd.append(":".join(fields))
 
-        self.g.write('/etc/master.passwd', "\n".join(master_passwd) + '\n')
+        self.image.g.write(
+            '/etc/master.passwd', "\n".join(master_passwd) + '\n')
 
         # Make sure no one can login on the system
-        self.g.rm_rf('/etc/spwd.db')
+        self.image.g.rm_rf('/etc/spwd.db')
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
@@ -88,7 +89,7 @@ class Freebsd(Unix):
             '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
         )
 
-        for line in self.g.cat('/etc/master.passwd').splitlines():
+        for line in self.image.g.cat('/etc/master.passwd').splitlines():
             line = line.split('#')[0]
             match = regexp.match(line)
             if not match:
@@ -120,7 +121,7 @@ class Freebsd(Unix):
                 group3 = int(match.group(3))
                 dev = '/dev/sd%c%d' % (chr(ord('a') + group2), group3)
             try:
-                self.g.mount_vfs(mopts, 'ufs', dev, mp)
+                self.image.g.mount_vfs(mopts, 'ufs', dev, mp)
             except RuntimeError as msg:
                 if mp in critical_mpoints:
                     self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))

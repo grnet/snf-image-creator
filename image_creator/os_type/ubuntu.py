@@ -45,7 +45,7 @@ class Ubuntu(Linux):
         """Collect metadata about the OS"""
 
         super(Ubuntu, self)._do_collect_metadata()
-        apps = self.g.inspect_list_applications(self.root)
+        apps = self.image.g.inspect_list_applications(self.root)
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':
                 self.meta['OS'] = 'kubuntu'
