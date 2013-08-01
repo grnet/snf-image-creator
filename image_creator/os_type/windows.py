@@ -280,7 +280,7 @@ class Windows(OSBase):
         txt = "System preparation parameter: `%s' is needed but missing!"
         for name, param in self.needed_sysprep_params.items():
             if name not in self.sysprep_params:
-                raise FatalError(txt % param)
+                raise FatalError(txt % name)
 
         self.mount(readonly=False)
         try:
