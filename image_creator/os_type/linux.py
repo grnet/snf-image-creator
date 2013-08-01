@@ -155,9 +155,9 @@ class Linux(Unix):
                         self.out.warn("Acpid action file: %s does not exist" %
                                       action)
                         return
-                    self.image.g.copy_file_to_file(action,
-                                             "%s.orig.snf-image-creator-%d" %
-                                             (action, time.time()))
+                    self.image.g.copy_file_to_file(
+                        action, "%s.orig.snf-image-creator-%d" %
+                        (action, time.time()))
                     self.image.g.write(action, powerbtn_action)
                     return
                 else:

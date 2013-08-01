@@ -60,38 +60,12 @@ class Image(object):
         self.size = 0
 
         self.g = guestfs.GuestFS()
-        self.g.add_drive_opts(self.device, readonly=0, format="raw")
-
-        # Before version 1.17.14 the recovery process, which is a fork of the
-        # original process that called libguestfs, did not close its inherited
-        # file descriptors. This can cause problems especially if the parent
-        # process has opened pipes. Since the recovery process is an optional
-        # feature of libguestfs, it's better to disable it.
-        if check_guestfs_version(self.g, 1, 17, 14) >= 0:
-            self.out.output("Enabling recovery proc")
-            self.g.set_recovery_proc(1)
-        else:
-            self.g.set_recovery_proc(0)
-
-        #self.g.set_trace(1)
-        #self.g.set_verbose(1)
-
         self.guestfs_enabled = False
 
     def enable(self):
         """Enable a newly created Image instance"""
 
-        self.out.output('Launching helper VM (may take a while) ...', False)
-        # self.progressbar = self.out.Progress(100, "Launching helper VM",
-        #                                     "percent")
-        # eh = self.g.set_event_callback(self.progress_callback,
-        #                               guestfs.EVENT_PROGRESS)
-        self.g.launch()
-        self.guestfs_enabled = True
-        # self.g.delete_event_callback(eh)
-        # self.progressbar.success('done')
-        # self.progressbar = None
-        self.out.success('done')
+        self.enable_guestfs()
 
         self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
@@ -111,6 +85,60 @@ class Image(object):
         self.out.success(
             'found a(n) %s system' %
             self.ostype if self.distro == "unknown" else self.distro)
+
+    def enable_guestfs(self):
+        """Enable the guestfs handler"""
+
+        if self.guestfs_enabled:
+            self.out.warn("Guestfs is already enabled")
+            return
+
+        self.g.add_drive_opts(self.device, readonly=0, format="raw")
+
+        # Before version 1.17.14 the recovery process, which is a fork of the
+        # original process that called libguestfs, did not close its inherited
+        # file descriptors. This can cause problems especially if the parent
+        # process has opened pipes. Since the recovery process is an optional
+        # feature of libguestfs, it's better to disable it.
+        if check_guestfs_version(self.g, 1, 17, 14) >= 0:
+            self.out.output("Enabling recovery proc")
+            self.g.set_recovery_proc(1)
+        else:
+            self.g.set_recovery_proc(0)
+
+        #self.g.set_trace(1)
+        #self.g.set_verbose(1)
+
+        self.out.output('Launching helper VM (may take a while) ...', False)
+        # self.progressbar = self.out.Progress(100, "Launching helper VM",
+        #                                     "percent")
+        # eh = self.g.set_event_callback(self.progress_callback,
+        #                               guestfs.EVENT_PROGRESS)
+        self.g.launch()
+        self.guestfs_enabled = True
+        # self.g.delete_event_callback(eh)
+        # self.progressbar.success('done')
+        # self.progressbar = None
+        self.out.success('done')
+
+    def disable_guestfs(self):
+        """Disable the guestfs handler"""
+
+        if not self.guestfs_enabled:
+            self.out.warn("Guestfs is already disabled")
+            return
+
+        self.out.output("Shutting down helper VM ...", False)
+        self.g.sync()
+        # guestfs_shutdown which is the prefered way to shutdown the backend
+        # process was introduced in version 1.19.16
+        if check_guestfs_version(self.g, 1, 19, 16) >= 0:
+            self.g.shutdown()
+        else:
+            self.g.kill_subprocess()
+
+        self.guestfs_enabled = False
+        self.out.success('done')
 
     def _get_os(self):
         """Return an OS class instance for this image"""

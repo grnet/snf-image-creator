@@ -355,7 +355,8 @@ class OSBase(object):
         self.meta['OS'] = self.image.g.inspect_get_distro(self.root)
         if self.meta['OS'] == "unknown":
             self.meta['OS'] = self.meta['OSFAMILY']
-        self.meta['DESCRIPTION'] = self.image.g.inspect_get_product_name(self.root)
+        self.meta['DESCRIPTION'] = \
+            self.image.g.inspect_get_product_name(self.root)
 
     def _do_mount(self, readonly):
         """helper method for mount"""

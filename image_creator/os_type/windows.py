@@ -122,10 +122,10 @@ class Windows(OSBase):
         self.last_drive = None
         self.system_drive = None
 
-        for drive, partition in self.image.g.inspect_get_drive_mappings(self.root):
-            if partition == "%s%d" % (device, self.last_part_num):
+        for drive, part in self.image.g.inspect_get_drive_mappings(self.root):
+            if part == "%s%d" % (device, self.last_part_num):
                 self.last_drive = drive
-            if partition == self.root:
+            if part == self.root:
                 self.system_drive = drive
 
         assert self.system_drive
@@ -301,16 +301,7 @@ class Windows(OSBase):
         finally:
             self.umount()
 
-        self.out.output("Shutting down helper VM ...", False)
-        self.image.g.sync()
-        # guestfs_shutdown which is the prefered way to shutdown the backend
-        # process was introduced in version 1.19.16
-        if check_guestfs_version(self.g, 1, 19, 16) >= 0:
-            self.image.g.shutdown()
-        else:
-            self.image.g.kill_subprocess()
-
-        self.out.success('done')
+        self.image.disable_guestfs()
 
         vm = None
         monitor = None
@@ -381,10 +372,7 @@ class Windows(OSBase):
                     vm.destroy()
                     self.out.success("done")
             finally:
-                self.out.output("Relaunching helper VM (may take a while) ...",
-                                False)
-                self.image.g.launch()
-                self.out.success('done')
+                self.image.enable_guestfs()
 
                 self.mount(readonly=False)
                 try:
