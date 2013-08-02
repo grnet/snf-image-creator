@@ -116,6 +116,16 @@ class Windows(OSBase):
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
+        # This commit was added in libguestfs 1.17.18 and is critical because
+        # Microsoft Sysprep removes this key:
+        #
+        # When a Windows guest doesn't have a HKLM\SYSTEM\MountedDevices node,
+        # inspection fails.  However inspection should not completely fail just
+        # because we cannot get the drive letter mapping from a guest.
+        if check_guestfs_version(self.image.g, 1, 17, 18) < 0:
+            raise FatalError(
+                'For windows support libguestfs 1.17.17 or above is needed')
+
         device = self.image.g.part_to_dev(self.root)
 
         self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
