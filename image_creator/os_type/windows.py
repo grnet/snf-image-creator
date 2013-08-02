@@ -124,7 +124,7 @@ class Windows(OSBase):
         # because we cannot get the drive letter mapping from a guest.
         if check_guestfs_version(self.image.g, 1, 17, 18) < 0:
             raise FatalError(
-                'For windows support libguestfs 1.17.17 or above is needed')
+                'For windows support libguestfs 1.17.18 or above is needed')
 
         device = self.image.g.part_to_dev(self.root)
 
@@ -275,8 +275,12 @@ class Windows(OSBase):
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
-        stdout, stderr, rc = self._guest_exec(cmd)
+        stdout, stderr, rc = self._guest_exec(cmd, False)
 
+        if rc != 0:
+            FatalError("Shrinking failed. Please make sure the media is "
+                       "defraged with a command like this: "
+                       "`Defrag.exe /U /X /W'")
         for line in stdout.splitlines():
             if line.find('shrunk') >= 0:
                 self.out.output(line)
