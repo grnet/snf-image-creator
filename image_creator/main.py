@@ -108,7 +108,7 @@ def parse_options(input_args):
                       "authenticate against a cloud when "
                       "uploading/registering images")
 
-    parser.add_option("--print-sysprep", dest="print_sysprep", default=False,
+    parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
                       help="print the enabled and disabled system preparation "
                       "operations for this input media", action="store_true")
 
@@ -195,8 +195,8 @@ def image_creator():
     options = parse_options(sys.argv[1:])
 
     if options.outfile is None and not options.upload and not \
-            options.print_sysprep and not options.print_sysprep_params:
-        raise FatalError("At least one of `-o', `-u', `--print-sysprep' or "
+            options.print_syspreps and not options.print_sysprep_params:
+        raise FatalError("At least one of `-o', `-u', `--print-syspreps' or "
                          "`--print-sysprep-params' must be set")
 
     if options.silent:
@@ -279,7 +279,7 @@ def image_creator():
         for sysprep in options.enabled_syspreps:
             image.os.enable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
-        if options.print_sysprep:
+        if options.print_syspreps:
             image.os.print_syspreps()
             out.output()
 

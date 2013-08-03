@@ -208,7 +208,7 @@ class Windows(OSBase):
         """Install the appropriate KMS client setup key to the image to convert
         it to a KMS client. Computers that are running volume licensing
         editions of Windows 8, Windows Server 2012, Windows 7, Windows Server
-        2008 R2, Windows Vista, and Windows Server 2008 are, by default, KMS
+        2008 R2, Windows Vista, and Windows Server 2008 are by default KMS
         clients with no additional configuration needed.
         """
         try:
