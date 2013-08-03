@@ -33,7 +33,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-from image_creator.util import FatalError, check_guestfs_version
+from image_creator.util import FatalError
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
@@ -61,6 +61,25 @@ class Image(object):
 
         self.g = guestfs.GuestFS()
         self.guestfs_enabled = False
+        self.guestfs_version = self.g.version()
+
+    def check_guestfs_version(self, major, minor, release):
+        """Checks if the version of the used libguestfs is smaller, equal or
+        greater than the one specified by the major, minor and release triplet
+
+        Returns:
+            < 0 if the installed version is smaller than the specified one
+            = 0 if they are equal
+            > 0 if the installed one is greater than the specified one
+        """
+
+        for (a, b) in (self.guestfs_version['major'], major), \
+                (self.guestfs_version['minor'], minor), \
+                (self.guestfs_version['release'], release):
+            if a != b:
+                return a - b
+
+        return 0
 
     def enable(self):
         """Enable a newly created Image instance"""
@@ -96,7 +115,7 @@ class Image(object):
         # Before version 1.18.4 the behaviour of kill_subprocess was different
         # and you need to reset the guestfs handler to relaunch a previously
         # shut down qemu backend
-        if check_guestfs_version(self.g, 1, 18, 4) < 0:
+        if self.check_guestfs_version(1, 18, 4) < 0:
             self.g = guestfs.GuestFS()
 
         self.g.add_drive_opts(self.device, readonly=0, format="raw")
@@ -106,7 +125,7 @@ class Image(object):
         # file descriptors. This can cause problems especially if the parent
         # process has opened pipes. Since the recovery process is an optional
         # feature of libguestfs, it's better to disable it.
-        if check_guestfs_version(self.g, 1, 17, 14) >= 0:
+        if self.check_guestfs_version(1, 17, 14) >= 0:
             self.out.output("Enabling recovery proc")
             self.g.set_recovery_proc(1)
         else:
@@ -126,7 +145,7 @@ class Image(object):
         # self.progressbar.success('done')
         # self.progressbar = None
 
-        if check_guestfs_version(self.g, 1, 18, 4) < 0:
+        if self.check_guestfs_version(1, 18, 4) < 0:
             self.g.inspect_os()  # some calls need this
 
         self.out.success('done')
@@ -142,7 +161,7 @@ class Image(object):
         self.g.sync()
         # guestfs_shutdown which is the prefered way to shutdown the backend
         # process was introduced in version 1.19.16
-        if check_guestfs_version(self.g, 1, 19, 16) >= 0:
+        if self.check_guestfs_version(1, 19, 16) >= 0:
             self.g.shutdown()
         else:
             self.g.kill_subprocess()

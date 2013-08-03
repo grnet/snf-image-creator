@@ -37,8 +37,7 @@
 Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
-from image_creator.util import FatalError, check_guestfs_version, \
-    get_kvm_binary
+from image_creator.util import FatalError, get_kvm_binary
 from image_creator.winexe import WinEXE, WinexeTimeout
 
 import hivex
@@ -116,15 +115,19 @@ class Windows(OSBase):
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
-        # This commit was added in libguestfs 1.17.18 and is critical because
-        # Microsoft Sysprep removes this key:
+        # The commit with the following message was added in
+        # libguestfs 1.17.18:
         #
         # When a Windows guest doesn't have a HKLM\SYSTEM\MountedDevices node,
         # inspection fails.  However inspection should not completely fail just
         # because we cannot get the drive letter mapping from a guest.
-        if check_guestfs_version(self.image.g, 1, 17, 18) < 0:
+        #
+        # Since Microsoft Sysprep removes the aforementioned key, image
+        # creation for windows can only be supported if the installed guestfs
+        # version is 1.17.18 or higher
+        if self.image.check_guestfs_version(1, 17, 18) < 0:
             raise FatalError(
-                'For windows support libguestfs 1.17.18 or above is needed')
+                'For windows support libguestfs 1.17.18 or above is required')
 
         device = self.image.g.part_to_dev(self.root)
 
