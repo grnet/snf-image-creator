@@ -768,18 +768,21 @@ class _VM(object):
         # Use ganeti's VNC port range for a random vnc port
         self.display = random.randint(11000, 14999) - 5900
 
-        kvm = get_kvm_binary()
+        kvm, needed_args = get_kvm_binary()
 
         if kvm is None:
             FatalError("Can't find the kvm binary")
 
-        args = [
-            kvm, '-smp', '1', '-m', '1024', '-drive',
+        args = [kvm]
+        args.extend(needed_args)
+
+        args.extend([
+            '-smp', '1', '-m', '1024', '-drive',
             'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
             '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
             '-vnc', ':%d' % self.display, '-serial', 'file:%s' % self.serial,
-            '-monitor', 'stdio']
+            '-monitor', 'stdio'])
 
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE)
