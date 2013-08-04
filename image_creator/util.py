@@ -41,6 +41,7 @@ import sh
 import hashlib
 import time
 import os
+import re
 
 
 class FatalError(Exception):
@@ -61,6 +62,26 @@ def get_command(command):
         return sh.__getattr__(command)
     except sh.CommandNotFound as e:
         return find_sbin_command(command, e)
+
+
+def get_kvm_binary():
+    """Returns the path to the kvm binary and some extra arguments if needed"""
+
+    uname = get_command('uname')
+    which = get_command('which')
+
+    machine = str(uname('-m')).strip()
+    if re.match('i[3-6]86', machine):
+        machine = 'i386'
+
+    binary = which('qemu-system-%s' % machine)
+
+    needed_args = "--enable-kvm",
+
+    if binary is None:
+        return which('kvm'), tuple()
+
+    return binary, needed_args
 
 
 def try_fail_repeat(command, *args):

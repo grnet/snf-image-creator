@@ -40,14 +40,12 @@ from image_creator.os_type.linux import Linux
 
 class Ubuntu(Linux):
     """OS class for Ubuntu Linux variants"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Ubuntu, self).__init__(rootdev, ghandler, output)
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
 
         super(Ubuntu, self)._do_collect_metadata()
-        apps = self.g.inspect_list_applications(self.root)
+        apps = self.image.g.inspect_list_applications(self.root)
         for app in apps:
             if app['app_name'] == 'kubuntu-desktop':
                 self.meta['OS'] = 'kubuntu'

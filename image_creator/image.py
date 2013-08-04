@@ -45,53 +45,46 @@ from sendfile import sendfile
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
-    def __init__(self, device, output, bootable=True, meta={}):
+    def __init__(self, device, output, **kargs):
         """Create a new Image instance"""
 
         self.device = device
         self.out = output
-        self.bootable = bootable
-        self.meta = meta
+
+        self.meta = kargs['meta'] if 'meta' in kargs else {}
+        self.sysprep_params = \
+            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+
         self.progress_bar = None
         self.guestfs_device = None
         self.size = 0
 
         self.g = guestfs.GuestFS()
-        self.g.add_drive_opts(self.device, readonly=0, format="raw")
-
-        # Before version 1.17.14 the recovery process, which is a fork of the
-        # original process that called libguestfs, did not close its inherited
-        # file descriptors. This can cause problems especially if the parent
-        # process has opened pipes. Since the recovery process is an optional
-        # feature of libguestfs, it's better to disable it.
-        self.g.set_recovery_proc(0)
-        version = self.g.version()
-        if version['major'] > 1 or \
-            (version['major'] == 1 and (version['minor'] >= 18 or
-                                        (version['minor'] == 17 and
-                                         version['release'] >= 14))):
-            self.g.set_recovery_proc(1)
-            self.out.output("Enabling recovery proc")
-
-        #self.g.set_trace(1)
-        #self.g.set_verbose(1)
-
         self.guestfs_enabled = False
+        self.guestfs_version = self.g.version()
+
+    def check_guestfs_version(self, major, minor, release):
+        """Checks if the version of the used libguestfs is smaller, equal or
+        greater than the one specified by the major, minor and release triplet
+
+        Returns:
+            < 0 if the installed version is smaller than the specified one
+            = 0 if they are equal
+            > 0 if the installed one is greater than the specified one
+        """
+
+        for (a, b) in (self.guestfs_version['major'], major), \
+                (self.guestfs_version['minor'], minor), \
+                (self.guestfs_version['release'], release):
+            if a != b:
+                return a - b
+
+        return 0
 
     def enable(self):
         """Enable a newly created Image instance"""
 
-        self.out.output('Launching helper VM (may take a while) ...', False)
-        # self.progressbar = self.out.Progress(100, "Launching helper VM",
-        #                                     "percent")
-        # eh = self.g.set_event_callback(self.progress_callback,
-        #                               guestfs.EVENT_PROGRESS)
-        self.g.launch()
-        self.guestfs_enabled = True
-        # self.g.delete_event_callback(eh)
-        # self.progressbar.success('done')
-        # self.progressbar = None
-        self.out.success('done')
+        self.enable_guestfs()
 
         self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
@@ -112,6 +105,70 @@ class Image(object):
             'found a(n) %s system' %
             self.ostype if self.distro == "unknown" else self.distro)
 
+    def enable_guestfs(self):
+        """Enable the guestfs handler"""
+
+        if self.guestfs_enabled:
+            self.out.warn("Guestfs is already enabled")
+            return
+
+        # Before version 1.18.4 the behaviour of kill_subprocess was different
+        # and you need to reset the guestfs handler to relaunch a previously
+        # shut down qemu backend
+        if self.check_guestfs_version(1, 18, 4) < 0:
+            self.g = guestfs.GuestFS()
+
+        self.g.add_drive_opts(self.device, readonly=0, format="raw")
+
+        # Before version 1.17.14 the recovery process, which is a fork of the
+        # original process that called libguestfs, did not close its inherited
+        # file descriptors. This can cause problems especially if the parent
+        # process has opened pipes. Since the recovery process is an optional
+        # feature of libguestfs, it's better to disable it.
+        if self.check_guestfs_version(1, 17, 14) >= 0:
+            self.out.output("Enabling recovery proc")
+            self.g.set_recovery_proc(1)
+        else:
+            self.g.set_recovery_proc(0)
+
+        #self.g.set_trace(1)
+        #self.g.set_verbose(1)
+
+        self.out.output('Launching helper VM (may take a while) ...', False)
+        # self.progressbar = self.out.Progress(100, "Launching helper VM",
+        #                                     "percent")
+        # eh = self.g.set_event_callback(self.progress_callback,
+        #                               guestfs.EVENT_PROGRESS)
+        self.g.launch()
+        self.guestfs_enabled = True
+        # self.g.delete_event_callback(eh)
+        # self.progressbar.success('done')
+        # self.progressbar = None
+
+        if self.check_guestfs_version(1, 18, 4) < 0:
+            self.g.inspect_os()  # some calls need this
+
+        self.out.success('done')
+
+    def disable_guestfs(self):
+        """Disable the guestfs handler"""
+
+        if not self.guestfs_enabled:
+            self.out.warn("Guestfs is already disabled")
+            return
+
+        self.out.output("Shutting down helper VM ...", False)
+        self.g.sync()
+        # guestfs_shutdown which is the prefered way to shutdown the backend
+        # process was introduced in version 1.19.16
+        if self.check_guestfs_version(1, 19, 16) >= 0:
+            self.g.shutdown()
+        else:
+            self.g.kill_subprocess()
+
+        self.guestfs_enabled = False
+        self.out.success('done')
+
     def _get_os(self):
         """Return an OS class instance for this image"""
         if hasattr(self, "_os"):
@@ -121,7 +178,7 @@ class Image(object):
             self.enable()
 
         cls = os_cls(self.distro, self.ostype)
-        self._os = cls(self.root, self.g, self.out)
+        self._os = cls(self, sysprep_params=self.sysprep_params)
 
         self._os.collect_metadata()
 
