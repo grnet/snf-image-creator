@@ -116,7 +116,7 @@ class Windows(OSBase):
         super(Windows, self).__init__(image, **kargs)
 
         # The commit with the following message was added in
-        # libguestfs 1.17.18:
+        # libguestfs 1.17.18 and was backported in version 1.16.11:
         #
         # When a Windows guest doesn't have a HKLM\SYSTEM\MountedDevices node,
         # inspection fails.  However inspection should not completely fail just
@@ -125,9 +125,11 @@ class Windows(OSBase):
         # Since Microsoft Sysprep removes the aforementioned key, image
         # creation for windows can only be supported if the installed guestfs
         # version is 1.17.18 or higher
-        if self.image.check_guestfs_version(1, 17, 18) < 0:
+        if self.image.check_guestfs_version(1, 17, 18) < 0 and \
+                (self.image.check_guestfs_version(1, 17, 0) >= 0 or
+                 self.image.check_guestfs_version(1, 16, 11) < 0):
             raise FatalError(
-                'For windows support libguestfs 1.17.18 or above is required')
+                'For windows support libguestfs 1.16.11 or above is required')
 
         device = self.image.g.part_to_dev(self.root)
 
