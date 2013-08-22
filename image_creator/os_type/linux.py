@@ -43,18 +43,14 @@ import time
 
 class Linux(Unix):
     """OS class for Linux"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Linux, self).__init__(rootdev, ghandler, output)
+    def __init__(self, image, **kargs):
+        super(Linux, self).__init__(image, **kargs)
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
 
-    @sysprep(enabled=False)
-    def remove_user_accounts(self, print_header=True):
+    @sysprep('Removing user accounts with id greater that 1000', enabled=False)
+    def remove_user_accounts(self):
         """Remove all user accounts with id greater than 1000"""
-
-        if print_header:
-            self.out.output("Removing all user accounts with id greater than "
-                            "1000")
 
         if 'USERS' not in self.meta:
             return
@@ -63,7 +59,7 @@ class Linux(Unix):
         passwd = []
         removed_users = {}
         metadata_users = self.meta['USERS'].split()
-        for line in self.g.cat('/etc/passwd').splitlines():
+        for line in self.image.g.cat('/etc/passwd').splitlines():
             fields = line.split(':')
             if int(fields[2]) > 1000:
                 removed_users[fields[0]] = fields
@@ -79,78 +75,71 @@ class Linux(Unix):
         if not len(self.meta['USERS']):
             del self.meta['USERS']
 
-        self.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
+        self.image.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
 
         # Remove the corresponding /etc/shadow entries
         shadow = []
-        for line in self.g.cat('/etc/shadow').splitlines():
+        for line in self.image.g.cat('/etc/shadow').splitlines():
             fields = line.split(':')
             if fields[0] not in removed_users:
                 shadow.append(':'.join(fields))
 
-        self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
+        self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
         # Remove the corresponding /etc/group entries
         group = []
-        for line in self.g.cat('/etc/group').splitlines():
+        for line in self.image.g.cat('/etc/group').splitlines():
             fields = line.split(':')
             # Remove groups tha have the same name as the removed users
             if fields[0] not in removed_users:
                 group.append(':'.join(fields))
 
-        self.g.write('/etc/group', '\n'.join(group) + '\n')
+        self.image.g.write('/etc/group', '\n'.join(group) + '\n')
 
         # Remove home directories
         for home in [field[5] for field in removed_users.values()]:
-            if self.g.is_dir(home) and home.startswith('/home/'):
-                self.g.rm_rf(home)
+            if self.image.g.is_dir(home) and home.startswith('/home/'):
+                self.image.g.rm_rf(home)
 
-    @sysprep()
-    def cleanup_passwords(self, print_header=True):
+    @sysprep('Cleaning up password & locking all user accounts')
+    def cleanup_passwords(self):
         """Remove all passwords and lock all user accounts"""
-
-        if print_header:
-            self.out.output("Cleaning up passwords & locking all user "
-                            "accounts")
 
         shadow = []
 
-        for line in self.g.cat('/etc/shadow').splitlines():
+        for line in self.image.g.cat('/etc/shadow').splitlines():
             fields = line.split(':')
             if fields[1] not in ('*', '!'):
                 fields[1] = '!'
 
             shadow.append(":".join(fields))
 
-        self.g.write('/etc/shadow', "\n".join(shadow) + '\n')
+        self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
-    @sysprep()
-    def fix_acpid(self, print_header=True):
+    @sysprep('Fixing acpid powerdown action')
+    def fix_acpid(self):
         """Replace acpid powerdown action scripts to immediately shutdown the
         system without checking if a GUI is running.
         """
-
-        if print_header:
-            self.out.output('Fixing acpid powerdown action')
 
         powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
                           'shutdown -h now "Power button pressed"\n'
 
         events_dir = '/etc/acpi/events'
-        if not self.g.is_dir(events_dir):
+        if not self.image.g.is_dir(events_dir):
             self.out.warn("No acpid event directory found")
             return
 
         event_exp = re.compile('event=(.+)', re.I)
         action_exp = re.compile('action=(.+)', re.I)
-        for events_file in self.g.readdir(events_dir):
+        for events_file in self.image.g.readdir(events_dir):
             if events_file['ftyp'] != 'r':
                 continue
 
             fullpath = "%s/%s" % (events_dir, events_file['name'])
             event = ""
             action = ""
-            for line in self.g.cat(fullpath).splitlines():
+            for line in self.image.g.cat(fullpath).splitlines():
                 match = event_exp.match(line)
                 if match:
                     event = match.group(1)
@@ -162,14 +151,14 @@ class Linux(Unix):
 
             if event.strip() in ("button[ /]power", "button/power.*"):
                 if action:
-                    if not self.g.is_file(action):
+                    if not self.image.g.is_file(action):
                         self.out.warn("Acpid action file: %s does not exist" %
                                       action)
                         return
-                    self.g.copy_file_to_file(action,
-                                             "%s.orig.snf-image-creator-%d" %
-                                             (action, time.time()))
-                    self.g.write(action, powerbtn_action)
+                    self.image.g.copy_file_to_file(
+                        action, "%s.orig.snf-image-creator-%d" %
+                        (action, time.time()))
+                    self.image.g.write(action, powerbtn_action)
                     return
                 else:
                     self.out.warn("Acpid event file %s does not contain and "
@@ -185,33 +174,27 @@ class Linux(Unix):
 
         self.out.warn("No acpi power button event found!")
 
-    @sysprep()
-    def remove_persistent_net_rules(self, print_header=True):
+    @sysprep('Removing persistent network interface names')
+    def remove_persistent_net_rules(self):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
         """
 
-        if print_header:
-            self.out.output('Removing persistent network interface names')
-
         rule_file = '/etc/udev/rules.d/70-persistent-net.rules'
-        if self.g.is_file(rule_file):
-            self.g.rm(rule_file)
+        if self.image.g.is_file(rule_file):
+            self.image.g.rm(rule_file)
 
-    @sysprep()
-    def remove_swap_entry(self, print_header=True):
+    @sysprep('Removing swap entry from fstab')
+    def remove_swap_entry(self):
         """Remove swap entry from /etc/fstab. If swap is the last partition
         then the partition will be removed when shrinking is performed. If the
         swap partition is not the last partition in the disk or if you are not
         going to shrink the image you should probably disable this.
         """
 
-        if print_header:
-            self.out.output('Removing swap entry from fstab')
-
         new_fstab = ""
-        fstab = self.g.cat('/etc/fstab')
+        fstab = self.image.g.cat('/etc/fstab')
         for line in fstab.splitlines():
 
             entry = line.split('#')[0].strip().split()
@@ -220,17 +203,13 @@ class Linux(Unix):
 
             new_fstab += "%s\n" % line
 
-        self.g.write('/etc/fstab', new_fstab)
+        self.image.g.write('/etc/fstab', new_fstab)
 
-    @sysprep()
-    def use_persistent_block_device_names(self, print_header=True):
+    @sysprep('Replacing fstab & grub non-persistent device references')
+    def use_persistent_block_device_names(self):
         """Scan fstab & grub configuration files and replace all non-persistent
         device references with UUIDs.
         """
-
-        if print_header:
-            self.out.output("Replacing fstab & grub non-persistent device "
-                            "references")
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
@@ -242,32 +221,33 @@ class Linux(Unix):
         """Replaces non-persistent device name occurencies with persistent
         ones in GRUB1 configuration files.
         """
-        if self.g.is_file('/boot/grub/menu.lst'):
+        if self.image.g.is_file('/boot/grub/menu.lst'):
             grub1 = '/boot/grub/menu.lst'
-        elif self.g.is_file('/etc/grub.conf'):
+        elif self.image.g.is_file('/etc/grub.conf'):
             grub1 = '/etc/grub.conf'
         else:
             return
 
-        self.g.aug_init('/', 0)
+        self.image.g.aug_init('/', 0)
         try:
-            roots = self.g.aug_match('/files%s/title[*]/kernel/root' % grub1)
+            roots = self.image.g.aug_match(
+                '/files%s/title[*]/kernel/root' % grub1)
             for root in roots:
-                dev = self.g.aug_get(root)
+                dev = self.image.g.aug_get(root)
                 if not self._is_persistent(dev):
                     # This is not always correct. Grub may contain root entries
                     # for other systems, but we only support 1 OS per hard
                     # disk, so this shouldn't harm.
-                    self.g.aug_set(root, new_root)
+                    self.image.g.aug_set(root, new_root)
         finally:
-            self.g.aug_save()
-            self.g.aug_close()
+            self.image.g.aug_save()
+            self.image.g.aug_close()
 
     def _persistent_fstab(self):
         """Replaces non-persistent device name occurencies in /etc/fstab with
         persistent ones.
         """
-        mpoints = self.g.mountpoints()
+        mpoints = self.image.g.mountpoints()
         if len(mpoints) == 0:
             pass  # TODO: error handling
 
@@ -275,7 +255,7 @@ class Linux(Unix):
 
         root_dev = None
         new_fstab = ""
-        fstab = self.g.cat('/etc/fstab')
+        fstab = self.image.g.cat('/etc/fstab')
         for line in fstab.splitlines():
 
             line, dev, mpoint = self._convert_fstab_line(line, device_dict)
@@ -284,7 +264,7 @@ class Linux(Unix):
             if mpoint == '/':
                 root_dev = dev
 
-        self.g.write('/etc/fstab', new_fstab)
+        self.image.g.write('/etc/fstab', new_fstab)
         if root_dev is None:
             pass  # TODO: error handling
 
@@ -331,9 +311,9 @@ class Linux(Unix):
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
         users = []
-        regexp = re.compile('(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
+        regexp = re.compile(r'(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
 
-        for line in self.g.cat('/etc/shadow').splitlines():
+        for line in self.image.g.cat('/etc/shadow').splitlines():
             match = regexp.match(line)
             if not match:
                 continue
@@ -355,7 +335,7 @@ class Linux(Unix):
         if dev in self._uuid:
             return self._uuid[dev]
 
-        uuid = self.g.vfs_uuid(dev)
+        uuid = self.image.g.vfs_uuid(dev)
         assert len(uuid)
         self._uuid[dev] = uuid
         return uuid

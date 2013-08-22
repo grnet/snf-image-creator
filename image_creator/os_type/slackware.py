@@ -40,17 +40,14 @@ from image_creator.os_type.linux import Linux, sysprep
 
 class Slackware(Linux):
     """OS class for Slackware Linux"""
-    @sysprep()
-    def cleanup_log(self, print_header=True):
+    @sysprep("Emptying all files under /var/log")
+    def cleanup_log(self):
         """Empty all files under /var/log"""
-
-        if print_header:
-            self.out.output('Emptying all files under /var/log')
 
         # In slackware the metadata about installed packages are
         # stored in /var/log/packages. Clearing all /var/log files
         # will destroy the package management system.
-        self._foreach_file('/var/log', self.g.truncate, ftype='r',
+        self._foreach_file('/var/log', self.image.g.truncate, ftype='r',
                            exclude='/var/log/packages')
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
