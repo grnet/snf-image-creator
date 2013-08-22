@@ -42,20 +42,14 @@ import re
 
 class Freebsd(Unix):
     """OS class for FreeBSD Unix-like os"""
-    def __init__(self, rootdev, ghandler, output):
-        super(Freebsd, self).__init__(rootdev, ghandler, output)
 
-    @sysprep()
-    def cleanup_password(self, print_header=True):
+    @sysprep("Cleaning up passwords & locking all user accounts")
+    def cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
-
-        if print_header:
-            self.out.output("Cleaning up passwords & locking all user "
-                            "accounts")
 
         master_passwd = []
 
-        for line in self.g.cat('/etc/master.passwd').splitlines():
+        for line in self.image.g.cat('/etc/master.passwd').splitlines():
 
             # Check for empty or comment lines
             if len(line.split('#')[0]) == 0:
@@ -68,10 +62,11 @@ class Freebsd(Unix):
 
             master_passwd.append(":".join(fields))
 
-        self.g.write('/etc/master.passwd', "\n".join(master_passwd) + '\n')
+        self.image.g.write(
+            '/etc/master.passwd', "\n".join(master_passwd) + '\n')
 
         # Make sure no one can login on the system
-        self.g.rm_rf('/etc/spwd.db')
+        self.image.g.rm_rf('/etc/spwd.db')
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
@@ -94,7 +89,7 @@ class Freebsd(Unix):
             '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
         )
 
-        for line in self.g.cat('/etc/master.passwd').splitlines():
+        for line in self.image.g.cat('/etc/master.passwd').splitlines():
             line = line.split('#')[0]
             match = regexp.match(line)
             if not match:
@@ -116,7 +111,7 @@ class Freebsd(Unix):
         # libguestfs can't handle correct freebsd partitions on a GUID
         # Partition Table. We have to do the translation to linux device names
         # ourselves
-        guid_device = re.compile('^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
+        guid_device = re.compile(r'^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
 
         mopts = "ufstype=ufs2,%s" % ('ro' if readonly else 'rw')
         for mp, dev in self._mountpoints():
@@ -126,7 +121,7 @@ class Freebsd(Unix):
                 group3 = int(match.group(3))
                 dev = '/dev/sd%c%d' % (chr(ord('a') + group2), group3)
             try:
-                self.g.mount_vfs(mopts, 'ufs', dev, mp)
+                self.image.g.mount_vfs(mopts, 'ufs', dev, mp)
             except RuntimeError as msg:
                 if mp in critical_mpoints:
                     self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))
