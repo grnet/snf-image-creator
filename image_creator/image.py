@@ -293,7 +293,12 @@ class Image(object):
             return self.size
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
-        self.g.e2fsck_f(part_dev)
+
+        if self.check_guestfs_version(1, 15, 17) >= 0:
+            self.g.e2fsck(part_dev, forceall=1)
+        else:
+            self.g.e2fsck_f(part_dev)
+
         self.g.resize2fs_M(part_dev)
 
         out = self.g.tune2fs_l(part_dev)
