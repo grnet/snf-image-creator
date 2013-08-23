@@ -38,6 +38,8 @@ The library is used to upload images to and register them with a Synnefo
 deployment.
 """
 
+import sys
+
 from os.path import basename
 
 from kamaki.cli.config import Config
@@ -46,8 +48,11 @@ from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
 from kamaki.clients.astakos import AstakosClient
 
-
-config = Config()
+try:
+    config = Config()
+except Exception as e:
+    sys.stderr.write("Kamaki config error: %s\n" % str(e))
+    sys.exit(1)
 
 
 class Kamaki(object):
