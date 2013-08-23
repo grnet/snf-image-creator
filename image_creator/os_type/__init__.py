@@ -320,6 +320,10 @@ class OSBase(object):
 
         * exclude: Exclude all files that follow this pattern.
         """
+        if not self.image.g.is_dir(directory):
+            self.out.warn("Directory: `%s' does not exist!" % directory)
+            return
+
         maxdepth = None if 'maxdepth' not in kargs else kargs['maxdepth']
         if maxdepth == 0:
             return
