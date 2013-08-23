@@ -180,10 +180,10 @@ def extract_image(session):
 def _check_cloud(session, name, description, url, token):
     """Checks if the provided info for a cloud are valid"""
     d = session['dialog']
-    regexp = re.compile('^[a-zA-Z0-9_]+$')
+    regexp = re.compile('^[~@#$:\-\w]+$')
 
     if not re.match(regexp, name):
-        d.msgbox("Allowed characters for name: [a-zA-Z0-9_]", width=WIDTH)
+        d.msgbox("Allowed characters for name: a-zA-Z0-9_~@#$:-", width=WIDTH)
         return False
 
     if len(url) == 0:
