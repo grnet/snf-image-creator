@@ -1,6 +1,16 @@
+2013-08-23, v0.5.1
+	* Allow more characters in the cloud name
+	* Fix various bugs
+	* Handle kamaki config errors
+
+2013-08-04, v0.5
+	* Add support for sysprep-parameters
+	* Add support for syspreping Windows media
+	* Code cleanup
+
 2013-07-31, v0.4.4
 	* Fix a bug where the system tried to use file scrubbing without
-          checking if it was supported
+	  checking if it was supported
 
 2013-07-18, v0.4.3
 	* Force TERM=linux when working on xterm. This makes dialog behave

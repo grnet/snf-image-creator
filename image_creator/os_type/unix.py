@@ -108,9 +108,7 @@ class Unix(OSBase):
     def cleanup_mail(self):
         """Remove all files under /var/mail and /var/spool/mail"""
 
-        if self.image.g.is_dir('/var/spool/mail'):
-            self._foreach_file('/var/spool/mail', self.image.g.rm_rf,
-                               maxdepth=1)
+        self._foreach_file('/var/spool/mail', self.image.g.rm_rf, maxdepth=1)
 
         self._foreach_file('/var/mail', self.image.g.rm_rf, maxdepth=1)
 

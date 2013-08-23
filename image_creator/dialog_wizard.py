@@ -414,7 +414,8 @@ def create_image(session):
         out.clear()
 
         #Sysprep
-        image.os.sysprep_params.update(wizard['SysprepParams'])
+        if 'SysprepParams' in wizard:
+            image.os.sysprep_params.update(wizard['SysprepParams'])
         image.os.do_sysprep()
         metadata = image.os.meta
 
