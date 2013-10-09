@@ -239,8 +239,8 @@ for more information).
 Creating a new image
 ====================
 
-Suppose you want to create a new Ubuntu server image. Download the installation
-disk from the Internet:
+Suppose your host system is a Debian Wheezy and you want to create a new Ubuntu
+server image. Download the installation disk from the Internet:
 
 .. code-block:: console
 
@@ -272,7 +272,9 @@ And install the Ubuntu system on this file:
    use LVM partitions. They are not supported by snf-image-creator.
 
 You will be able to boot your installed OS and make any changes you want
-(e.g. install openssh-server) using the following command::
+(e.g. install openssh-server) using the following command:
+
+.. code-block:: console
 
    $ sudo kvm -m 1G -boot c -drive file=ubuntu.raw,format=raw,cache=none,if=virtio
 
