@@ -488,6 +488,15 @@ def add_property(session):
     return True
 
 
+def show_properties_help(session):
+    """Show help for image properties"""
+    d = session['dialog']
+
+    help_file = get_help_file("image_properties")
+    assert os.path.exists(help_file)
+    d.textbox(help_file, title="Image Properties", width=70, height=40)
+
+
 def modify_properties(session):
     """Modify an existing image property"""
     d = session['dialog']
@@ -496,6 +505,19 @@ def modify_properties(session):
         choices = []
         for (key, val) in session['metadata'].items():
             choices.append((str(key), str(val)))
+
+        if len(choices) == 0:
+            code = d.yesno(
+                "No image properties are available. "
+                "Would you like to add a new one?", width=WIDTH, help_button=1)
+            if code == d.DIALOG_OK:
+                if not add_property(session):
+                    return True
+            elif code == d.DIALOG_CANCEL:
+                return True
+            elif code == d.DIALOG_HELP:
+                show_properties_help(session)
+            continue
 
         (code, choice) = d.menu(
             "In this menu you can edit existing image properties or add new "
@@ -526,9 +548,7 @@ def modify_properties(session):
         elif code == d.DIALOG_EXTRA:
             add_property(session)
         elif code == 'help':
-            help_file = get_help_file("image_properties")
-            assert os.path.exists(help_file)
-            d.textbox(help_file, title="Image Properties", width=70, height=40)
+            show_properties_help(session)
 
 
 def delete_properties(session):
@@ -538,6 +558,11 @@ def delete_properties(session):
     choices = []
     for (key, val) in session['metadata'].items():
         choices.append((key, "%s" % val, 0))
+
+    if len(choices) == 0:
+        d.msgbox("No available images properties to delete!",
+                 width=SMALL_WIDTH)
+        return True
 
     (code, to_delete) = d.checklist("Choose which properties to delete:",
                                     choices=choices, width=WIDTH)
