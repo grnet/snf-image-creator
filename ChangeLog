@@ -1,3 +1,10 @@
+2013-10-09, v0.5.3
+	* Fix a bug in snf-mkimage expert mode were the program could crash if
+	  the image did not have any image properties
+
+2013-09-09, v0.5.2
+	* Fix some errors in the ci scripts
+
 2013-08-23, v0.5.1
 	* Allow more characters in the cloud name
 	* Fix various bugs
