@@ -88,11 +88,25 @@ class Image(object):
 
         self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
-        if len(roots) == 0:
-            raise FatalError("No operating system found")
-        if len(roots) > 1:
-            raise FatalError("Multiple operating systems found."
-                             "We only support images with one OS.")
+
+        if len(roots) == 0 or len(roots) > 1:
+            self.root = None
+            self.ostype = "unsupported"
+            self.distro = "unsupported"
+            self.guestfs_device = '/dev/sda'
+            self.size = self.g.blockdev_getsize64(self.guestfs_device)
+            if len(roots) > 1:
+                self.unsupported = "Multiple operating systems found on the " \
+                    "media. We only support images with one OS."
+            else:
+                self.unsupported = \
+                    "Unable to detect any operating system on the media"
+
+            self.meta['UNSUPPORTED'] = "Reason: %s" % self.unsupported
+            self.out.warn('Media is not supported. %s' %
+                          self.meta['UNSUPPORTED'])
+            return
+
         self.root = roots[0]
         self.guestfs_device = self.g.part_to_dev(self.root)
         self.size = self.g.blockdev_getsize64(self.guestfs_device)
@@ -263,6 +277,10 @@ class Image(object):
         MB = 2 ** 20
 
         self.out.output("Shrinking image (this may take a while) ...", False)
+
+        if hasattr(self, "unsupported"):
+            self.out.warn("Unable to shrink unsupported image")
+            return self.size
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
 

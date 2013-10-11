@@ -247,11 +247,16 @@ class OSBase(object):
     def do_sysprep(self):
         """Prepare system for image creation."""
 
+        self.out.output('Preparing system for image creation:')
+
+        if hasattr(self.image, "unsupported"):
+            self.out.warn(
+                "System preparation is disabled for unsupported media")
+            return
+
         try:
             if not self.mount(readonly=False):
                 raise FatalError("Unable to mount the media read-write")
-
-            self.out.output('Preparing system for image creation:')
 
             enabled = [task for task in self.list_syspreps() if task.enabled]
 

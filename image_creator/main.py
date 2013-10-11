@@ -140,6 +140,10 @@ def parse_options(input_args):
                       help="register image with the cloud as public",
                       action="store_true")
 
+    parser.add_option("--allow-unsupported", dest="allow_unsupported",
+                      help="Proceed with the image creation even if the media "
+                      "is not supported", default=False, action="store_true")
+
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
                       help="create large temporary image files under DIR",
                       metavar="DIR")
@@ -273,6 +277,14 @@ def image_creator():
 
         image = disk.get_image(snapshot, sysprep_params=options.sysprep_params)
 
+        if hasattr(image, 'unsupported') and not options.allow_unsupported:
+            raise FatalError(
+                "The media seems to be unsupported. If you insist on creating "
+                "an image out of it, use the `--allow-unsupported' option. "
+                "Using this is highly discouraged, since the resulting image "
+                "will not be cleaned up from sensitive data and will not get "
+                "configured during the deployment")
+
         for sysprep in options.disabled_syspreps:
             image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
@@ -297,6 +309,9 @@ def image_creator():
 
         size = options.shrink and image.shrink() or image.size
         metadata.update(image.meta)
+
+        if hasattr(image, 'unsupported'):
+            metadata['EXCLUDE_ALL_TASKS'] = "yes"
 
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)

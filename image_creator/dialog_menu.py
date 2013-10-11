@@ -583,6 +583,12 @@ def delete_properties(session):
 def exclude_tasks(session):
     """Exclude specific tasks from running during image deployment"""
     d = session['dialog']
+    image = session['image']
+
+    if hasattr(image, "unsupported"):
+        d.msgbox("You cannot configure the deployment tasks for an unsupported"
+                 " image.", width=SMALL_WIDTH)
+        return False
 
     index = 0
     displayed_index = 1
