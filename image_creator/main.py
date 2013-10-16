@@ -50,6 +50,7 @@ import optparse
 import StringIO
 import signal
 import json
+import textwrap
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -277,13 +278,15 @@ def image_creator():
 
         image = disk.get_image(snapshot, sysprep_params=options.sysprep_params)
 
-        if hasattr(image, 'unsupported') and not options.allow_unsupported:
+        if image.is_unsupported() and not options.allow_unsupported:
             raise FatalError(
-                "The media seems to be unsupported. If you insist on creating "
-                "an image out of it, use the `--allow-unsupported' option. "
-                "Using this is highly discouraged, since the resulting image "
-                "will not be cleaned up from sensitive data and will not get "
-                "configured during the deployment")
+                "The media seems to be unsupported.\n\n" +
+                textwrap.fill("To create an image from an unsupported media, "
+                              "you'll need to use the`--allow-unsupported' "
+                              "command line option. Using this is highly "
+                              "discouraged, since the resulting image will "
+                              "not be cleared out of sensitive data and will "
+                              "not get customized during the deployment."))
 
         for sysprep in options.disabled_syspreps:
             image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
@@ -310,7 +313,7 @@ def image_creator():
         size = options.shrink and image.shrink() or image.size
         metadata.update(image.meta)
 
-        if hasattr(image, 'unsupported'):
+        if image.is_unsupported():
             metadata['EXCLUDE_ALL_TASKS'] = "yes"
 
         # Add command line metadata to the collected ones...

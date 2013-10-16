@@ -101,7 +101,7 @@ def create_image(d, media, out, tmp):
                    "image": image,
                    "metadata": metadata}
 
-        if hasattr(image, "unsupported"):
+        if image.is_unsupported():
 
             session['excluded_tasks'] = [-1]
             session['task_metadata'] = ["EXCLUDE_ALL_TASKS"]
@@ -112,7 +112,7 @@ def create_image(d, media, out, tmp):
                 "since the image won't be cleaned up and you will not be " \
                 "able to configure it during the deployment. Press <YES> if " \
                 "you still want to continue with the image creation process." \
-                % image.unsupported
+                % image._unsupported
 
             if not d.yesno(msg, width=WIDTH, defaultno=1, height=12):
                 main_menu(session)

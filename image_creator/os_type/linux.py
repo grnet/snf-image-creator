@@ -298,6 +298,20 @@ class Linux(Unix):
 
         return orig, dev, mpoint
 
+    def _do_diagnose(self):
+        """Run various diagnostics to check if media is supported"""
+
+        self.out.output(
+            'Checking if the media contains logical volumes (LVM)...', False)
+
+        has_lvm = True if len(self.image.g.lvs()) else False
+
+        if has_lvm:
+            self.out.output()
+            self.image.set_unsupported('The media contains logical volumes')
+        else:
+            self.out.success('no')
+
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Linux, self)._do_collect_metadata()

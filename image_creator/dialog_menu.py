@@ -585,9 +585,9 @@ def exclude_tasks(session):
     d = session['dialog']
     image = session['image']
 
-    if hasattr(image, "unsupported"):
-        d.msgbox("You cannot configure the deployment tasks for an unsupported"
-                 " image.", width=SMALL_WIDTH)
+    if image.is_unsupported():
+        d.msgbox("Image deployment configuration is disabled for unsupported "
+                 "images.", width=SMALL_WIDTH)
         return False
 
     index = 0

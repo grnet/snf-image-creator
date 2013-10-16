@@ -144,6 +144,22 @@ class OSBase(object):
         except RuntimeError:
             self._scrub_support = False
 
+    def diagnose(self):
+        """Run diagnostics to check if the media is supported"""
+
+        if self.image.is_unsupported():
+            return
+
+        self.out.output('Running OS diagnostics:')
+        try:
+            if not self.mount(readonly=True):
+                raise FatalError("Unable to mount the media read-only")
+            self._do_diagnose()
+        finally:
+            self.umount()
+
+        self.out.output()
+
     def collect_metadata(self):
         """Collect metadata about the OS"""
         try:
@@ -249,7 +265,7 @@ class OSBase(object):
 
         self.out.output('Preparing system for image creation:')
 
-        if hasattr(self.image, "unsupported"):
+        if self.image.is_unsupported():
             self.out.warn(
                 "System preparation is disabled for unsupported media")
             return
@@ -356,10 +372,20 @@ class OSBase(object):
             if has_ftype(f, ftype):
                 action(full_path)
 
+    def _do_diagnose(self):
+        """helper method for diagnose"""
+        pass
+
     def _do_collect_metadata(self):
         """helper method for collect_metadata"""
-        self.meta['ROOT_PARTITION'] = \
-            "%d" % self.image.g.part_to_partnum(self.root)
+
+        try:
+            self.meta['ROOT_PARTITION'] = \
+                "%d" % self.image.g.part_to_partnum(self.root)
+        except RuntimeError:
+            self.out.warn("Unable to identify the partition number from root "
+                          "partition: %s" % self.root)
+
         self.meta['OSFAMILY'] = self.image.g.inspect_get_type(self.root)
         self.meta['OS'] = self.image.g.inspect_get_distro(self.root)
         if self.meta['OS'] == "unknown":
