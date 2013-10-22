@@ -82,7 +82,7 @@ class Freebsd(Unix):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
 
-    def _do_diagnose(self):
+    def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
 
         self.out.output('Checking partition table type...', False)

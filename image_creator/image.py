@@ -115,8 +115,8 @@ class Image(object):
             'found a(n) %s system' %
             self.ostype if self.distro == "unknown" else self.distro)
 
-        # Run OS-specific diagnostics
-        self.os.diagnose()
+        # Inspect the OS
+        self.os.inspect()
 
     def set_unsupported(self, reason):
         """Flag this image us ansupported"""

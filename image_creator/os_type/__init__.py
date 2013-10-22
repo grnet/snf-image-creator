@@ -144,17 +144,17 @@ class OSBase(object):
         except RuntimeError:
             self._scrub_support = False
 
-    def diagnose(self):
-        """Run diagnostics to check if the media is supported"""
+    def inspect(self):
+        """Inspect the media to if it is supported"""
 
         if self.image.is_unsupported():
             return
 
-        self.out.output('Running OS diagnostics:')
+        self.out.output('Running OS inspection:')
         try:
             if not self.mount(readonly=True):
                 raise FatalError("Unable to mount the media read-only")
-            self._do_diagnose()
+            self._do_inspect()
         finally:
             self.umount()
 
@@ -372,8 +372,8 @@ class OSBase(object):
             if has_ftype(f, ftype):
                 action(full_path)
 
-    def _do_diagnose(self):
-        """helper method for diagnose"""
+    def _do_inspect(self):
+        """helper method for inspect"""
         pass
 
     def _do_collect_metadata(self):

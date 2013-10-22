@@ -298,7 +298,7 @@ class Linux(Unix):
 
         return orig, dev, mpoint
 
-    def _do_diagnose(self):
+    def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
 
         self.out.output(
