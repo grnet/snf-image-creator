@@ -116,6 +116,9 @@ class Linux(Unix):
 
         self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
+        # Remove backup file for /etc/shadow
+        self.image.g.rm_rf('/etc/shadow-')
+
     @sysprep('Fixing acpid powerdown action')
     def fix_acpid(self):
         """Replace acpid powerdown action scripts to immediately shutdown the
