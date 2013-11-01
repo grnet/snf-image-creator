@@ -145,7 +145,7 @@ class OSBase(object):
             self._scrub_support = False
 
     def inspect(self):
-        """Inspect the media to if it is supported"""
+        """Inspect the media to check if it is supported"""
 
         if self.image.is_unsupported():
             return
