@@ -265,7 +265,7 @@ class Windows(OSBase):
         querymax -= 100
 
         if querymax < 0:
-            self.out.warn("Not enought available space to shrink the image!")
+            self.out.warn("Not enough available space to shrink the image!")
             return
 
         self.out.output("\tReclaiming %dMB ..." % querymax)
