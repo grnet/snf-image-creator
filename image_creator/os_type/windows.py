@@ -52,6 +52,13 @@ import struct
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
+    "Windows 8.1 Professional": "GCRJD-8NW9H-F2CDX-CCM8D-9D6T9",
+    "Windows 8.1 Professional N": "HMCNV-VVBFX-7HMBH-CTY9B-B4FXY",
+    "Windows 8.1 Enterprise": "MHF9N-XY6XB-WVXMC-BTDCT-MKKG7",
+    "Windows 8.1 Enterprise N": "TT4HM-HN7YT-62K67-RGRQJ-JFFXW",
+    "Windows Server 2012 R2 Server Standard": "D2N9P-3P6X9-2R39C-7RTCD-MDVJX",
+    "Windows Server 2012 R2 Datacenter": "W3GGN-FT8W3-Y4M27-J84CP-Q3VJ9",
+    "Windows Server 2012 R2 Essentials": "KNC87-3J2TX-XB4WP-VCPJV-M4FWM",
     "Windows 8 Professional": "NG4HW-VH26C-733KW-K6F98-J8CK4",
     "Windows 8 Professional N": "XCVCF-2NXM9-723PB-MHCB7-2RYQQ",
     "Windows 8 Enterprise": "32JNW-9KQ84-P47T8-D8GGY-CWCK7",
