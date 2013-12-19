@@ -49,6 +49,7 @@ import random
 import string
 import subprocess
 import struct
+import re
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -255,9 +256,14 @@ class Windows(OSBase):
             #   The maximum number of reclaimable bytes is: xxxx MB
             #
             if line.find('reclaimable') >= 0:
-                querymax = line.split(':')[1].split()[0].strip()
-                assert querymax.isdigit(), \
-                    "Number of reclaimable bytes not a number"
+                answer = line.split(':')[1].strip()
+                m = re.search('(\d+) MB', answer)
+                if m:
+                    querymax = m.group(1)
+                else:
+                    FatalError(
+                        "Unexpected output for `shrink querymax' command: %s" %
+                        line)
 
         if querymax is None:
             FatalError("Error in shrinking! "
