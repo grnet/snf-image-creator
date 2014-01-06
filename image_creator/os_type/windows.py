@@ -139,6 +139,11 @@ class Windows(OSBase):
             raise FatalError(
                 'For windows support libguestfs 1.16.11 or above is required')
 
+        # Check if winexe is installed
+        if not WinEXE.is_installed():
+            raise FatalError(
+                "For windows support `Winexe' needs to be installed")
+
         device = self.image.g.part_to_dev(self.root)
 
         self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
