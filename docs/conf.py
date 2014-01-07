@@ -238,10 +238,10 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('man/snf-image-creator', 'snf-image-creator',
-     'Command line image creator for Synnefo',
+     'Dialog-based image creator for Synnefo',
      'Synnefo development team <synnefo-devel@googlegroups.com>', 1),
     ('man/snf-mkimage', 'snf-mkimage',
-     'Dialog-based image creator for Synnefo',
+     'Command line image creator for Synnefo',
      'Synnefo development team <synnefo-devel@googlegroups.com>', 1)
 ]
 

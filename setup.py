@@ -52,8 +52,8 @@ setup(
     install_requires=['sh', 'ansicolors', 'progress>=1.0.2'],
     entry_points={
         'console_scripts': [
-                'snf-image-creator = image_creator.main:main',
-                'snf-mkimage = image_creator.dialog_main:main']
+                'snf-mkimage = image_creator.main:main',
+                'snf-image-creator = image_creator.dialog_main:main']
     }
 )
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
