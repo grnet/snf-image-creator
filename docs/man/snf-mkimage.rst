@@ -19,6 +19,9 @@ Options
 -a URL, --authentication-url=URL
 	use this authentication URL when uploading/registering images
 
+--allow-unsupported
+	Proceed with the image creation even if the media is not supported
+
 -c CLOUD, --cloud=CLOUD
         use this saved cloud account to authenticate against a cloud when
         uploading/registering images
@@ -54,11 +57,17 @@ Options
 	print the enabled and disabled system preparation operations for this
 	input media
 
+--print-sysprep-params
+	print the needed sysprep parameters for this input media
+
 -r IMAGENAME, --register=IMAGENAME
 	register the image with the compute service with name IMAGENAME
 
 -s, --silent
 	output only errors
+
+--sysprep-param=SYSPREP_PARAMS
+	add KEY=VALUE system preparation parameter
 
 -t TOKEN, --token=TOKEN
 	use this token when uploading/registering images
