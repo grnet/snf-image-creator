@@ -1,7 +1,7 @@
 :orphan:
 
 snf-image-creator manual page
-=======================
+=============================
 
 Synopsis
 --------

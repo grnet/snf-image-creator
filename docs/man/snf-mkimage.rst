@@ -1,7 +1,7 @@
 :orphan:
 
 snf-mkimage manual page
-=============================
+=======================
 
 Synopsis
 --------
