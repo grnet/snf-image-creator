@@ -3,8 +3,8 @@ Usage
 
 snf-image-creator comes in 2 variants:
 
- * snf-image-creator: A non-interactive command line program
- * snf-mkimage: A user-friendly dialog-based program
+ * snf-mkimage: A non-interactive command line program
+ * snf-image-creator: A user-friendly dialog-based program
 
 Both expect the input media as first argument. The input media may be a local
 file, a block device or *"/"* if you want to create an image out of the running
@@ -13,12 +13,12 @@ system (see `host bundling operation`_).
 Non-interactive version
 =======================
 
-snf-image-creator receives the following options:
+snf-mkimage receives the following options:
 
 .. code-block:: console
 
-  $ snf-image-creator --help
-  Usage: snf-image-creator [options] <input_media>
+  $ snf-mkimage --help
+  Usage: snf-mkimage [options] <input_media>
 
   Options:
     --version             show program's version number and exit
@@ -70,7 +70,7 @@ registered as *private*. Only the user that registers the image can create
 VM's out of it. If you want the image to be visible by other user too, use the
 *--public* option.
 
-By default, before extracting the image, snf-image-creator will perform a
+By default, before extracting the image, snf-mkimage will perform a
 number of system preparation operations on the snapshot of the media and will
 shrink the last partition found. Both actions can be disabled by specifying
 *--no-sysprep* and *--no-shrink* respectively.
@@ -81,15 +81,15 @@ input media. The user can enable or disable specific *syspreps*, using
 *-{enable,disable}-sysprep* options. The user may specify those options
 multiple times.
 
-Running *snf-image-creator* with *--print-sysprep* on a raw file that hosts a
+Running *snf-mkimage* with *--print-sysprep* on a raw file that hosts a
 debian system, we print the following output:
 
 .. _sysprep:
 
 .. code-block:: console
 
-   $ snf-image-creator --print-sysprep ubuntu.raw
-   snf-image-creator 0.3
+   $ snf-mkimage --print-syspreps ubuntu.raw
+   snf-image-creator 0.6
    =====================
    Examining source media `ubuntu_hd.raw' ... looks like an image file
    Snapshotting media source ... done
@@ -150,17 +150,17 @@ removed, you should use *--enable-sysprep* option like this:
 
 .. code-block:: console
 
-   $ snf-image-creator --enable-sysprep cleanup-mail --enable-sysprep remove-user-accounts ...
+   $ snf-mkimage --enable-sysprep cleanup-mail --enable-sysprep remove-user-accounts ...
 
 Dialog-based version
 ====================
 
-*snf-mkimage* receives the following options:
+*snf-image-creator* receives the following options:
 
 .. code-block:: console
 
- $ snf-mkimage --help
- Usage: snf-mkimage [options] [<input_media>]
+ $ snf-image-creator --help
+ Usage: snf-image-creator [options] [<input_media>]
 
  Options:
    --version             show program's version number and exit
@@ -179,12 +179,12 @@ button to create an image out of the running system (see
 `Host bundling operation`_).
 
 After the input media is examined and the program is initialized, the user will
-be given the choice to run *snf-mkimage* in *wizard* or *expert* mode.
+be given the choice to run *snf-image-creator* in *wizard* or *expert* mode.
 
 Wizard mode
 -----------
 
-When *snf-mkimage* runs in *wizard* mode, the user is just asked to provide the
+When *snf-image-creator* runs in *wizard* mode, the user is just asked to provide the
 following basic information:
 
  * Cloud: The cloud account to use to upload and register the resulting image
@@ -278,13 +278,13 @@ You will be able to boot your installed OS and make any changes you want
 
    $ sudo kvm -m 1G -boot c -drive file=ubuntu.raw,format=raw,cache=none,if=virtio
 
-After you're done, you may use *snf-mkimage* as root to create and upload the
+After you're done, you may use *snf-image-creator* as root to create and upload the
 image:
 
 .. code-block:: console
 
    $ sudo -s
-   $ snf-mkimage ubuntu.raw
+   $ snf-image-creator ubuntu.raw
 
 In the first screen you will be asked to choose if you want to run the program
 in *Wizard* or *Expert* mode. Choose *Wizard*.

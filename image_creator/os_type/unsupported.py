@@ -1,7 +1,6 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright 2013 GRNET S.A. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or
 # without modification, are permitted provided that the following
@@ -34,26 +33,23 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-import image_creator
+"""This module hosts code to handle unknown OSs."""
 
-from setuptools import setup, find_packages
+from image_creator.os_type import OSBase
 
-setup(
-    name='snf_image_creator',
-    version=image_creator.__version__,
-    description='Command line tool for creating images',
-    long_description=open('README').read(),
-    url='https://code.grnet.gr/projects/snf-image-creator',
-    author="Synnefo development team",
-    author_email="synnefo-devel@googlegroups.com",
-    license='BSD',
-    packages=find_packages(),
-    include_package_data=True,
-    install_requires=['sh', 'ansicolors', 'progress>=1.0.2'],
-    entry_points={
-        'console_scripts': [
-                'snf-mkimage = image_creator.main:main',
-                'snf-image-creator = image_creator.dialog_main:main']
-    }
-)
+
+class Unsupported(OSBase):
+    """OS class for unsupported OSs"""
+    def __init__(self, image, **kargs):
+        super(Unsupported, self).__init__(image, **kargs)
+
+    def collect_metadata(self):
+        """Collect metadata about the OS"""
+        self.out.warn("Unable to collect metadata for unsupported media")
+
+    def _do_mount(self, readonly):
+        """Mount partitions in corrent order"""
+        self.out.warn('not supported on this media.')
+        return False
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

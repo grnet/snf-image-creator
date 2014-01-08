@@ -82,6 +82,18 @@ class Freebsd(Unix):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
 
+    def _do_inspect(self):
+        """Run various diagnostics to check if media is supported"""
+
+        self.out.output('Checking partition table type...', False)
+        ptype = self.image.g.part_get_parttype(self.image.guestfs_device)
+        if ptype != 'gpt':
+            self.out.warn("partition table type is: `%s'" % ptype)
+            self.image.set_unsupported(
+                'On FreeBSD only GUID partition tables are supported')
+        else:
+            self.out.success(ptype)
+
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
         users = []
