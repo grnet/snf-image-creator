@@ -211,7 +211,7 @@ class Windows(OSBase):
         self._guest_exec(
             r"cmd /q /c for /f %l in ('wevtutil el') do wevtutil cl %l")
 
-    @sysprep('Executing Sysprep on the image (may take more that 10 minutes)')
+    @sysprep('Executing Sysprep on the image (may take more that 10 min)')
     def microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool. This will remove
         system-specific data and will make the image ready to be deployed.
@@ -351,7 +351,7 @@ class Windows(OSBase):
             monitorfd, monitor = tempfile.mkstemp()
             os.close(monitorfd)
             vm = _VM(self.image.device, monitor, self.sysprep_params)
-            self.out.success("started (console on vnc display: %d)." %
+            self.out.success("started (console on VNC display: %d)" %
                              vm.display)
 
             self.out.output("Waiting for OS to boot ...", False)
