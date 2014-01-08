@@ -2,7 +2,6 @@ Source: snf-image-creator
 Section: python
 Priority: optional
 Maintainer: Nikos Skalkotos <skalkoto@grnet.gr>
-XSBC-Original-Maintainer: Nikos Skalkotos <skalkoto@grnet.gr>
 Build-Depends: debhelper (>= 8), python-all (>= 2.5), python-setuptools,
  python-sphinx
 Standards-Version: 3.9.3
