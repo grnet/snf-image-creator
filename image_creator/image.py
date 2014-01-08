@@ -88,22 +88,46 @@ class Image(object):
 
         self.out.output('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
-        if len(roots) == 0:
-            raise FatalError("No operating system found")
-        if len(roots) > 1:
-            raise FatalError("Multiple operating systems found."
-                             "We only support images with one OS.")
+
+        if len(roots) == 0 or len(roots) > 1:
+            self.root = None
+            self.ostype = "unsupported"
+            self.distro = "unsupported"
+            self.guestfs_device = '/dev/sda'
+            self.size = self.g.blockdev_getsize64(self.guestfs_device)
+
+            if len(roots) > 1:
+                reason = "Multiple operating systems found on the media."
+            else:
+                reason = "Unable to detect any operating system on the media."
+
+            self.set_unsupported(reason)
+            return
+
         self.root = roots[0]
-        self.guestfs_device = self.g.part_to_dev(self.root)
+        self.meta['PARTITION_TABLE'] = self.g.part_get_parttype('/dev/sda')
+        self.guestfs_device = '/dev/sda'  # self.g.part_to_dev(self.root)
         self.size = self.g.blockdev_getsize64(self.guestfs_device)
-        self.meta['PARTITION_TABLE'] = \
-            self.g.part_get_parttype(self.guestfs_device)
 
         self.ostype = self.g.inspect_get_type(self.root)
         self.distro = self.g.inspect_get_distro(self.root)
         self.out.success(
             'found a(n) %s system' %
             self.ostype if self.distro == "unknown" else self.distro)
+
+        # Inspect the OS
+        self.os.inspect()
+
+    def set_unsupported(self, reason):
+        """Flag this image us ansupported"""
+
+        self._unsupported = reason
+        self.meta['UNSUPPORTED'] = reason
+        self.out.warn('Media is not supported. Reason: %s' % reason)
+
+    def is_unsupported(self):
+        """Returns if this image is unsupported"""
+        return hasattr(self, '_unsupported')
 
     def enable_guestfs(self):
         """Enable the guestfs handler"""
@@ -263,6 +287,10 @@ class Image(object):
         MB = 2 ** 20
 
         self.out.output("Shrinking image (this may take a while) ...", False)
+
+        if self.is_unsupported():
+            self.out.warn("Shrinking is disabled for unsupported images")
+            return self.size
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
 

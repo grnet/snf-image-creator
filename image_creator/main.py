@@ -50,6 +50,7 @@ import optparse
 import StringIO
 import signal
 import json
+import textwrap
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -139,6 +140,10 @@ def parse_options(input_args):
     parser.add_option("--public", dest="public", default=False,
                       help="register image with the cloud as public",
                       action="store_true")
+
+    parser.add_option("--allow-unsupported", dest="allow_unsupported",
+                      help="Proceed with the image creation even if the media "
+                      "is not supported", default=False, action="store_true")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
                       help="create large temporary image files under DIR",
@@ -273,6 +278,16 @@ def image_creator():
 
         image = disk.get_image(snapshot, sysprep_params=options.sysprep_params)
 
+        if image.is_unsupported() and not options.allow_unsupported:
+            raise FatalError(
+                "The media seems to be unsupported.\n\n" +
+                textwrap.fill("To create an image from an unsupported media, "
+                              "you'll need to use the`--allow-unsupported' "
+                              "command line option. Using this is highly "
+                              "discouraged, since the resulting image will "
+                              "not be cleared out of sensitive data and will "
+                              "not get customized during the deployment."))
+
         for sysprep in options.disabled_syspreps:
             image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
@@ -297,6 +312,9 @@ def image_creator():
 
         size = options.shrink and image.shrink() or image.size
         metadata.update(image.meta)
+
+        if image.is_unsupported():
+            metadata['EXCLUDE_ALL_TASKS'] = "yes"
 
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)
@@ -384,6 +402,10 @@ def main():
         sys.exit(ret)
     except FatalError as e:
         colored = sys.stderr.isatty()
+        warning = \
+            "The name of the executable has changed. If you want to use the " \
+            "user-friendly dialog-based program try `snf-image-creator'"
+        SimpleOutput(colored).warn(warning)
         SimpleOutput(colored).error(e)
         sys.exit(1)
 

@@ -49,9 +49,17 @@ import random
 import string
 import subprocess
 import struct
+import re
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
+    "Windows 8.1 Professional": "GCRJD-8NW9H-F2CDX-CCM8D-9D6T9",
+    "Windows 8.1 Professional N": "HMCNV-VVBFX-7HMBH-CTY9B-B4FXY",
+    "Windows 8.1 Enterprise": "MHF9N-XY6XB-WVXMC-BTDCT-MKKG7",
+    "Windows 8.1 Enterprise N": "TT4HM-HN7YT-62K67-RGRQJ-JFFXW",
+    "Windows Server 2012 R2 Server Standard": "D2N9P-3P6X9-2R39C-7RTCD-MDVJX",
+    "Windows Server 2012 R2 Datacenter": "W3GGN-FT8W3-Y4M27-J84CP-Q3VJ9",
+    "Windows Server 2012 R2 Essentials": "KNC87-3J2TX-XB4WP-VCPJV-M4FWM",
     "Windows 8 Professional": "NG4HW-VH26C-733KW-K6F98-J8CK4",
     "Windows 8 Professional N": "XCVCF-2NXM9-723PB-MHCB7-2RYQQ",
     "Windows 8 Enterprise": "32JNW-9KQ84-P47T8-D8GGY-CWCK7",
@@ -111,6 +119,10 @@ class Windows(OSBase):
         'boot_timeout', int, 300, "Boot Timeout (seconds)", _POSINT)
     @add_sysprep_param(
         'connection_retries', int, 5, "Connection Retries", _POSINT)
+    @add_sysprep_param(
+        'smp', int, 1, "Number of CPUs for the helper VM", _POSINT)
+    @add_sysprep_param(
+        'mem', int, 1024, "Virtual RAM size for the helper VM (MiB)", _POSINT)
     @add_sysprep_param('password', str, None, 'Image Administrator Password')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
@@ -130,6 +142,11 @@ class Windows(OSBase):
                  self.image.check_guestfs_version(1, 16, 11) < 0):
             raise FatalError(
                 'For windows support libguestfs 1.16.11 or above is required')
+
+        # Check if winexe is installed
+        if not WinEXE.is_installed():
+            raise FatalError(
+                "For windows support `Winexe' needs to be installed")
 
         device = self.image.g.part_to_dev(self.root)
 
@@ -194,7 +211,7 @@ class Windows(OSBase):
         self._guest_exec(
             r"cmd /q /c for /f %l in ('wevtutil el') do wevtutil cl %l")
 
-    @sysprep('Executing Sysprep on the image (may take more that 10 minutes)')
+    @sysprep('Executing Sysprep on the image (may take more that 10 min)')
     def microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool. This will remove
         system-specific data and will make the image ready to be deployed.
@@ -248,9 +265,14 @@ class Windows(OSBase):
             #   The maximum number of reclaimable bytes is: xxxx MB
             #
             if line.find('reclaimable') >= 0:
-                querymax = line.split(':')[1].split()[0].strip()
-                assert querymax.isdigit(), \
-                    "Number of reclaimable bytes not a number"
+                answer = line.split(':')[1].strip()
+                m = re.search('(\d+) MB', answer)
+                if m:
+                    querymax = m.group(1)
+                else:
+                    FatalError(
+                        "Unexpected output for `shrink querymax' command: %s" %
+                        line)
 
         if querymax is None:
             FatalError("Error in shrinking! "
@@ -265,7 +287,7 @@ class Windows(OSBase):
         querymax -= 100
 
         if querymax < 0:
-            self.out.warn("Not enought available space to shrink the image!")
+            self.out.warn("Not enough available space to shrink the image!")
             return
 
         self.out.output("\tReclaiming %dMB ..." % querymax)
@@ -329,7 +351,7 @@ class Windows(OSBase):
             monitorfd, monitor = tempfile.mkstemp()
             os.close(monitorfd)
             vm = _VM(self.image.device, monitor, self.sysprep_params)
-            self.out.success("started (console on vnc display: %d)." %
+            self.out.success("started (console on VNC display: %d)" %
                              vm.display)
 
             self.out.output("Waiting for OS to boot ...", False)
@@ -782,8 +804,8 @@ class _VM(object):
         args.extend(needed_args)
 
         args.extend([
-            '-smp', '1', '-m', '1024', '-drive',
-            'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
+            '-smp', str(self.params['smp']), '-m', str(self.params['mem']),
+            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
             '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
             '-vnc', ':%d' % self.display, '-serial', 'file:%s' % self.serial,

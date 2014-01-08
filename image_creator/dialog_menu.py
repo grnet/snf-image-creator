@@ -217,13 +217,26 @@ def register_image(session):
                  "register it", width=SMALL_WIDTH)
         return False
 
+    name = ""
+    description = session['metadata']['DESCRIPTION'] if 'DESCRIPTION' in \
+        session['metadata'] else ""
+
     while 1:
-        (code, answer) = d.inputbox("Please provide a registration name:",
-                                    width=WIDTH)
+        fields = [
+            ("Registration name:", name, 60),
+            ("Description (optional):", description, 80)]
+
+        (code, output) = d.form(
+            "Please provide the following registration info:", height=11,
+            width=WIDTH, form_height=2, fields=fields)
+
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
-        name = answer.strip()
+        name, description = output
+        name = name.strip()
+        description = description.strip()
+
         if len(name) == 0:
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
@@ -238,6 +251,7 @@ def register_image(session):
 
         break
 
+    session['metadata']['DESCRIPTION'] = description
     metadata = {}
     metadata.update(session['metadata'])
     if 'task_metadata' in session:
@@ -583,6 +597,12 @@ def delete_properties(session):
 def exclude_tasks(session):
     """Exclude specific tasks from running during image deployment"""
     d = session['dialog']
+    image = session['image']
+
+    if image.is_unsupported():
+        d.msgbox("Image deployment configuration is disabled for unsupported "
+                 "images.", width=SMALL_WIDTH)
+        return False
 
     index = 0
     displayed_index = 1

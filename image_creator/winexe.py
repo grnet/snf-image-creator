@@ -38,6 +38,7 @@
 import subprocess
 import time
 import signal
+import distutils
 
 from image_creator.util import FatalError
 
@@ -49,6 +50,10 @@ class WinexeTimeout(FatalError):
 
 class WinEXE:
     """Wrapper class for the winexe command"""
+
+    @staticmethod
+    def is_installed(program='winexe'):
+        return distutils.spawn.find_executable(program) is not None
 
     def __init__(self, username, password, hostname, program='winexe'):
         self._host = hostname
