@@ -1,3 +1,9 @@
+snf-image-creator (0.6-1~precise) precise; urgency=low
+
+  * New upstream version
+
+ -- Nikos Skalkotos <skalkoto@grnet.gr>  Wed, 08 Jan 2014 15:59:28 +0200
+
 snf-image-creator (0.5.3-1~precise) precise; urgency=low
 
   * New upstream version
