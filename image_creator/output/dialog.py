@@ -131,7 +131,9 @@ class InfoBoxOutput(Output):
         self.msg += "%s%s" % (msg, nl)
         # If output is long, only output the last lines that fit in the box
         lines = self.msg.splitlines()
-        h = self.height
+        # The height of the active region is 2 lines shorter that the height of
+        # the dialog
+        h = self.height - 2
         display = self.msg if len(lines) <= h else "\n".join(lines[-h:])
         self.d.infobox(display, title=self.title, height=self.height,
                        width=self.width)

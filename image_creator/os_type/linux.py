@@ -116,6 +116,9 @@ class Linux(Unix):
 
         self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
 
+        # Remove backup file for /etc/shadow
+        self.image.g.rm_rf('/etc/shadow-')
+
     @sysprep('Fixing acpid powerdown action')
     def fix_acpid(self):
         """Replace acpid powerdown action scripts to immediately shutdown the
@@ -297,6 +300,20 @@ class Linux(Unix):
             return " ".join(entry), dev, mpoint
 
         return orig, dev, mpoint
+
+    def _do_inspect(self):
+        """Run various diagnostics to check if media is supported"""
+
+        self.out.output(
+            'Checking if the media contains logical volumes (LVM)...', False)
+
+        has_lvm = True if len(self.image.g.lvs()) else False
+
+        if has_lvm:
+            self.out.output()
+            self.image.set_unsupported('The media contains logical volumes')
+        else:
+            self.out.success('no')
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""

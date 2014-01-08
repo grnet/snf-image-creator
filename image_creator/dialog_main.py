@@ -101,6 +101,25 @@ def create_image(d, media, out, tmp):
                    "image": image,
                    "metadata": metadata}
 
+        if image.is_unsupported():
+
+            session['excluded_tasks'] = [-1]
+            session['task_metadata'] = ["EXCLUDE_ALL_TASKS"]
+
+            msg = "The system on the input media is not supported." \
+                "\n\nReason: %s\n\n" \
+                "We highly recommend not to create an image out of this, " \
+                "since the image won't be cleaned up and you will not be " \
+                "able to configure it during the deployment. Press <YES> if " \
+                "you still want to continue with the image creation process." \
+                % image._unsupported
+
+            if not d.yesno(msg, width=WIDTH, defaultno=1, height=12):
+                main_menu(session)
+
+            d.infobox("Thank you for using snf-image-creator. Bye", width=53)
+            return 0
+
         msg = "snf-image-creator detected a %s system on the input media. " \
               "Would you like to run a wizard to assist you through the " \
               "image creation process?\n\nChoose <Wizard> to run the wizard," \
