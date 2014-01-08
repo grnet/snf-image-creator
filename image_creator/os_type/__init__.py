@@ -255,7 +255,7 @@ class OSBase(object):
             return
 
         for name, param in self.needed_sysprep_params.items():
-            self.out.output("\t%s (%s): %s" %
+            self.out.output("\t%s [%s]: %s" %
                             (param.description, name,
                              self.sysprep_params[name] if name in
                              self.sysprep_params else "(none)"))

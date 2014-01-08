@@ -119,6 +119,10 @@ class Windows(OSBase):
         'boot_timeout', int, 300, "Boot Timeout (seconds)", _POSINT)
     @add_sysprep_param(
         'connection_retries', int, 5, "Connection Retries", _POSINT)
+    @add_sysprep_param(
+        'smp', int, 1, "Number of CPUs for the helper VM", _POSINT)
+    @add_sysprep_param(
+        'mem', int, 1024, "Virtual RAM size for the helper VM (MiB)", _POSINT)
     @add_sysprep_param('password', str, None, 'Image Administrator Password')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
@@ -800,8 +804,8 @@ class _VM(object):
         args.extend(needed_args)
 
         args.extend([
-            '-smp', '1', '-m', '1024', '-drive',
-            'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
+            '-smp', str(self.params['smp']), '-m', str(self.params['mem']),
+            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
             '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
             '-vnc', ':%d' % self.display, '-serial', 'file:%s' % self.serial,
