@@ -46,7 +46,7 @@ from kamaki.cli.config import Config
 from kamaki.clients import ClientError
 from kamaki.clients.image import ImageClient
 from kamaki.clients.pithos import PithosClient
-from kamaki.clients.astakos import AstakosClient
+from kamaki.clients.astakos import CachedAstakosClient as AstakosClient
 
 try:
     config = Config()
