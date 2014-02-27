@@ -42,7 +42,9 @@ class Unix(OSBase):
     """OS class for Unix"""
     sensitive_userdata = [
         '.history',
+        '.sh_history',
         '.bash_history',
+        '.zsh_history',
         '.gnupg',
         '.ssh',
         '.kamakirc',
