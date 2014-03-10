@@ -44,6 +44,12 @@ Add the following line to */etc/apt/sources.list*:
 
    deb http://apt.dev.grnet.gr wheezy/
 
+Add the apt-dev GPG key to the list of trusted keys:
+
+.. code-block:: console
+
+   $ curl https://dev.grnet.gr/files/apt-grnetdev.pub | apt-key add -
+
 And resynchronize the package index files from their sources:
 
 .. code-block:: console
