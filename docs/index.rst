@@ -6,7 +6,12 @@
 Welcome to snf-image-creator's documentation!
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-snf-image-creator is an image creation tool for `Synnefo <https://code.grnet.gr/projects/synnefo>`_
+This is snf-image-creator, a command-line tool for creating OS Images to be
+used with `Synnefo <http://www.synnefo.org/>`_.
+
+It comes in two variants:
+ * snf-image-creator: A user-friendly dialog-based program
+ * snf-mkimage: A non-interactive command-line program
 
 Contents:
 
