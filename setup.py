@@ -42,7 +42,7 @@ setup(
     name='snf_image_creator',
     version=image_creator.__version__,
     description='Command line tool for creating images',
-    long_description=open('README').read(),
+    long_description=open('README.md').read(),
     url='https://code.grnet.gr/projects/snf-image-creator',
     author="Synnefo development team",
     author_email="synnefo-devel@googlegroups.com",
