@@ -119,7 +119,7 @@ class Image(object):
         self.os.inspect()
 
     def set_unsupported(self, reason):
-        """Flag this image us ansupported"""
+        """Flag this image as unsupported"""
 
         self._unsupported = reason
         self.meta['UNSUPPORTED'] = reason
@@ -136,9 +136,9 @@ class Image(object):
             self.out.warn("Guestfs is already enabled")
             return
 
-        # Before version 1.18.4 the behaviour of kill_subprocess was different
+        # Before version 1.18.4 the behavior of kill_subprocess was different
         # and you need to reset the guestfs handler to relaunch a previously
-        # shut down qemu backend
+        # shut down QEMU backend
         if self.check_guestfs_version(1, 18, 4) < 0:
             self.g = guestfs.GuestFS()
 
@@ -183,7 +183,7 @@ class Image(object):
 
         self.out.output("Shutting down helper VM ...", False)
         self.g.sync()
-        # guestfs_shutdown which is the prefered way to shutdown the backend
+        # guestfs_shutdown which is the preferred way to shutdown the backend
         # process was introduced in version 1.19.16
         if self.check_guestfs_version(1, 19, 16) >= 0:
             self.g.shutdown()
@@ -414,7 +414,7 @@ class Image(object):
                     # Workaround for python-sendfile API change. In
                     # python-sendfile 1.2.x (py-sendfile) the returning value
                     # of sendfile is a tuple, where in version 2.x (pysendfile)
-                    # it is just a sigle integer.
+                    # it is just a single integer.
                     if isinstance(sent, tuple):
                         sent = sent[1]
 

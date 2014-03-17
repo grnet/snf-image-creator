@@ -536,7 +536,7 @@ def modify_properties(session):
         (code, choice) = d.menu(
             "In this menu you can edit existing image properties or add new "
             "ones. Be careful! Most properties have special meaning and "
-            "alter the image deployment behaviour. Press <HELP> to see more "
+            "alter the image deployment behavior. Press <HELP> to see more "
             "information about image properties. Press <BACK> when done.",
             height=18, width=WIDTH, choices=choices, menu_height=10,
             ok_label="Edit", extra_button=1, extra_label="Add", cancel="Back",
@@ -630,7 +630,7 @@ def exclude_tasks(session):
         (code, tags) = d.checklist(
             text="Please choose which configuration tasks you would like to "
                  "prevent from running during image deployment. "
-                 "Press <No Config> to supress any configuration. "
+                 "Press <No Config> to suppress any configuration. "
                  "Press <Help> for more help on the image deployment "
                  "configuration tasks.",
             choices=choices, height=19, list_height=8, width=WIDTH,
@@ -696,7 +696,7 @@ def sysprep_params(session):
                       fields=fields, **kwargs)
 
     def check_params(names, values):
-        """check if the provided sysprep parameters have leagal values"""
+        """check if the provided sysprep parameters have legal values"""
         for i in range(len(names)):
             param = needed[names[i]]
             try:
@@ -736,7 +736,7 @@ def sysprep_params(session):
 
 
 def sysprep(session):
-    """Perform various system preperation tasks on the image"""
+    """Perform various system preparation tasks on the image"""
     d = session['dialog']
     image = session['image']
 
@@ -755,14 +755,14 @@ def sysprep(session):
 
     if len(syspreps) == 0:
         d.msgbox("No system preparation task available to run!",
-                 title="System Preperation", width=SMALL_WIDTH)
+                 title="System Preparation", width=SMALL_WIDTH)
         return
 
     while 1:
         choices = []
         index = 0
 
-        help_title = "System Preperation Tasks"
+        help_title = "System Preparation Tasks"
         sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
         for sysprep in syspreps:
@@ -795,8 +795,8 @@ def sysprep(session):
                     image.os.disable_sysprep(syspreps[i])
 
             if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
-                d.msgbox("No system preperation task is selected!",
-                         title="System Preperation", width=SMALL_WIDTH)
+                d.msgbox("No system preparation task is selected!",
+                         title="System Preparation", width=SMALL_WIDTH)
                 continue
 
             if not sysprep_params(session):
@@ -917,7 +917,7 @@ def main_menu(session):
             text="Choose one of the following or press <Exit> to exit.",
             width=WIDTH, choices=choices, cancel="Exit", height=13,
             default_item=default_item, menu_height=len(choices),
-            title="Image Creator for synnefo (snf-image-creator version %s)" %
+            title="Image Creator for Synnefo (snf-image-creator version %s)" %
                   version)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):

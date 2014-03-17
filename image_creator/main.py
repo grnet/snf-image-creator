@@ -188,7 +188,7 @@ def parse_options(input_args):
         try:
             key, value = p.split('=', 1)
         except ValueError:
-            raise FatalError("Sysprep parameter optiont: `%s' is not in "
+            raise FatalError("Sysprep parameter option: `%s' is not in "
                              "KEY=VALUE format." % p)
         sysprep_params[key] = value
     options.sysprep_params = sysprep_params

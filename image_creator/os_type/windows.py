@@ -548,7 +548,7 @@ class Windows(OSBase):
 
     def _update_firewalls(self, domain, public, standard):
         """Enables or disables the firewall for the Domain, the Public and the
-        Standard profile. Returns a triplete with the old values.
+        Standard profile. Returns a triple with the old values.
 
         1 will enable a firewall and 0 will disable it
         """
@@ -792,7 +792,7 @@ class _VM(object):
 
             return ':'.join(['%02x' % x for x in mac])
 
-        # Use ganeti's VNC port range for a random vnc port
+        # Use Ganeti's VNC port range for a random vnc port
         self.display = random.randint(11000, 14999) - 5900
 
         kvm, needed_args = get_kvm_binary()

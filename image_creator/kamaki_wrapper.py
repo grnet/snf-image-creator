@@ -87,7 +87,7 @@ class Kamaki(object):
 
     @staticmethod
     def get_cloud_by_name(name):
-        """Returns a dict with cloud info"""
+        """Returns a dictionary with cloud info"""
         return config.get('cloud', name)
 
     @staticmethod
@@ -104,7 +104,7 @@ class Kamaki(object):
 
     @staticmethod
     def remove_cloud(name):
-        """Deletes an existing cloud from the Kamaki configuration file"""
+        """Deletes an existing cloud from the ./Kamaki configuration file"""
         config.remove_option('cloud', name)
         config.write()
 
@@ -149,7 +149,7 @@ class Kamaki(object):
             self.account.token)
 
     def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
-        """Upload a file to pithos"""
+        """Upload a file to Pithos+"""
 
         path = basename(file_obj.name) if remote_path is None else remote_path
 
@@ -168,7 +168,7 @@ class Kamaki(object):
                                       self.CONTAINER, path)
 
     def register(self, name, location, metadata, public=False):
-        """Register an image with cyclades"""
+        """Register an image with Cyclades"""
 
         # Convert all metadata to strings
         str_metadata = {}
@@ -184,7 +184,7 @@ class Kamaki(object):
         self.pithos.set_object_sharing(location, "*")
 
     def object_exists(self, location):
-        """Check if an object exists in pythos"""
+        """Check if an object exists in Pithos+"""
 
         try:
             self.pithos.get_object_info(location)

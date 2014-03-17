@@ -48,12 +48,12 @@ class GaugeOutput(Output):
         self.percent = 0
         self.d.gauge_start(self.msg, title=title)
 
-        # Open pipe workaround. A fork will dublicate the open file descriptor.
+        # Open pipe workaround. A fork will duplicate the open file descriptor.
         # The FD_CLOEXEC flag makes sure that the gauge internal fd will be
         # closed if execve is executed. This is needed because libguestfs will
-        # fork/exec the kvm process. If this fd stays open in the kvm process,
+        # fork/exec the KVM process. If this fd stays open in the KVM process,
         # then doing a gauge_stop will make this process wait forever for
-        # a dialog process that is blocked waiting for input from the kvm
+        # a dialog process that is blocked waiting for input from the KVM
         # process's open file descriptor.
         fd = self.d._gauge_process['stdin'].fileno()
         flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
@@ -67,7 +67,7 @@ class GaugeOutput(Output):
         time.sleep(0.4)
 
     def success(self, result, new_line=True):
-        """Print result after a successfull action"""
+        """Print result after a successful action"""
         self.percent = 100
         self.d.gauge_update(self.percent, "%s %s" % (self.msg, result),
                             update_text=True)

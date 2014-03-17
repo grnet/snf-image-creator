@@ -49,7 +49,7 @@ WIDTH = 70
 
 
 def update_background_title(session):
-    """Update the backgroud title of the dialog page"""
+    """Update the background title of the dialog page"""
     d = session['dialog']
     disk = session['disk']
     image = session['image']
@@ -187,7 +187,7 @@ def _check_cloud(session, name, description, url, token):
         return False
 
     if len(url) == 0:
-        d.msgbox("Url cannot be empty!", width=WIDTH)
+        d.msgbox("URL cannot be empty!", width=WIDTH)
         return False
 
     if len(token) == 0:

@@ -305,7 +305,7 @@ class OSBase(object):
         return True
 
     def umount(self):
-        """Umount all mounted filesystems."""
+        """Umount all mounted file systems."""
 
         self.out.output("Umounting the media ...", False)
         self.image.g.umount_all()
@@ -331,12 +331,11 @@ class OSBase(object):
 
         The following options are allowed:
 
-        * maxdepth: If defined the action will not be performed on
-          files that are below this level of directories under the
-          directory parameter.
+        * maxdepth: If defined, the action will not be performed on files that
+          are below this level of directories under the directory parameter.
 
-        * ftype: The action will only be performed on files of this
-          type. For a list of all allowed filetypes, see here:
+        * ftype: The action will only be performed on files of this type. For a
+          list of all allowed file types, see here:
           http://libguestfs.org/guestfs.3.html#guestfs_readdir
 
         * exclude: Exclude all files that follow this pattern.

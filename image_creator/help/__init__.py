@@ -33,7 +33,7 @@
 # interpreted as representing official policies, either expressed
 # or implied, of GRNET S.A.
 
-"""This package hosts the help files of the programe."""
+"""This package hosts the help files of the program."""
 
 import sys
 import os

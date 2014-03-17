@@ -41,7 +41,7 @@ import re
 
 
 class Freebsd(Unix):
-    """OS class for FreeBSD Unix-like os"""
+    """OS class for FreeBSD Unix-like operating system"""
 
     @sysprep("Cleaning up passwords & locking all user accounts")
     def cleanup_password(self):
@@ -120,9 +120,9 @@ class Freebsd(Unix):
 
         critical_mpoints = ('/', '/etc', '/root', '/home', '/var')
 
-        # libguestfs can't handle correct freebsd partitions on a GUID
-        # Partition Table. We have to do the translation to linux device names
-        # ourselves
+        # Older libguestfs versions can't handle correct FreeBSD partitions on
+        # a GUID Partition Table. We have to do the translation to Linux device
+        # names ourselves
         guid_device = re.compile(r'^/dev/((?:ada)|(?:vtbd))(\d+)p(\d+)$')
 
         mopts = "ufstype=ufs2,%s" % ('ro' if readonly else 'rw')

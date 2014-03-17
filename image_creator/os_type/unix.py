@@ -116,7 +116,7 @@ class Unix(OSBase):
 
     @sysprep('Removing sensitive user data')
     def cleanup_userdata(self):
-        """Delete sensitive userdata"""
+        """Delete sensitive user data"""
 
         homedirs = ['/root']
         if self.image.g.is_dir('/home/'):

@@ -170,8 +170,8 @@ class Linux(Unix):
             elif event.strip() == ".*":
                 self.out.warn("Found action `.*'. Don't know how to handle "
                               "this. Please edit `%s' image file manually to "
-                              "make the system immediatelly shutdown when an "
-                              "power button acpi event occures." %
+                              "make the system immediately shutdown when an "
+                              "power button ACPI event occurs." %
                               action.strip().split()[0])
                 return
 
@@ -221,7 +221,7 @@ class Linux(Unix):
         self._persistent_grub1(persistent_root)
 
     def _persistent_grub1(self, new_root):
-        """Replaces non-persistent device name occurencies with persistent
+        """Replaces non-persistent device name occurrences with persistent
         ones in GRUB1 configuration files.
         """
         if self.image.g.is_file('/boot/grub/menu.lst'):
@@ -247,7 +247,7 @@ class Linux(Unix):
             self.image.g.aug_close()
 
     def _persistent_fstab(self):
-        """Replaces non-persistent device name occurencies in /etc/fstab with
+        """Replaces non-persistent device name occurrences in /etc/fstab with
         persistent ones.
         """
         mpoints = self.image.g.mountpoints()

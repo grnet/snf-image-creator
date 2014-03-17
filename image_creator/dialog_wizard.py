@@ -152,7 +152,7 @@ class WizardPageWthChoices(WizardPage):
 
     The available choices are created by a function passed to the class through
     the choices variable. If the choices function returns an empty list, a
-    fallback funtion is executed if available.
+    fallback function is executed if available.
     """
     def __init__(self, name, display_name, text, choices, **kargs):
         super(WizardPageWthChoices, self).__init__(name, display_name, text,
@@ -369,7 +369,7 @@ def start_wizard(session):
 
     sysprep_params = WizardFormPage(
         "SysprepParams", "Sysprep Parameters",
-        "Prease fill in the following system preparation parameters:",
+        "Please fill in the following system preparation parameters:",
         title="System Preparation Parameters", fields=sysprep_params_fields,
         display=sysprep_params_display, validate=sysprep_params_validate
     ) if len(needed) != 0 else None

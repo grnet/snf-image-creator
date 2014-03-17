@@ -277,7 +277,7 @@ class GPTPartitionTable(object):
         new_size = aligned if aligned <= old_size else \
             size + len(self.part_entries) + BLOCKSIZE
 
-        assert new_size <= old_size, "The secodary GPT fits in the device"
+        assert new_size <= old_size, "The secondary GPT fits in the device"
 
         if new_size == self.size():
             return new_size

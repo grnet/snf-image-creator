@@ -48,7 +48,7 @@ class Unsupported(OSBase):
         self.out.warn("Unable to collect metadata for unsupported media")
 
     def _do_mount(self, readonly):
-        """Mount partitions in corrent order"""
+        """Mount partitions in correct order"""
         self.out.warn('not supported on this media.')
         return False
 
