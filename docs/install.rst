@@ -74,7 +74,7 @@ Ubuntu
 For *Ubuntu 12.04 LTS*, *12.10* and *13.04* systems, you can use our official
 packages found in *grnet/synnefo* Lauchpad PPA.
 
-Add the synnefo PPA in your system:
+Add the Synnefo PPA in your system:
 
 .. code-block:: console
 
@@ -95,7 +95,7 @@ Or *python-software-properties* (Ubuntu 12.04):
 
    $ sudo apt-get install python-software-properties
 
-After the synnefo repository is set up, you should be able to list
+After the Synnefo repository is set up, you should be able to list
 snf-image-creator by calling:
 
 .. code-block:: console
@@ -152,24 +152,24 @@ Add the *synnefo* repository for *CentOS 6* to the yum repositories list:
 
 Check the `Fedora <#fedora>`_ instructions on how to install the software.
 
-OpenSUSE
+openSUSE
 --------
 
-For *OpenSUSE 12.3* you can use our official packages hosted at the *synnefo*
-repository of the OpenSUSE Build Service.
+For *openSUSE 13.1* you can use our official packages hosted at the *Synnefo*
+repository of the openSUSE Build Service.
 
-Add the *Virtualization* repository for *OpenSUSE 12.3* to *YaST* with the
+Add the *Virtualization* repository for *openSUSE 13.1* to *YaST* with the
 *Zypper* package manager:
 
 .. code-block:: console
 
-   $ zypper ar -f http://download.opensuse.org/repositories/Virtualization/openSUSE_12.3/Virtualization.repo
+   $ zypper ar -f http://download.opensuse.org/repositories/Virtualization/openSUSE_13.1/Virtualization.repo
 
-Add the *synnefo* repository:
+Add the *Synnefo* repository:
 
 .. code-block:: console
 
-   $ zypper ar -f http://download.opensuse.org/repositories/home:/GRNET:/synnefo/openSUSE_12.3/home:GRNET:synnefo.repo
+   $ zypper ar -f http://download.opensuse.org/repositories/home:/GRNET:/synnefo/openSUSE_13.1/home:GRNET:synnefo.repo
 
 To list the *snf-image-creator* package use the following command:
 
@@ -288,7 +288,7 @@ kamaki Installation
 -------------------
 
 Refer to `./kamaki documentation <http://docs.dev.grnet.gr/kamaki/latest/installation.html>`_
-for instructions. You may install kamaki from source inside the virtualenv
+for instructions. You may install *./kamaki* from source inside the virtualenv
 you've created above or by using binary packages if they are available for your
 distribution.
 

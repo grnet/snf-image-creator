@@ -82,7 +82,7 @@ input media. The user can enable or disable specific *syspreps*, using
 multiple times.
 
 Running *snf-mkimage* with *--print-sysprep* on a raw file that hosts a
-debian system, we print the following output:
+Debian system, we print the following output:
 
 .. _sysprep:
 
@@ -184,8 +184,8 @@ be given the choice to run *snf-image-creator* in *wizard* or *expert* mode.
 Wizard mode
 -----------
 
-When *snf-image-creator* runs in *wizard* mode, the user is just asked to provide the
-following basic information:
+When *snf-image-creator* runs in *wizard* mode, the user is just asked to
+provide the following basic information:
 
  * Cloud: The cloud account to use to upload and register the resulting image
  * Name: A short name for the image (ex. "Slackware")
@@ -229,12 +229,12 @@ Host bundling operation
 =======================
 
 As a new feature in *v0.2*, snf-image-creator can create images out of the host
-system that runs the program. This is done either by specifying / as input
-media or by using the *Bundle Host* button in the media selection dialog of
-snf-mkimage. During this operation, the files of the disk are copied into a
-temporary image file, which means that the file system that will host the
-temporary image needs to have a lot of free space (see `large temporary files`_
-for more information).
+system that runs the program. This is done either by specifying */* as input
+media or by using the *Bundle Host* button in the media selection dialog.
+During this operation, the files of the disk are copied into a temporary image
+file, which means that the file system that will host the temporary image needs
+to have a lot of free space (see `large temporary files`_ for more
+information).
 
 Creating a new image
 ====================
@@ -272,14 +272,14 @@ And install the Ubuntu system on this file:
    use LVM partitions. They are not supported by snf-image-creator.
 
 You will be able to boot your installed OS and make any changes you want
-(e.g. install openssh-server) using the following command:
+(e.g. install OpenSSH Server) using the following command:
 
 .. code-block:: console
 
    $ sudo kvm -m 1G -boot c -drive file=ubuntu.raw,format=raw,cache=none,if=virtio
 
-After you're done, you may use *snf-image-creator* as root to create and upload the
-image:
+After you're done, you may use *snf-image-creator* as root to create and upload
+the image:
 
 .. code-block:: console
 
@@ -320,7 +320,7 @@ contain primary or logical partitions.
 Para-virtualized drivers
 ------------------------
 
-Most synnefo deployments uses the *VirtIO* framework. The disk I/O controller
+Most Synnefo deployments uses the *VirtIO* framework. The disk I/O controller
 and the Ethernet cards on the VM instances are para-virtualized and need
 special *VirtIO* drivers. Those drivers are included in the Linux Kernel
 mainline since version 2.6.25 and are shipped with all the popular Linux
@@ -338,9 +338,9 @@ if a system can boot with para-virtualized disk controller by launching it with
 kvm using the *if=virtio* option (see the kvm command in the
 `Creating a new image`_ section).
 
-For Windows and FreeBSD systems, the needed drivers need to be manually
-downloaded and installed on the media before the image creation process takes
-place. For *FreeBSD* the virtio drivers can be found
+For Windows and older FreeBSD systems (prior to 9.2), the needed drivers need
+to be manually downloaded and installed on the media before the image creation
+process takes place. For *FreeBSD* the virtio drivers can be found
 `here <http://people.freebsd.org/~kuriyama/virtio/>`_. For Windows the drivers
 are hosted by the
 `Fedora Project <http://alt.fedoraproject.org/pub/alt/virtio-win/latest/images/>`_.
@@ -372,15 +372,15 @@ Large temporary files
 
  * During image shrinking, the input media snapshot file may reach the size of
    the original media.
- * When bundling the host system, the temporary image file may became as large
-   as the rest of the disk files altogether.
+ * When bundling the host system, the temporary image file may became 10%
+   larger than rest of the disk files altogether.
 
 */tmp* directory is not a good place for hosting large files. In many systems
-the contents of */tmp* are stored in volatile memory and the size they may occupy
-is limited. By default, *snf-image-creator* will use a heuristic approach to
-determine where to store large temporary files. It will examine the free space
-under */var/tmp*, the user's home directory and */mnt* and will pick the one
-with the most available space. The user may overwrite this behaviour and
+the contents of */tmp* are stored in volatile memory and the size they may
+occupy is limited. By default, *snf-image-creator* will use a heuristic
+approach to determine where to store large temporary files. It will examine the
+free space under */var/tmp*, the user's home directory and */mnt* and will pick
+the one with the most available space. The user may overwrite this behavior and
 indicate a different directory using the *tmpdir* option. This option is
 supported by both *snf-image-creator* and *snf-mkimage*.
 
