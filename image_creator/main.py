@@ -398,14 +398,9 @@ def image_creator():
 
 def main():
     try:
-        ret = image_creator()
-        sys.exit(ret)
+        sys.exit(image_creator())
     except FatalError as e:
         colored = sys.stderr.isatty()
-        warning = \
-            "The name of the executable has changed. If you want to use the " \
-            "user-friendly dialog-based program try `snf-image-creator'"
-        SimpleOutput(colored).warn(warning)
         SimpleOutput(colored).error(e)
         sys.exit(1)
 
