@@ -47,6 +47,7 @@ import textwrap
 import signal
 import optparse
 import types
+import termios
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError
@@ -216,31 +217,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
     return (code, output.splitlines())
 
 
-def main():
-
-    # In OpenSUSE dialog is buggy under xterm
-    if os.environ['TERM'] == 'xterm':
-        os.environ['TERM'] = 'linux'
-
-    d = dialog.Dialog(dialog="dialog")
-
-    # Add extra button in dialog library
-    dialog._common_args_syntax["extra_button"] = \
-        lambda enable: dialog._simple_option("--extra-button", enable)
-
-    dialog._common_args_syntax["extra_label"] = \
-        lambda string: ("--extra-label", string)
-
-    # Allow yes-no label overwriting
-    dialog._common_args_syntax["yes_label"] = \
-        lambda string: ("--yes-label", string)
-
-    dialog._common_args_syntax["no_label"] = \
-        lambda string: ("--no-label", string)
-
-    # Monkey-patch pythondialog to include support for form dialog boxes
-    if not hasattr(dialog, 'form'):
-        d.form = types.MethodType(_dialog_form, d)
+def dialog_main(d):
 
     usage = "Usage: %prog [options] [<input_media>]"
     parser = optparse.OptionParser(version=version, usage=usage)
@@ -286,8 +263,7 @@ def main():
                     out = CompositeOutput([log])
                     out.output("Starting %s v%s ..." %
                                (parser.get_prog_name(), version))
-                    ret = create_image(d, media, out, options.tmp)
-                    sys.exit(ret)
+                    return create_image(d, media, out, options.tmp)
                 except Reset:
                     log.output("Resetting everything ...")
                     continue
@@ -297,6 +273,42 @@ def main():
     except FatalError as e:
         msg = textwrap.fill(str(e), width=WIDTH)
         d.infobox(msg, width=WIDTH, title="Fatal Error")
-        sys.exit(1)
+        return 1
+
+
+def main():
+
+    # In openSUSE dialog is buggy under xterm
+    if os.environ['TERM'] == 'xterm':
+        os.environ['TERM'] = 'linux'
+
+    d = dialog.Dialog(dialog="dialog")
+
+    # Add extra button in dialog library
+    dialog._common_args_syntax["extra_button"] = \
+        lambda enable: dialog._simple_option("--extra-button", enable)
+    dialog._common_args_syntax["extra_label"] = \
+        lambda string: ("--extra-label", string)
+
+    # Allow yes-no label overwriting
+    dialog._common_args_syntax["yes_label"] = \
+        lambda string: ("--yes-label", string)
+    dialog._common_args_syntax["no_label"] = \
+        lambda string: ("--no-label", string)
+
+    # Monkey-patch pythondialog to include support for form dialog boxes
+    if not hasattr(dialog, 'form'):
+        d.form = types.MethodType(_dialog_form, d)
+
+    # Save the terminal attributes
+    attr = termios.tcgetattr(sys.stdin.fileno())
+    try:
+        ret = dialog_main(d)
+    finally:
+        # Restore the terminal attributes. If an error occurs make sure
+        # that the terminal turns back to normal.
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, attr)
+
+    sys.exit(ret)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
