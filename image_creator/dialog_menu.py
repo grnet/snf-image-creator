@@ -749,7 +749,7 @@ def sysprep(session):
                    width=SMALL_WIDTH, defaultno=1):
             return
 
-    wrapper = textwrap.TextWrapper(width=WIDTH - 5)
+    wrapper = textwrap.TextWrapper(width=WIDTH-5)
 
     syspreps = image.os.list_syspreps()
 
