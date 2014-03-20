@@ -48,6 +48,7 @@ import signal
 import optparse
 import types
 import termios
+import traceback
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError
@@ -60,6 +61,8 @@ from image_creator.dialog_wizard import start_wizard
 from image_creator.dialog_menu import main_menu
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, confirm_exit, \
     Reset, update_background_title
+
+PROGNAME = os.path.basename(sys.argv[0])
 
 
 def create_image(d, media, out, tmp):
@@ -217,66 +220,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
     return (code, output.splitlines())
 
 
-def dialog_main(d):
-
-    usage = "Usage: %prog [options] [<input_media>]"
-    parser = optparse.OptionParser(version=version, usage=usage)
-    parser.add_option("-l", "--logfile", type="string", dest="logfile",
-                      default=None, help="log all messages to FILE",
-                      metavar="FILE")
-    parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
-                      help="create large temporary image files under DIR",
-                      metavar="DIR")
-
-    options, args = parser.parse_args(sys.argv[1:])
-
-    if len(args) > 1:
-        parser.error("Wrong number of arguments")
-
-    d.setBackgroundTitle('snf-image-creator')
-
-    try:
-        if os.geteuid() != 0:
-            raise FatalError("You must run %s as root" %
-                             parser.get_prog_name())
-
-        if options.tmp is not None and not os.path.isdir(options.tmp):
-            raise FatalError("The directory `%s' specified with --tmpdir is "
-                             "not valid" % options.tmp)
-
-        logfile = None
-        if options.logfile is not None:
-            try:
-                logfile = open(options.logfile, 'w')
-            except IOError as e:
-                raise FatalError(
-                    "Unable to open logfile `%s' for writing. Reason: %s" %
-                    (options.logfile, e.strerror))
-
-        media = select_file(d, args[0] if len(args) == 1 else None)
-
-        try:
-            log = SimpleOutput(False, logfile) if logfile is not None \
-                else Output()
-            while 1:
-                try:
-                    out = CompositeOutput([log])
-                    out.output("Starting %s v%s ..." %
-                               (parser.get_prog_name(), version))
-                    return create_image(d, media, out, options.tmp)
-                except Reset:
-                    log.output("Resetting everything ...")
-                    continue
-        finally:
-            if logfile is not None:
-                logfile.close()
-    except FatalError as e:
-        msg = textwrap.fill(str(e), width=WIDTH)
-        d.infobox(msg, width=WIDTH, title="Fatal Error")
-        return 1
-
-
-def main():
+def dialog_main(media, logfile, tmpdir):
 
     # In openSUSE dialog is buggy under xterm
     if os.environ['TERM'] == 'xterm':
@@ -300,14 +244,81 @@ def main():
     if not hasattr(dialog, 'form'):
         d.form = types.MethodType(_dialog_form, d)
 
-    # Save the terminal attributes
-    attr = termios.tcgetattr(sys.stdin.fileno())
+    d.setBackgroundTitle('snf-image-creator')
+
     try:
-        ret = dialog_main(d)
+        media = select_file(d, media)
+        log = SimpleOutput(False, logfile) if logfile is not None else Output()
+        while 1:
+            try:
+                out = CompositeOutput([log])
+                out.output("Starting %s v%s ..." % (PROGNAME, version))
+                return create_image(d, media, out, tmpdir)
+            except Reset:
+                log.output("Resetting everything ...")
+                continue
+    except FatalError as e:
+        msg = textwrap.fill(str(e), width=WIDTH-4)
+        d.infobox(msg, width=WIDTH, title="Fatal Error")
+        return 1
+
+
+def main():
+
+    if os.geteuid() != 0:
+        sys.stderr.write("Error: You must run %s as root\n" % PROGNAME)
+        sys.exit(2)
+
+    usage = "Usage: %prog [options] [<input_media>]"
+    parser = optparse.OptionParser(version=version, usage=usage)
+    parser.add_option("-l", "--logfile", type="string", dest="logfile",
+                      default=None, help="log all messages to FILE",
+                      metavar="FILE")
+    parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
+                      help="create large temporary image files under DIR",
+                      metavar="DIR")
+
+    opts, args = parser.parse_args(sys.argv[1:])
+
+    if len(args) > 1:
+        parser.error("Wrong number of arguments")
+
+    media = args[0] if len(args) == 1 else None
+
+    if opts.tmp is not None and not os.path.isdir(opts.tmp):
+        parser.error("Directory: `%s' specified with --tmpdir is not valid"
+                     % opts.tmp)
+
+    try:
+        logfile = open(opts.logfile, 'w') if opts.logfile is not None else None
+    except IOError as e:
+        parser.error("Unable to open logfile `%s' for writing. Reason: %s" %
+                     (opts.logfile, e.strerror))
+
+    try:
+        # Save the terminal attributes
+        attr = termios.tcgetattr(sys.stdin.fileno())
+        try:
+            ret = dialog_main(media, logfile, opts.tmp)
+        finally:
+            # Restore the terminal attributes. If an error occurs make sure
+            # that the terminal turns back to normal.
+            termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, attr)
+    except:
+        # Clear the screen
+        sys.stdout.write('\033[2J')  # Erase Screen
+        sys.stdout.write('\033[H')  # Cursor Home
+        sys.stdout.flush()
+
+        exception = traceback.format_exc()
+        sys.stderr.write(exception)
+        if logfile is not None:
+            logfile.write(exception)
+
+        sys.exit(3)
     finally:
-        # Restore the terminal attributes. If an error occurs make sure
-        # that the terminal turns back to normal.
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, attr)
+        if logfile is not None:
+            logfile.close()
 
     sys.exit(ret)
 
