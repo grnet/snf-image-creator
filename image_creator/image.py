@@ -163,7 +163,12 @@ class Image(object):
         #                                     "percent")
         # eh = self.g.set_event_callback(self.progress_callback,
         #                               guestfs.EVENT_PROGRESS)
-        self.g.launch()
+        try:
+            self.g.launch()
+        except RuntimeError as e:
+            raise FatalError(
+                "Launching libguestfs's helper VM failed! Reason: %s" % str(e))
+
         self.guestfs_enabled = True
         # self.g.delete_event_callback(eh)
         # self.progressbar.success('done')
