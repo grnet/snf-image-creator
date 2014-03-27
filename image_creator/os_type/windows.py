@@ -407,6 +407,43 @@ class Windows(OSBase):
                 finally:
                     self.umount()
 
+    def _open_hive(self, hive, write=False):
+        """Returns a context manager for opening a hive file of the image for
+        reading or writing.
+        """
+        g = self.image.g
+        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
+        path = "%s/system32/config/%s" % (systemroot, hive)
+        try:
+            path = g.case_sensitive_path(path)
+        except RuntimeError as err:
+            raise FatalError("Unable to retrieve file: %s. Reason: %s" %
+                             (hive, str(err)))
+
+        class OpenHive:
+            """The OpenHive context manager"""
+            def __enter__(self):
+                localfd, self.localpath = tempfile.mkstemp()
+                try:
+                    os.close(localfd)
+                    g.download(path, self.localpath)
+
+                    hive = hivex.Hivex(self.localpath, write=write)
+                except:
+                    os.unlink(self.localpath)
+                    raise
+
+                return hive
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                try:
+                    if write:
+                        g.upload(self.localpath, path)
+                finally:
+                    os.unlink(self.localpath)
+
+        return OpenHive()
+
     def _shutdown(self):
         """Shuts down the windows VM"""
         self._guest_exec(r'shutdown /s /t 5')
@@ -435,18 +472,6 @@ class Windows(OSBase):
         self._guest_exec('REG DELETE %s /v DefaultPassword /f' % winlogon)
         self._guest_exec('REG DELETE %s /v AutoAdminLogon /f' % winlogon)
 
-    def _registry_file_path(self, regfile):
-        """Retrieves the case sensitive path to a registry file"""
-
-        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
-        path = "%s/system32/config/%s" % (systemroot, regfile)
-        try:
-            path = self.image.g.case_sensitive_path(path)
-        except RuntimeError as error:
-            raise FatalError("Unable to retrieve registry file: %s. Reason: %s"
-                             % (regfile, str(error)))
-        return path
-
     def _enable_os_monitor(self):
         """Add a script in the registry that will send a random string to the
         first serial port when the windows image finishes booting.
@@ -454,14 +479,7 @@ class Windows(OSBase):
 
         token = "".join(random.choice(string.ascii_letters) for x in range(16))
 
-        path = self._registry_file_path('SOFTWARE')
-        softwarefd, software = tempfile.mkstemp()
-        try:
-            os.close(softwarefd)
-            self.image.g.download(path, software)
-
-            h = hivex.Hivex(software, write=True)
-
+        with self._open_hive('SOFTWARE', write=True) as hive:
             # Enable automatic logon.
             # This is needed because we need to execute a script that we add in
             # the RunOnce registry entry and those programs only get executed
@@ -477,31 +495,31 @@ class Windows(OSBase):
             # defined on the server either by a Group Policy object (GPO) or by
             # a local policy.
 
-            winlogon = h.root()
+            winlogon = hive.root()
             for child in ('Microsoft', 'Windows NT', 'CurrentVersion',
                           'Winlogon'):
-                winlogon = h.node_get_child(winlogon, child)
+                winlogon = hive.node_get_child(winlogon, child)
 
-            h.node_set_value(
+            hive.node_set_value(
                 winlogon,
                 {'key': 'DefaultUserName', 't': 1,
                  'value': "Administrator".encode('utf-16le')})
-            h.node_set_value(
+            hive.node_set_value(
                 winlogon,
                 {'key': 'DefaultPassword', 't': 1,
                  'value':  self.sysprep_params['password'].encode('utf-16le')})
-            h.node_set_value(
+            hive.node_set_value(
                 winlogon,
                 {'key': 'AutoAdminLogon', 't': 1,
                  'value': "1".encode('utf-16le')})
 
-            key = h.root()
+            key = hive.root()
             for child in ('Microsoft', 'Windows', 'CurrentVersion'):
-                key = h.node_get_child(key, child)
+                key = hive.node_get_child(key, child)
 
-            runonce = h.node_get_child(key, "RunOnce")
+            runonce = hive.node_get_child(key, "RunOnce")
             if runonce is None:
-                runonce = h.node_add_child(key, "RunOnce")
+                runonce = hive.node_add_child(key, "RunOnce")
 
             value = (
                 r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
@@ -510,22 +528,18 @@ class Windows(OSBase):
                 r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
                 r'$port.Close()}"').encode('utf-16le')
 
-            h.node_set_value(runonce,
-                             {'key': "BootMonitor", 't': 1, 'value': value})
+            hive.node_set_value(
+                runonce, {'key': "BootMonitor", 't': 1, 'value': value})
 
             value = (
                 r'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
                 r'\policies\system /v LocalAccountTokenFilterPolicy'
                 r' /t REG_DWORD /d 1 /f').encode('utf-16le')
 
-            h.node_set_value(runonce,
-                             {'key': "UpdateRegistry", 't': 1, 'value': value})
+            hive.node_set_value(
+                runonce, {'key': "UpdateRegistry", 't': 1, 'value': value})
 
-            h.commit(None)
-
-            self.image.g.upload(software, path)
-        finally:
-            os.unlink(software)
+            hive.commit(None)
 
         return token
 
@@ -545,46 +559,35 @@ class Windows(OSBase):
         if standard not in (0, 1):
             raise ValueError("Valid values for standard parameter are 0 and 1")
 
-        path = self._registry_file_path("SYSTEM")
-        systemfd, system = tempfile.mkstemp()
-        try:
-            os.close(systemfd)
-            self.image.g.download(path, system)
-
-            h = hivex.Hivex(system, write=True)
-
-            select = h.node_get_child(h.root(), 'Select')
-            current_value = h.node_get_value(select, 'Current')
+        with self._open_hive('SYSTEM', write=True) as hive:
+            select = hive.node_get_child(hive.root(), 'Select')
+            current_value = hive.node_get_value(select, 'Current')
 
             # expecting a little endian dword
-            assert h.value_type(current_value)[1] == 4
-            current = "%03d" % h.value_dword(current_value)
+            assert hive.value_type(current_value)[1] == 4
+            current = "%03d" % hive.value_dword(current_value)
 
-            firewall_policy = h.root()
+            firewall_policy = hive.root()
             for child in ('ControlSet%s' % current, 'services', 'SharedAccess',
                           'Parameters', 'FirewallPolicy'):
-                firewall_policy = h.node_get_child(firewall_policy, child)
+                firewall_policy = hive.node_get_child(firewall_policy, child)
 
             old_values = []
             new_values = [domain, public, standard]
             for profile in ('Domain', 'Public', 'Standard'):
-                node = h.node_get_child(firewall_policy, '%sProfile' % profile)
+                node = hive.node_get_child(firewall_policy,
+                                           '%sProfile' % profile)
 
-                old_value = h.node_get_value(node, 'EnableFirewall')
+                old_value = hive.node_get_value(node, 'EnableFirewall')
 
                 # expecting a little endian dword
-                assert h.value_type(old_value)[1] == 4
-                old_values.append(h.value_dword(old_value))
+                assert hive.value_type(old_value)[1] == 4
+                old_values.append(hive.value_dword(old_value))
 
-                h.node_set_value(
+                hive.node_set_value(
                     node, {'key': 'EnableFirewall', 't': 4L,
                            'value': struct.pack("<I", new_values.pop(0))})
-
-            h.commit(None)
-            self.image.g.upload(system, path)
-
-        finally:
-            os.unlink(system)
+            hive.commit(None)
 
         return old_values
 
@@ -606,26 +609,19 @@ class Windows(OSBase):
         if value not in (0, 1):
             raise ValueError("Valid values for value parameter are 0 and 1")
 
-        path = self._registry_file_path('SOFTWARE')
-        softwarefd, software = tempfile.mkstemp()
-        try:
-            os.close(softwarefd)
-            self.image.g.download(path, software)
-
-            h = hivex.Hivex(software, write=True)
-
-            key = h.root()
+        with self._open_hive('SOFTWARE', write=True) as hive:
+            key = hive.root()
             for child in ('Microsoft', 'Windows', 'CurrentVersion', 'Policies',
                           'System'):
-                key = h.node_get_child(key, child)
+                key = hive.node_get_child(key, child)
 
             policy = None
-            for val in h.node_values(key):
-                if h.value_key(val) == "LocalAccountTokenFilterPolicy":
+            for val in hive.node_values(key):
+                if hive.value_key(val) == "LocalAccountTokenFilterPolicy":
                     policy = val
 
             if policy is not None:
-                dword = h.value_dword(policy)
+                dword = hive.value_dword(policy)
                 if dword == value:
                     return False
             elif value == 0:
@@ -634,13 +630,8 @@ class Windows(OSBase):
             new_value = {'key': "LocalAccountTokenFilterPolicy", 't': 4L,
                          'value': struct.pack("<I", value)}
 
-            h.node_set_value(key, new_value)
-            h.commit(None)
-
-            self.image.g.upload(software, path)
-
-        finally:
-            os.unlink(software)
+            hive.node_set_value(key, new_value)
+            hive.commit(None)
 
         return True
 
@@ -651,20 +642,15 @@ class Windows(OSBase):
 
     def _get_users(self):
         """Returns a list of users found in the images"""
-        samfd, sam = tempfile.mkstemp()
-        try:
-            os.close(samfd)
-            self.image.g.download(self._registry_file_path('SAM'), sam)
 
-            h = hivex.Hivex(sam)
-
+        with self._open_hive('SAM') as hive:
             # Navigate to /SAM/Domains/Account/Users
-            users_node = h.root()
+            users_node = hive.root()
             for child in ('SAM', 'Domains', 'Account', 'Users'):
-                users_node = h.node_get_child(users_node, child)
+                users_node = hive.node_get_child(users_node, child)
 
             # Navigate to /SAM/Domains/Account/Users/Names
-            names_node = h.node_get_child(users_node, 'Names')
+            names_node = hive.node_get_child(users_node, 'Names')
 
             # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%
             # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\Names\%Username%
@@ -680,23 +666,20 @@ class Windows(OSBase):
             disabled = lambda f: int(f[56].encode('hex'), 16) & 0x01
 
             users = []
-            for user_node in h.node_children(names_node):
-                username = h.node_name(user_node)
-                rid = h.value_type(h.node_get_value(user_node, ""))[0]
+            for user_node in hive.node_children(names_node):
+                username = hive.node_name(user_node)
+                rid = hive.value_type(hive.node_get_value(user_node, ""))[0]
                 # if RID is 500 (=0x1f4), the corresponding node name under
                 # Users is '000001F4'
                 key = ("%8.x" % rid).replace(' ', '0').upper()
-                rid_node = h.node_get_child(users_node, key)
-                f_value = h.value_value(h.node_get_value(rid_node, 'F'))[1]
+                rid_node = hive.node_get_child(users_node, key)
+                f_val = hive.value_value(hive.node_get_value(rid_node, 'F'))[1]
 
-                if disabled(f_value):
+                if disabled(f_val):
                     self.out.warn("Found disabled `%s' account!" % username)
                     continue
 
                 users.append(username)
-
-        finally:
-            os.unlink(sam)
 
         # Filter out the guest account
         return users
