@@ -21,7 +21,7 @@ Windows OSs."""
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError
 from image_creator.os_type.windows.vm import VM
-from image_creator.winexe import WinEXE, WinexeTimeout
+from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
 
 import hivex
 import tempfile
