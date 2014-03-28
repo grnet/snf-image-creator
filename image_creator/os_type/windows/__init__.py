@@ -15,21 +15,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts OS-specific code common for the various Microsoft
+"""This package hosts OS-specific code common for the various Microsoft
 Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
-from image_creator.util import FatalError, get_kvm_binary
+from image_creator.util import FatalError
+from image_creator.os_type.windows.vm import VM
 from image_creator.winexe import WinEXE, WinexeTimeout
 
 import hivex
 import tempfile
 import os
-import signal
 import time
 import random
 import string
-import subprocess
 import struct
 import re
 
@@ -333,7 +332,7 @@ class Windows(OSBase):
             self.out.output("Starting windows VM ...", False)
             monitorfd, monitor = tempfile.mkstemp()
             os.close(monitorfd)
-            vm = _VM(self.image.device, monitor, self.sysprep_params)
+            vm = VM(self.image.device, monitor, self.sysprep_params)
             self.out.success("started (console on VNC display: %d)" %
                              vm.display)
 
@@ -734,89 +733,5 @@ class Windows(OSBase):
                              (command, rc, reason))
 
         return (stdout, stderr, rc)
-
-
-class _VM(object):
-    """Windows Virtual Machine"""
-    def __init__(self, disk, serial, params):
-        """Create _VM instance
-
-            disk: VM's hard disk
-            serial: File to save the output of the serial port
-        """
-
-        self.disk = disk
-        self.serial = serial
-        self.params = params
-
-        def random_mac():
-            """creates a random mac address"""
-            mac = [0x00, 0x16, 0x3e,
-                   random.randint(0x00, 0x7f),
-                   random.randint(0x00, 0xff),
-                   random.randint(0x00, 0xff)]
-
-            return ':'.join(['%02x' % x for x in mac])
-
-        # Use Ganeti's VNC port range for a random vnc port
-        self.display = random.randint(11000, 14999) - 5900
-
-        kvm, needed_args = get_kvm_binary()
-
-        if kvm is None:
-            FatalError("Can't find the kvm binary")
-
-        args = [kvm]
-        args.extend(needed_args)
-
-        args.extend([
-            '-smp', str(self.params['smp']), '-m', str(self.params['mem']),
-            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
-            '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-            '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
-            '-vnc', ':%d' % self.display, '-serial', 'file:%s' % self.serial,
-            '-monitor', 'stdio'])
-
-        self.process = subprocess.Popen(args, stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
-
-    def isalive(self):
-        """Check if the VM is still alive"""
-        return self.process.poll() is None
-
-    def destroy(self):
-        """Destroy the VM"""
-
-        if not self.isalive():
-            return
-
-        def handler(signum, frame):
-            self.process.terminate()
-            time.sleep(1)
-            if self.isalive():
-                self.process.kill()
-            self.process.wait()
-            raise FatalError("VM destroy timed-out")
-
-        signal.signal(signal.SIGALRM, handler)
-
-        signal.alarm(self.params['shutdown_timeout'])
-        self.process.communicate(input="system_powerdown\n")
-        signal.alarm(0)
-
-    def wait(self, timeout=0):
-        """Wait for the VM to terminate"""
-
-        def handler(signum, frame):
-            self.destroy()
-            raise FatalError("VM wait timed-out.")
-
-        signal.signal(signal.SIGALRM, handler)
-
-        signal.alarm(timeout)
-        stdout, stderr = self.process.communicate()
-        signal.alarm(0)
-
-        return (stdout, stderr, self.process.poll())
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
