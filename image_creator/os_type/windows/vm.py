@@ -20,22 +20,27 @@
 import random
 import subprocess
 import signal
+import tempfile
+import os
+import time
 
 from image_creator.util import FatalError, get_kvm_binary
+from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
 
 
 class VM(object):
     """Windows Virtual Machine"""
-    def __init__(self, disk, serial, params):
-        """Create _VM instance
-
-            disk: VM's hard disk
-            serial: File to save the output of the serial port
-        """
+    def __init__(self, disk, params):
+        """Create VM instance"""
 
         self.disk = disk
-        self.serial = serial
         self.params = params
+
+        kvm, needed_args = get_kvm_binary()
+        if kvm is None:
+            FatalError("Can't find the kvm binary")
+
+        self.kvm = [kvm] + list(needed_args)
 
         def random_mac():
             """creates a random mac address"""
@@ -46,57 +51,96 @@ class VM(object):
 
             return ':'.join(['%02x' % x for x in mac])
 
+        self.mac = random_mac()
+
         # Use Ganeti's VNC port range for a random vnc port
         self.display = random.randint(11000, 14999) - 5900
 
-        kvm, needed_args = get_kvm_binary()
+        self.serial = None
+        self.process = None
 
-        if kvm is None:
-            FatalError("Can't find the kvm binary")
+    def isalive(self):
+        """Check if the VM is alive"""
+        return self.process is not None and self.process.poll() is None
 
-        args = [kvm]
-        args.extend(needed_args)
+    def start(self):
+        """Start the windows VM"""
+
+        args = []
+        args.extend(self.kvm)
+
+        if 'smp' in self.params:
+            args.extend(['-smp', str(self.params['smp'])])
+
+        if 'mem' in self.params:
+            args.extend(['-m', str(self.params['mem'])])
 
         args.extend([
-            '-smp', str(self.params['smp']), '-m', str(self.params['mem']),
-            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk,
-            '-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-            '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % random_mac(),
-            '-vnc', ':%d' % self.display, '-serial', 'file:%s' % self.serial,
-            '-monitor', 'stdio'])
+            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk])
+
+        args.extend(
+            ['-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
+             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % self.mac])
+
+        args.extend(['-vnc', ":%d" % self.display])
+
+        # The serial port
+        serialfd, self.serial = tempfile.mkstemp()
+        os.close(serialfd)
+        args.extend(['-serial', 'file:%s' % self.serial])
+
+        args.extend(['-monitor', 'stdio'])
 
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE)
 
-    def isalive(self):
-        """Check if the VM is still alive"""
-        return self.process.poll() is None
+    def stop(self, timeout=0, fatal=True):
+        """Stop the VM"""
 
-    def destroy(self):
-        """Destroy the VM"""
+        try:
+            if not self.isalive():
+                return
 
-        if not self.isalive():
-            return
+            def handler(signum, frame):
+                self.process.terminate()
+                time.sleep(1)
+                if self.isalive():
+                    self.process.kill()
+                self.process.wait()
+                if fatal:
+                    raise FatalError("Stopping the VM timed-out")
 
-        def handler(signum, frame):
-            self.process.terminate()
+            signal.signal(signal.SIGALRM, handler)
+
+            signal.alarm(timeout)
+            self.process.communicate(input="system_powerdown\n")
+            signal.alarm(0)
+
+        finally:
+            if self.serial is not None:
+                try:
+                    os.unlink(self.serial)
+                except FileNotFoundError:
+                    pass
+
+    def wait_on_serial(self, msg, timeout):
+        """Wait until a message appears on the VM's serial port"""
+
+        for _ in xrange(timeout):
             time.sleep(1)
-            if self.isalive():
-                self.process.kill()
-            self.process.wait()
-            raise FatalError("VM destroy timed-out")
+            with open(self.serial) as f:
+                for line in f:
+                    if line.startswith(msg):
+                        return True
+            if not self.isalive():
+                raise FatalError("Windows VM died unexpectedly!")
 
-        signal.signal(signal.SIGALRM, handler)
-
-        signal.alarm(self.params['shutdown_timeout'])
-        self.process.communicate(input="system_powerdown\n")
-        signal.alarm(0)
+        return False
 
     def wait(self, timeout=0):
-        """Wait for the VM to terminate"""
+        """Wait for the VM to shutdown by itself"""
 
         def handler(signum, frame):
-            self.destroy()
             raise FatalError("VM wait timed-out.")
 
         signal.signal(signal.SIGALRM, handler)
@@ -106,5 +150,29 @@ class VM(object):
         signal.alarm(0)
 
         return (stdout, stderr, self.process.poll())
+
+    def rexec(self, command, fatal=True, debug=False):
+        """Remote execute a command on the windows VM"""
+
+        user = self.params['admin']
+        passwd = self.params['password']
+        winexe = WinEXE(user, passwd, 'localhost')
+        winexe.runas(user, passwd).uninstall()
+        if debug:
+            winexe.debug(9)
+
+        try:
+            (stdout, stderr, rc) = winexe.run(command)
+        except WinexeTimeout:
+            FatalError("Command: `%s' timeout out." % command)
+
+        if rc != 0 and fatal:
+            reason = stderr if len(stderr) else stdout
+            # self.out.output("Command: `%s' failed (rc=%d). Reason: %s" %
+            #                 (command, rc, reason))
+            raise FatalError("Command: `%s' failed (rc=%d). Reason: %s" %
+                             (command, rc, reason))
+
+        return (stdout, stderr, rc)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

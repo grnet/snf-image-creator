@@ -21,7 +21,7 @@ Windows OSs."""
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError
 from image_creator.os_type.windows.vm import VM
-from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
+from image_creator.os_type.windows.winexe import WinEXE
 
 import hivex
 import tempfile
@@ -104,7 +104,8 @@ class Windows(OSBase):
         'smp', int, 1, "Number of CPUs for the helper VM", _POSINT)
     @add_sysprep_param(
         'mem', int, 1024, "Virtual RAM size for the helper VM (MiB)", _POSINT)
-    @add_sysprep_param('password', str, None, 'Image Administrator Password')
+    @add_sysprep_param('admin', str, 'Administrator', 'Administrator Username')
+    @add_sysprep_param('password', str, None, 'Password for Administrator')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -144,52 +145,55 @@ class Windows(OSBase):
         assert self.system_drive
 
         self.product_name = self.image.g.inspect_get_product_name(self.root)
+
+        self.vm = VM(self.image.device, self.sysprep_params)
+
         self.syspreped = False
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
         """Disable IPv6 privacy extensions"""
 
-        self._guest_exec('netsh interface ipv6 set global '
-                         'randomizeidentifiers=disabled store=persistent')
+        self.vm.rexec('netsh interface ipv6 set global '
+                      'randomizeidentifiers=disabled store=persistent')
 
     @sysprep('Disabling Teredo interface')
     def disable_teredo(self):
         """Disable Teredo interface"""
 
-        self._guest_exec('netsh interface teredo set state disabled')
+        self.vm.rexec('netsh interface teredo set state disabled')
 
     @sysprep('Disabling ISATAP Adapters')
     def disable_isatap(self):
         """Disable ISATAP Adapters"""
 
-        self._guest_exec('netsh interface isa set state disabled')
+        self.vm.rexec('netsh interface isa set state disabled')
 
     @sysprep('Enabling ping responses')
     def enable_pings(self):
         """Enable ping responses"""
 
-        self._guest_exec('netsh firewall set icmpsetting 8')
+        self.vm.rexec('netsh firewall set icmpsetting 8')
 
     @sysprep('Disabling hibernation support')
     def disable_hibernation(self):
         """Disable hibernation support and remove the hibernation file"""
 
-        self._guest_exec(r'powercfg.exe /hibernate off')
+        self.vm.rexec(r'powercfg.exe /hibernate off')
 
     @sysprep('Setting the system clock to UTC')
     def utc(self):
         """Set the hardware clock to UTC"""
 
         path = r'HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation'
-        self._guest_exec(
+        self.vm.rexec(
             r'REG ADD %s /v RealTimeIsUniversal /t REG_DWORD /d 1 /f' % path)
 
     @sysprep('Clearing the event logs')
     def clear_logs(self):
         """Clear all the event logs"""
 
-        self._guest_exec(
+        self.vm.rexec(
             "cmd /q /c for /f \"tokens=*\" %l in ('wevtutil el') do "
             "wevtutil cl \"%l\"")
 
@@ -200,8 +204,8 @@ class Windows(OSBase):
         After this no other task may run.
         """
 
-        self._guest_exec(r'C:\Windows\system32\sysprep\sysprep '
-                         r'/quiet /generalize /oobe /shutdown')
+        self.vm.rexec(r'C:\Windows\system32\sysprep\sysprep '
+                      r'/quiet /generalize /oobe /shutdown')
         self.syspreped = True
 
     @sysprep('Converting the image into a KMS client', enabled=False)
@@ -220,7 +224,7 @@ class Windows(OSBase):
                 self.product_name)
             return
 
-        self._guest_exec(
+        self.vm.rexec(
             r"cscript \Windows\system32\slmgr.vbs /ipk %s" % setup_key)
 
     @sysprep('Shrinking the last filesystem')
@@ -238,7 +242,7 @@ class Windows(OSBase):
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
-        stdout, stderr, rc = self._guest_exec(cmd)
+        stdout, stderr, rc = self.vm.rexec(cmd)
 
         querymax = None
         for line in stdout.splitlines():
@@ -284,7 +288,7 @@ class Windows(OSBase):
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
-        stdout, stderr, rc = self._guest_exec(cmd, False)
+        stdout, stderr, rc = self.vm.rexec(cmd, False)
 
         if rc != 0:
             FatalError("Shrinking failed. Please make sure the media is "
@@ -325,19 +329,16 @@ class Windows(OSBase):
             self.umount()
 
         self.image.disable_guestfs()
-
-        vm = None
-        monitor = None
         try:
             self.out.output("Starting windows VM ...", False)
-            monitorfd, monitor = tempfile.mkstemp()
-            os.close(monitorfd)
-            vm = VM(self.image.device, monitor, self.sysprep_params)
-            self.out.success("started (console on VNC display: %d)" %
-                             vm.display)
+            self.vm.start()
+            self.out.success(
+                "started (console on VNC display: %d)" % self.vm.display)
 
             self.out.output("Waiting for OS to boot ...", False)
-            self._wait_vm_boot(vm, monitor, token)
+            timeout = self.sysprep_params['boot_timeout']
+            if not self.vm.wait_on_serial(token, timeout):
+                raise FatalError("Windows VM booting timed out!")
             self.out.success('done')
 
             self.out.output("Checking connectivity to the VM ...", False)
@@ -383,16 +384,14 @@ class Windows(OSBase):
             self.out.success("done")
 
             self.out.output("Waiting for windows to shut down ...", False)
-            vm.wait(self.sysprep_params['shutdown_timeout'])
+            self.vm.wait(self.sysprep_params['shutdown_timeout'])
             self.out.success("done")
-        finally:
-            if monitor is not None:
-                os.unlink(monitor)
 
+        finally:
             try:
-                if vm is not None:
+                if self.vm.isalive():
                     self.out.output("Destroying windows VM ...", False)
-                    vm.destroy()
+                    self.vm.stop(self.sysprep_params['shutdown_timeout'])
                     self.out.success("done")
             finally:
                 self.image.enable_guestfs()
@@ -445,21 +444,7 @@ class Windows(OSBase):
 
     def _shutdown(self):
         """Shuts down the windows VM"""
-        self._guest_exec(r'shutdown /s /t 5')
-
-    def _wait_vm_boot(self, vm, fname, msg):
-        """Wait until a message appears on a file or the vm process dies"""
-
-        for _ in range(self.sysprep_params['boot_timeout']):
-            time.sleep(1)
-            with open(fname) as f:
-                for line in f:
-                    if line.startswith(msg):
-                        return True
-            if not vm.isalive():
-                raise FatalError("Windows VM died unexpectedly!")
-
-        raise FatalError("Windows VM booting timed out!")
+        self.vm.rexec(r'shutdown /s /t 5')
 
     def _disable_autologon(self):
         """Disable automatic logon on the windows image"""
@@ -467,9 +452,9 @@ class Windows(OSBase):
         winlogon = \
             r'"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"'
 
-        self._guest_exec('REG DELETE %s /v DefaultUserName /f' % winlogon)
-        self._guest_exec('REG DELETE %s /v DefaultPassword /f' % winlogon)
-        self._guest_exec('REG DELETE %s /v AutoAdminLogon /f' % winlogon)
+        self.vm.rexec('REG DELETE %s /v DefaultUserName /f' % winlogon)
+        self.vm.rexec('REG DELETE %s /v DefaultPassword /f' % winlogon)
+        self.vm.rexec('REG DELETE %s /v AutoAdminLogon /f' % winlogon)
 
     def _enable_os_monitor(self):
         """Add a script in the registry that will send a random string to the
@@ -692,14 +677,12 @@ class Windows(OSBase):
         if retries == 0:
             return True
 
-        passwd = self.sysprep_params['password']
-        winexe = WinEXE('Administrator', passwd, 'localhost')
-        winexe.uninstall().debug(9)
-
         for i in range(retries):
-            (stdout, stderr, rc) = winexe.run('cmd /C')
+            (stdout, stderr, rc) = self.vm.rexec('cmd /C', fatal=False,
+                                                 debug=True)
             if rc == 0:
                 return True
+
             log = tempfile.NamedTemporaryFile(delete=False)
             try:
                 log.file.write(stdout)
@@ -711,27 +694,5 @@ class Windows(OSBase):
 
         raise FatalError("Connection to the Windows VM failed after %d retries"
                          % retries)
-
-    def _guest_exec(self, command, fatal=True):
-        """Execute a command on a windows VM"""
-
-        passwd = self.sysprep_params['password']
-
-        winexe = WinEXE('Administrator', passwd, 'localhost')
-        winexe.runas('Administrator', passwd).uninstall()
-
-        try:
-            (stdout, stderr, rc) = winexe.run(command)
-        except WinexeTimeout:
-            FatalError("Command: `%s' timeout out." % command)
-
-        if rc != 0 and fatal:
-            reason = stderr if len(stderr) else stdout
-            self.out.output("Command: `%s' failed (rc=%d). Reason: %s" %
-                            (command, rc, reason))
-            raise FatalError("Command: `%s' failed (rc=%d). Reason: %s" %
-                             (command, rc, reason))
-
-        return (stdout, stderr, rc)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
