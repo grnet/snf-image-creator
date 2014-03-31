@@ -21,6 +21,7 @@ Windows OSs."""
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError
 from image_creator.os_type.windows.vm import VM
+from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
 
 import hivex
@@ -29,7 +30,6 @@ import os
 import time
 import random
 import string
-import struct
 import re
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
@@ -147,6 +147,7 @@ class Windows(OSBase):
         self.product_name = self.image.g.inspect_get_product_name(self.root)
 
         self.vm = VM(self.image.device, self.sysprep_params)
+        self.registry = Registry(self.image.g, self.root)
 
         self.syspreped = False
 
@@ -311,11 +312,11 @@ class Windows(OSBase):
 
         self.mount(readonly=False)
         try:
-            disabled_uac = self._update_uac_remote_setting(1)
+            disabled_uac = self.registry.update_uac_remote_setting(1)
             token = self._enable_os_monitor()
 
             # disable the firewalls
-            firewall_states = self._update_firewalls(0, 0, 0)
+            firewall_states = self.registry.update_firewalls(0, 0, 0)
 
             # Delete the pagefile. It will be recreated when the system boots
             systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
@@ -367,9 +368,9 @@ class Windows(OSBase):
             self.mount(readonly=False)
             try:
                 if disabled_uac:
-                    self._update_uac_remote_setting(0)
+                    self.registry.update_uac_remote_setting(0)
 
-                self._update_firewalls(*firewall_states)
+                self.registry.update_firewalls(*firewall_states)
             finally:
                 self.umount()
 
@@ -406,43 +407,6 @@ class Windows(OSBase):
             self._shutdown()
         self.out.success("done")
 
-    def _open_hive(self, hive, write=False):
-        """Returns a context manager for opening a hive file of the image for
-        reading or writing.
-        """
-        g = self.image.g
-        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
-        path = "%s/system32/config/%s" % (systemroot, hive)
-        try:
-            path = g.case_sensitive_path(path)
-        except RuntimeError as err:
-            raise FatalError("Unable to retrieve file: %s. Reason: %s" %
-                             (hive, str(err)))
-
-        class OpenHive:
-            """The OpenHive context manager"""
-            def __enter__(self):
-                localfd, self.localpath = tempfile.mkstemp()
-                try:
-                    os.close(localfd)
-                    g.download(path, self.localpath)
-
-                    hive = hivex.Hivex(self.localpath, write=write)
-                except:
-                    os.unlink(self.localpath)
-                    raise
-
-                return hive
-
-            def __exit__(self, exc_type, exc_value, traceback):
-                try:
-                    if write:
-                        g.upload(self.localpath, path)
-                finally:
-                    os.unlink(self.localpath)
-
-        return OpenHive()
-
     def _shutdown(self):
         """Shuts down the windows VM"""
         self.vm.rexec(r'shutdown /s /t 5')
@@ -464,210 +428,48 @@ class Windows(OSBase):
 
         token = "".join(random.choice(string.ascii_letters) for x in range(16))
 
-        with self._open_hive('SOFTWARE', write=True) as hive:
-            # Enable automatic logon.
-            # This is needed because we need to execute a script that we add in
-            # the RunOnce registry entry and those programs only get executed
-            # when a user logs on. There is a RunServicesOnce registry entry
-            # whose keys get executed in the background when the logon dialog
-            # box first appears, but they seem to only work with services and
-            # not arbitrary command line expressions :-(
-            #
-            # Instructions on how to turn on automatic logon in Windows can be
-            # found here: http://support.microsoft.com/kb/324737
-            #
-            # Warning: Registry change will not work if the “Logon Banner” is
-            # defined on the server either by a Group Policy object (GPO) or by
-            # a local policy.
+        # Enable automatic logon.
+        # This is needed because we need to execute a script that we add in the
+        # RunOnce registry entry and those programs only get executed when a
+        # user logs on. There is a RunServicesOnce registry entry whose keys
+        # get executed in the background when the logon dialog box first
+        # appears, but they seem to only work with services and not arbitrary
+        # command line expressions :-(
+        #
+        # Instructions on how to turn on automatic logon in Windows can be
+        # found here: http://support.microsoft.com/kb/324737
+        #
+        # Warning: Registry change will not work if the “Logon Banner” is
+        # defined on the server either by a Group Policy object (GPO) or by a
+        # local policy.
 
-            winlogon = hive.root()
-            for child in ('Microsoft', 'Windows NT', 'CurrentVersion',
-                          'Winlogon'):
-                winlogon = hive.node_get_child(winlogon, child)
+        user = self.sysprep_params['admin']
+        passwd = self.sysprep_params['password']
+        self.registry.enable_autologon(user, passwd)
 
-            hive.node_set_value(
-                winlogon,
-                {'key': 'DefaultUserName', 't': 1,
-                 'value': "Administrator".encode('utf-16le')})
-            hive.node_set_value(
-                winlogon,
-                {'key': 'DefaultPassword', 't': 1,
-                 'value':  self.sysprep_params['password'].encode('utf-16le')})
-            hive.node_set_value(
-                winlogon,
-                {'key': 'AutoAdminLogon', 't': 1,
-                 'value': "1".encode('utf-16le')})
+        commands = {
+            "BootMonitor":
+            (r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
+             r'-ExecutionPolicy RemoteSigned '
+             r'"&{$port=new-Object System.IO.Ports.SerialPort COM1,9600,'
+             r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
+             r'$port.Close()}"'),
+            "UpdateRegistry":
+            (r'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
+             r'\policies\system /v LocalAccountTokenFilterPolicy'
+             r' /t REG_DWORD /d 1 /f')}
 
-            key = hive.root()
-            for child in ('Microsoft', 'Windows', 'CurrentVersion'):
-                key = hive.node_get_child(key, child)
-
-            runonce = hive.node_get_child(key, "RunOnce")
-            if runonce is None:
-                runonce = hive.node_add_child(key, "RunOnce")
-
-            value = (
-                r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
-                r'-ExecutionPolicy RemoteSigned '
-                r'"&{$port=new-Object System.IO.Ports.SerialPort COM1,9600,'
-                r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
-                r'$port.Close()}"').encode('utf-16le')
-
-            hive.node_set_value(
-                runonce, {'key': "BootMonitor", 't': 1, 'value': value})
-
-            value = (
-                r'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
-                r'\policies\system /v LocalAccountTokenFilterPolicy'
-                r' /t REG_DWORD /d 1 /f').encode('utf-16le')
-
-            hive.node_set_value(
-                runonce, {'key': "UpdateRegistry", 't': 1, 'value': value})
-
-            hive.commit(None)
+        self.registry.runonce(commands)
 
         return token
-
-    def _update_firewalls(self, domain, public, standard):
-        """Enables or disables the firewall for the Domain, the Public and the
-        Standard profile. Returns a triple with the old values.
-
-        1 will enable a firewall and 0 will disable it
-        """
-
-        if domain not in (0, 1):
-            raise ValueError("Valid values for domain parameter are 0 and 1")
-
-        if public not in (0, 1):
-            raise ValueError("Valid values for public parameter are 0 and 1")
-
-        if standard not in (0, 1):
-            raise ValueError("Valid values for standard parameter are 0 and 1")
-
-        with self._open_hive('SYSTEM', write=True) as hive:
-            select = hive.node_get_child(hive.root(), 'Select')
-            current_value = hive.node_get_value(select, 'Current')
-
-            # expecting a little endian dword
-            assert hive.value_type(current_value)[1] == 4
-            current = "%03d" % hive.value_dword(current_value)
-
-            firewall_policy = hive.root()
-            for child in ('ControlSet%s' % current, 'services', 'SharedAccess',
-                          'Parameters', 'FirewallPolicy'):
-                firewall_policy = hive.node_get_child(firewall_policy, child)
-
-            old_values = []
-            new_values = [domain, public, standard]
-            for profile in ('Domain', 'Public', 'Standard'):
-                node = hive.node_get_child(firewall_policy,
-                                           '%sProfile' % profile)
-
-                old_value = hive.node_get_value(node, 'EnableFirewall')
-
-                # expecting a little endian dword
-                assert hive.value_type(old_value)[1] == 4
-                old_values.append(hive.value_dword(old_value))
-
-                hive.node_set_value(
-                    node, {'key': 'EnableFirewall', 't': 4L,
-                           'value': struct.pack("<I", new_values.pop(0))})
-            hive.commit(None)
-
-        return old_values
-
-    def _update_uac_remote_setting(self, value):
-        """Updates the registry key value:
-        [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
-        \System]"LocalAccountTokenFilterPolicy"
-
-        value = 1 will disable the UAC remote restrictions
-        value = 0 will enable the UAC remote restrictions
-
-        For more info see here: http://support.microsoft.com/kb/951016
-
-        Returns:
-            True if the key is changed
-            False if the key is unchanged
-        """
-
-        if value not in (0, 1):
-            raise ValueError("Valid values for value parameter are 0 and 1")
-
-        with self._open_hive('SOFTWARE', write=True) as hive:
-            key = hive.root()
-            for child in ('Microsoft', 'Windows', 'CurrentVersion', 'Policies',
-                          'System'):
-                key = hive.node_get_child(key, child)
-
-            policy = None
-            for val in hive.node_values(key):
-                if hive.value_key(val) == "LocalAccountTokenFilterPolicy":
-                    policy = val
-
-            if policy is not None:
-                dword = hive.value_dword(policy)
-                if dword == value:
-                    return False
-            elif value == 0:
-                return False
-
-            new_value = {'key': "LocalAccountTokenFilterPolicy", 't': 4L,
-                         'value': struct.pack("<I", value)}
-
-            hive.node_set_value(key, new_value)
-            hive.commit(None)
-
-        return True
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Windows, self)._do_collect_metadata()
-        self.meta["USERS"] = " ".join(self._get_users())
 
-    def _get_users(self):
-        """Returns a list of users found in the images"""
-
-        with self._open_hive('SAM') as hive:
-            # Navigate to /SAM/Domains/Account/Users
-            users_node = hive.root()
-            for child in ('SAM', 'Domains', 'Account', 'Users'):
-                users_node = hive.node_get_child(users_node, child)
-
-            # Navigate to /SAM/Domains/Account/Users/Names
-            names_node = hive.node_get_child(users_node, 'Names')
-
-            # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%
-            # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\Names\%Username%
-            #
-            # The RID (relative identifier) of each user is stored as the type!
-            # (not the value) of the default key of the node under Names whose
-            # name is the user's username. Under the RID node, there in a F
-            # value that contains information about this user account.
-            #
-            # See sam.h of the chntpw project on how to translate the F value
-            # of an account in the registry. Bytes 56 & 57 are the account type
-            # and status flags. The first bit is the 'account disabled' bit
-            disabled = lambda f: int(f[56].encode('hex'), 16) & 0x01
-
-            users = []
-            for user_node in hive.node_children(names_node):
-                username = hive.node_name(user_node)
-                rid = hive.value_type(hive.node_get_value(user_node, ""))[0]
-                # if RID is 500 (=0x1f4), the corresponding node name under
-                # Users is '000001F4'
-                key = ("%8.x" % rid).replace(' ', '0').upper()
-                rid_node = hive.node_get_child(users_node, key)
-                f_val = hive.value_value(hive.node_get_value(rid_node, 'F'))[1]
-
-                if disabled(f_val):
-                    self.out.warn("Found disabled `%s' account!" % username)
-                    continue
-
-                users.append(username)
-
-        # Filter out the guest account
-        return users
+        # We only care for active users
+        _, users = self.registry.enum_users()
+        self.meta["USERS"] = " ".join(users)
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
