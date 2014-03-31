@@ -301,11 +301,11 @@ class Windows(OSBase):
     def do_sysprep(self):
         """Prepare system for image creation."""
 
-        if getattr(self, 'syspreped', False):
+        if self.syspreped:
             raise FatalError("Image is already syspreped!")
 
         txt = "System preparation parameter: `%s' is needed but missing!"
-        for name, param in self.needed_sysprep_params.items():
+        for name, _ in self.needed_sysprep_params.items():
             if name not in self.sysprep_params:
                 raise FatalError(txt % name)
 
@@ -332,78 +332,79 @@ class Windows(OSBase):
         try:
             self.out.output("Starting windows VM ...", False)
             self.vm.start()
-            self.out.success(
-                "started (console on VNC display: %d)" % self.vm.display)
-
-            self.out.output("Waiting for OS to boot ...", False)
-            timeout = self.sysprep_params['boot_timeout']
-            if not self.vm.wait_on_serial(token, timeout):
-                raise FatalError("Windows VM booting timed out!")
-            self.out.success('done')
-
-            self.out.output("Checking connectivity to the VM ...", False)
-            self._check_connectivity()
-            self.out.success('done')
-
-            self.out.output("Disabling automatic logon ...", False)
-            self._disable_autologon()
-            self.out.success('done')
-
-            self.out.output('Preparing system for image creation:')
-
-            tasks = self.list_syspreps()
-            enabled = [task for task in tasks if task.enabled]
-            size = len(enabled)
-
-            # Make sure shrink runs in the end, before ms sysprep
-            enabled = [task for task in enabled if
-                       self.sysprep_info(task).name != 'shrink']
-
-            if len(enabled) != size:
-                enabled.append(self.shrink)
-
-            # Make sure the ms sysprep is the last task to run if it is enabled
-            enabled = [task for task in enabled if
-                       self.sysprep_info(task).name != 'microsoft-sysprep']
-
-            ms_sysprep_enabled = False
-            if len(enabled) != size:
-                enabled.append(self.microsoft_sysprep)
-                ms_sysprep_enabled = True
-
-            cnt = 0
-            for task in enabled:
-                cnt += 1
-                self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
-                task()
-                setattr(task.im_func, 'executed', True)
-
-            self.out.output("Sending shut down command ...", False)
-            if not ms_sysprep_enabled:
-                self._shutdown()
-            self.out.success("done")
-
-            self.out.output("Waiting for windows to shut down ...", False)
-            self.vm.wait(self.sysprep_params['shutdown_timeout'])
-            self.out.success("done")
-
-        finally:
             try:
-                if self.vm.isalive():
-                    self.out.output("Destroying windows VM ...", False)
-                    self.vm.stop(self.sysprep_params['shutdown_timeout'])
-                    self.out.success("done")
+                self.out.success("started (console on VNC display: %d)" %
+                                 self.vm.display)
+
+                self.out.output("Waiting for OS to boot ...", False)
+                timeout = self.sysprep_params['boot_timeout']
+                if not self.vm.wait_on_serial(token, timeout):
+                    raise FatalError("Windows VM booting timed out!")
+                self.out.success('done')
+
+                self.out.output("Checking connectivity to the VM ...", False)
+                self._check_connectivity()
+                self.out.success('done')
+
+                self.out.output("Disabling automatic logon ...", False)
+                self._disable_autologon()
+                self.out.success('done')
+
+                self.out.output('Preparing system for image creation:')
+                self._exec_sysprep_tasks()
+
+                self.out.output("Waiting for windows to shut down ...", False)
+                self.vm.wait(self.sysprep_params['shutdown_timeout'])
+                self.out.success("done")
             finally:
-                self.image.enable_guestfs()
+                # if the VM is not already dead here, a Fatal Error will have
+                # already been raised. There is no reason to make the command
+                # fatal.
+                self.vm.stop(1, fatal=False)
+        finally:
+            self.image.enable_guestfs()
 
-                self.mount(readonly=False)
-                try:
-                    if disabled_uac:
-                        self._update_uac_remote_setting(0)
+            self.mount(readonly=False)
+            try:
+                if disabled_uac:
+                    self._update_uac_remote_setting(0)
 
-                    self._update_firewalls(*firewall_states)
-                finally:
-                    self.umount()
+                self._update_firewalls(*firewall_states)
+            finally:
+                self.umount()
+
+    def _exec_sysprep_tasks(self):
+        """This function hosts the actual code for executing the enabled
+        sysprep tasks. At the end of this method the VM is shut down if needed.
+        """
+        tasks = self.list_syspreps()
+        enabled = [task for task in tasks if task.enabled]
+        size = len(enabled)
+
+        # Make sure shrink runs in the end, before ms sysprep
+        enabled = [task for task in enabled
+                   if self.sysprep_info(task).name != 'shrink']
+        if len(enabled) != size:
+            enabled.append(self.shrink)
+
+        # Make sure the ms sysprep is the last task to run if it is enabled
+        enabled = [task for task in enabled
+                   if self.sysprep_info(task).name != 'microsoft-sysprep']
+
+        if len(enabled) != size:
+            enabled.append(self.microsoft_sysprep)
+
+        cnt = 0
+        for task in enabled:
+            cnt += 1
+            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            task()
+            setattr(task.im_func, 'executed', True)
+
+        self.out.output("Sending shut down command ...", False)
+        if not self.syspreped:
+            self._shutdown()
+        self.out.success("done")
 
     def _open_hive(self, hive, write=False):
         """Returns a context manager for opening a hive file of the image for
