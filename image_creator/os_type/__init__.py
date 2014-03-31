@@ -83,16 +83,23 @@ def sysprep(message, enabled=True, **kwargs):
 
 def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
     """Decorator for __init__ that adds the definition for a system preparation
-    parameter in an instance of a os_type class
+    parameter in an instance of an os_type class
     """
     def wrapper(init):
         @wraps(init)
         def inner(self, *args, **kwargs):
-            init(self, *args, **kwargs)
+
+            if not hasattr(self, 'needed_sysprep_params'):
+                self.needed_sysprep_params = {}
+            if not hasattr(self, 'sysprep_params'):
+                self.sysprep_params = {}
+
             self.needed_sysprep_params[name] = \
                 self.SysprepParam(type, default, descr, validate)
             if default is not None:
                 self.sysprep_params[name] = default
+
+            init(self, *args, **kwargs)
         return inner
     return wrapper
 
@@ -122,9 +129,15 @@ class OSBase(object):
         self.root = image.root
         self.out = image.out
 
-        self.needed_sysprep_params = {}
-        self.sysprep_params = \
-            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+        # Could be defined in a decorator
+        if not hasattr(self, 'needed_sysprep_params'):
+            self.needed_sysprep_params = {}
+        if not hasattr(self, 'sysprep_params'):
+            self.sysprep_params = {}
+
+        if 'sysprep_params' in kargs:
+            for key, val in kargs['sysprep_params'].items():
+                self.sysprep_params[key] = val
 
         self.meta = {}
         self.mounted = False
