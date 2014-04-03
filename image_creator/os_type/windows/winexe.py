@@ -37,11 +37,12 @@ class WinEXE:
     def is_installed(program='winexe'):
         return which(program) is not None
 
-    def __init__(self, username, password, hostname, program='winexe'):
-        self._host = hostname
+    def __init__(self, username, hostname, **kwargs):
         self._user = username
-        self._pass = password
-        self._prog = program
+        self._host = hostname
+
+        self._pass = kwargs['password'] if 'password' in kwargs else None
+        self._prog = kwargs['progname'] if 'progname' in kwargs else 'winexe'
 
         # -U USERNAME[%PASSWORD]
         user = '%s%s' % (self._user, '%%%s' % self._pass if self._pass else "")
@@ -54,14 +55,22 @@ class WinEXE:
         user = '%s%s' % (self._user, '%%%s' % self._pass if self._pass else "")
         self._opts = ['-U', user]
 
-    def runas(self, username, password):
+    def runas(self, username, passwd=None):
         """Run command as this user"""
-        self._opts.append('--runas=%s%%%s' % (username, password))
+
+        opt = '--runas=%s%s' % (username,
+                                '%%%s' % passwd if passwd is not None else "")
+        self._opts.append(opt)
         return self
 
     def system(self):
         """Use SYSTEM account"""
         self._opts.append('--system')
+        return self
+
+    def no_pass(self):
+        """Do not ask for password"""
+        self._opts.append('--no-pass')
         return self
 
     def uninstall(self):

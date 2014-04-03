@@ -105,7 +105,6 @@ class Windows(OSBase):
     @add_sysprep_param(
         'mem', int, 1024, "Virtual RAM size for the helper VM (MiB)", _POSINT)
     @add_sysprep_param('admin', str, 'Administrator', 'Administrator Username')
-    @add_sysprep_param('password', str, None, 'Password for Administrator')
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -303,7 +302,9 @@ class Windows(OSBase):
         """Prepare system for image creation."""
 
         if self.syspreped:
-            raise FatalError("Image is already syspreped!")
+            raise FatalError(
+                "Microsoft's System Preparation Tool has ran on the Image."
+                "Further image customization is not possible.")
 
         txt = "System preparation parameter: `%s' is needed but missing!"
         for name, _ in self.needed_sysprep_params.items():
@@ -312,8 +313,9 @@ class Windows(OSBase):
 
         self.mount(readonly=False)
         try:
+            v_val = self.registry.reset_passwd(self.sysprep_params['admin'])
             disabled_uac = self.registry.update_uac_remote_setting(1)
-            token = self._enable_os_monitor()
+            token = self._add_boot_scripts()
 
             # disable the firewalls
             firewall_states = self.registry.update_firewalls(0, 0, 0)
@@ -370,6 +372,11 @@ class Windows(OSBase):
                 if disabled_uac:
                     self.registry.update_uac_remote_setting(0)
 
+                if not self.syspreped:
+                    # Reset the old password
+                    admin = self.sysprep_params['admin']
+                    self.registry.reset_passwd(admin, v_val)
+
                 self.registry.update_firewalls(*firewall_states)
             finally:
                 self.umount()
@@ -421,20 +428,49 @@ class Windows(OSBase):
         self.vm.rexec('REG DELETE %s /v DefaultPassword /f' % winlogon)
         self.vm.rexec('REG DELETE %s /v AutoAdminLogon /f' % winlogon)
 
-    def _enable_os_monitor(self):
-        """Add a script in the registry that will send a random string to the
-        first serial port when the windows image finishes booting.
+    def _add_boot_scripts(self):
+        """Add various scripts in the registry that will be executed during the
+        next boot. It returns a random string that will be send to the serial
+        port of the VM when the OS boots.
         """
 
+        commands = {}
+
+        # This script will send a random string to the first serial port. This
+        # can be used to determine when the OS has booted.
         token = "".join(random.choice(string.ascii_letters) for x in range(16))
+        commands['BootMonitor'] = \
+            (r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
+             r'-ExecutionPolicy RemoteSigned '
+             r'"&{$port=new-Object System.IO.Ports.SerialPort COM1,9600,'
+             r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
+             r'$port.Close()}"')
+
+        # This will update the password of the admin user to self.vm.password
+        commands["UpdatePassword"] = \
+            "net user %s %s" % (self.sysprep_params['admin'], self.vm.password)
+
+        # This is previously done with hivex when we executed
+        # self.registry.update_uac_remote_setting(1).
+        # Although the command above works on all windows version and the
+        # UAC remote restrictions are disabled, on Windows 2012 the registry
+        # value seems corrupted after we run the command. Maybe this has to do
+        # with a bug or a limitation in hivex. As a workaround we re-update the
+        # value from within Windows.
+        commands["UpdateRegistry"] = \
+            (r'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
+             r'\policies\system /v LocalAccountTokenFilterPolicy'
+             r' /t REG_DWORD /d 1 /f')
+
+        self.registry.runonce(commands)
 
         # Enable automatic logon.
-        # This is needed because we need to execute a script that we add in the
-        # RunOnce registry entry and those programs only get executed when a
-        # user logs on. There is a RunServicesOnce registry entry whose keys
-        # get executed in the background when the logon dialog box first
-        # appears, but they seem to only work with services and not arbitrary
-        # command line expressions :-(
+        # This is needed in order for the scripts we added in the RunOnce
+        # registry entry to get executed, since the RunOnce commands only get
+        # executed when a user logs on. There is a RunServicesOnce registry
+        # entry whose keys get executed in the background when the logon dialog
+        # box first appears, but they seem to only work with services and not
+        # arbitrary command line expressions :-(
         #
         # Instructions on how to turn on automatic logon in Windows can be
         # found here: http://support.microsoft.com/kb/324737
@@ -443,23 +479,7 @@ class Windows(OSBase):
         # defined on the server either by a Group Policy object (GPO) or by a
         # local policy.
 
-        user = self.sysprep_params['admin']
-        passwd = self.sysprep_params['password']
-        self.registry.enable_autologon(user, passwd)
-
-        commands = {
-            "BootMonitor":
-            (r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
-             r'-ExecutionPolicy RemoteSigned '
-             r'"&{$port=new-Object System.IO.Ports.SerialPort COM1,9600,'
-             r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
-             r'$port.Close()}"'),
-            "UpdateRegistry":
-            (r'REG ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
-             r'\policies\system /v LocalAccountTokenFilterPolicy'
-             r' /t REG_DWORD /d 1 /f')}
-
-        self.registry.runonce(commands)
+        self.registry.enable_autologon(self.sysprep_params['admin'])
 
         return token
 

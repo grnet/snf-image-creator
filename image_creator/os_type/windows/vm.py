@@ -23,6 +23,7 @@ import signal
 import tempfile
 import os
 import time
+from string import lowercase, uppercase, digits
 
 from image_creator.util import FatalError, get_kvm_binary
 from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
@@ -52,6 +53,35 @@ class VM(object):
             return ':'.join(['%02x' % x for x in mac])
 
         self.mac = random_mac()
+
+        def random_password():
+            """Creates a random password"""
+
+            # I borrowed this from Synnefo
+            pool = lowercase + uppercase + digits
+            lowerset = set(lowercase)
+            upperset = set(uppercase)
+            digitset = set(digits)
+            length = 10
+
+            password = ''.join(random.choice(pool) for i in range(length - 2))
+
+            # Make sure the password is compliant
+            chars = set(password)
+            if not chars & lowerset:
+                password += random.choice(lowercase)
+            if not chars & upperset:
+                password += random.choice(uppercase)
+            if not chars & digitset:
+                password += random.choice(digits)
+
+            # Pad if necessary to reach required length
+            password += ''.join(random.choice(pool) for i in
+                                range(length - len(password)))
+
+            return password
+
+        self.password = random_password()
 
         # Use Ganeti's VNC port range for a random vnc port
         self.display = random.randint(11000, 14999) - 5900
@@ -155,9 +185,8 @@ class VM(object):
         """Remote execute a command on the windows VM"""
 
         user = self.params['admin']
-        passwd = self.params['password']
-        winexe = WinEXE(user, passwd, 'localhost')
-        winexe.runas(user, passwd).uninstall()
+        winexe = WinEXE(user, 'localhost', password=self.password)
+        winexe.runas(user, self.password).uninstall().no_pass()
         if debug:
             winexe.debug(9)
 

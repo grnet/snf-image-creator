@@ -238,6 +238,47 @@ class Registry(object):
 
         return (users, active)
 
+    def reset_passwd(self, user, v_field=None):
+        r"""Reset the password for user 'user'. If v_field is not None, the
+        value of key \HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%\V
+        is replaced with this one, otherwise the LM and NT passwords of the
+        original V field are cleared out. In any case, the value of the
+        original V field is returned.
+        """
+
+        # This is a hack because python 2.x does not support assigning new
+        # values to nonlocal variables
+        parent = {}
+
+        def update_v_field(hive, username, rid_node):
+            assert 'old' not in parent, "Multiple users with same username"
+
+            field = hive.node_get_value(rid_node, 'V')
+            v_type, v_val = hive.value_value(field)
+            assert v_type == 3L, "V field type (=%d) isn't REG_BINARY" % v_type
+
+            new = v_field
+            if new is None:
+                # In order to reset the passwords, all we need to do is to zero
+                # out the length fields for the LM password hash and the NT
+                # password hash in the V field of the user's %RID% node. LM
+                # password hash length field is at offset 0xa0 and NT password
+                # hash length is at offset 0xac. See here for more info:
+                #
+                # http://www.beginningtoseethelight.org/ntsecurity/index.htm
+                #        #D3BC3F5643A17823
+                fmt = '%ds4x8s4x%ds' % (0xa0, len(v_val) - 0xb0)
+                new = ("\x00" * 4).join(struct.unpack(fmt,  v_val))
+
+            hive.node_set_value(rid_node, {'key': "V", 't': 3L, 'value': new})
+            hive.commit(None)
+            parent['old'] = v_val
+
+        self._foreach_user([user], update_v_field, write=True)
+
+        assert 'old' in parent, "user: `%s' does not exist" % user
+        return parent['old']
+
     def _foreach_user(self, userlist, action, write=False):
         """Performs an action on the RID node of a user in the registry, for
         every user found in the userlist. If userlist is empty, it performs the
