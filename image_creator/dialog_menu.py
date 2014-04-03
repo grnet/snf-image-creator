@@ -690,7 +690,14 @@ def sysprep_params(session):
     advanced_names = [k for k, v in needed.items() if v.default is not None]
 
     while 1:
-        code, output = print_form(simple_names, extra_button=True)
+
+        if len(simple_names) > 0:
+            extra_button = len(advanced_names) > 0
+            code, output = print_form(simple_names, extra_button=extra_button)
+            choice = simple_names
+        elif len(advanced_names) > 0:
+            code, output = print_form(advanced_names, extra_button=False)
+            choice = advanced_names
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
@@ -703,7 +710,7 @@ def sysprep_params(session):
                     break
             continue
 
-        if check_params(simple_names, output):
+        if check_params(choice, output):
             break
 
     return True
