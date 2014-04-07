@@ -46,17 +46,27 @@ from functools import wraps
 
 
 def os_cls(distro, osfamily):
-    """Given the distro name and the osfamily, return the appropriate class"""
-    module = None
-    classname = None
+    """Given the distro name and the osfamily, return the appropriate OSBase
+    derived class
+    """
+
+    # hyphens are not allowed in module names
+    canonicalize = lambda x: x.replace('-', '_').lower()
+
+    distro = canonicalize(distro)
+    osfamily = canonicalize(osfamily)
+
     try:
         module = __import__("image_creator.os_type.%s" % distro,
                             fromlist=['image_creator.os_type'])
         classname = distro.capitalize()
     except ImportError:
-        module = __import__("image_creator.os_type.%s" % osfamily,
-                            fromlist=['image_creator.os_type'])
-        classname = osfamily.capitalize()
+        try:
+            module = __import__("image_creator.os_type.%s" % osfamily,
+                                fromlist=['image_creator.os_type'])
+            classname = osfamily.capitalize()
+        except ImportError:
+            raise FatalError("Unknown OS name: `%s'" % osfamily)
 
     return getattr(module, classname)
 
