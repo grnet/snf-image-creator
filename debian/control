@@ -14,7 +14,8 @@ Architecture: all
 Depends: ${misc:Depends}, ${python:Depends}, python-progress (>=1.0.2),
  python-setuptools, python-ansicolors, python-dialog, kamaki(>=0.9),
  python-guestfs, python-sendfile, python-parted, rsync, libguestfs-tools,
- python-hivex, qemu-kvm, winexe
+ python-hivex, qemu-kvm
+Suggests: winexe
 Description: Synnefo Image Creator
  snf-image-creator is a command line tool for creating OS images to be used
  with synnefo.
