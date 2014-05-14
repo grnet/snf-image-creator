@@ -24,6 +24,15 @@ import tempfile
 import os
 import struct
 
+# http://technet.microsoft.com/en-us/library/hh824815.aspx
+WINDOWS_SETUP_STATES = (
+    "IMAGE_STATE_COMPLETE",
+    "IMAGE_STATE_UNDEPLOYABLE",
+    "IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE",
+    "IMAGE_STATE_GENERALIZE_RESEAL_TO_AUDIT",
+    "IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE",
+    "IMAGE_STATE_SPECIALIZE_RESEAL_TO_AUDIT")
+
 
 class Registry(object):
     """Windows Registry manipulation methods"""
@@ -69,6 +78,41 @@ class Registry(object):
                     os.unlink(self.localpath)
 
         return OpenHive()
+
+    def get_setup_state(self):
+        """Returns the stage of Windows Setup the image is in.
+        The method will return an int with one of the following values:
+            0 => IMAGE_STATE_COMPLETE
+            1 => IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE
+            2 => IMAGE_STATE_GENERALIZE_RESEAL_TO_AUDIT
+            3 => IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE
+            4 => IMAGE_STATE_SPECIALIZE_RESEAL_TO_AUDIT
+        For more information check here:
+            http://technet.microsoft.com/en-us/library/hh824815.aspx
+        """
+
+        with self.open_hive('SOFTWARE') as hive:
+            # Navigate to:
+            #   SOFTWARE/Microsoft/Windows/CurrentVersion/Setup/State
+            state = hive.root()
+            for child in ('Microsoft', 'Windows', 'CurrentVersion',
+                          'Setup', 'State'):
+                state = hive.node_get_child(state, child)
+
+            image_state = hive.node_get_value(state, 'ImageState')
+            vtype, value = hive.value_value(image_state)
+            assert vtype == 1L, \
+                "ImageState field type (=%d) is not REG_SZ" % vtype
+
+            value = value.decode('utf-16le')
+
+            ret = 0
+            for known_state in WINDOWS_SETUP_STATES:
+                if value == known_state + '\x00':  # REG_SZ is null-terminated
+                    return ret
+                ret += 1
+
+        raise FatalError("Unknown Windows Setup State: %s" % value)
 
     def runonce(self, commands):
         """Add commands to the RunOnce registry key"""

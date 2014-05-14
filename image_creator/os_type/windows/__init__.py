@@ -132,23 +132,20 @@ class Windows(OSBase):
         device = self.image.g.part_to_dev(self.root)
 
         self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
-        self.last_drive = None
-        self.system_drive = None
-
-        for drive, part in self.image.g.inspect_get_drive_mappings(self.root):
-            if part == "%s%d" % (device, self.last_part_num):
-                self.last_drive = drive
-            if part == self.root:
-                self.system_drive = drive
-
-        assert self.system_drive
 
         self.product_name = self.image.g.inspect_get_product_name(self.root)
 
         self.vm = VM(self.image.device, self.sysprep_params)
         self.registry = Registry(self.image.g, self.root)
 
-        self.syspreped = False
+        # If the image is already sysprepped we cannot further customize it
+        self.mount(readonly=True)
+        try:
+            self.out.output("Checking if media is sysprepped ...", False)
+            self.syspreped = self.registry.get_setup_state() > 0
+            self.out.success("done")
+        finally:
+            self.umount()
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -303,7 +300,7 @@ class Windows(OSBase):
 
         if self.syspreped:
             raise FatalError(
-                "Microsoft's System Preparation Tool has ran on the Image."
+                "Microsoft's System Preparation Tool has ran on the Image. "
                 "Further image customization is not possible.")
 
         txt = "System preparation parameter: `%s' is needed but missing!"
