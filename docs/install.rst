@@ -71,7 +71,7 @@ And install the package with this command:
 Ubuntu
 ------
 
-For *Ubuntu 12.04 LTS*, *12.10* and *13.04* systems, you can use our official
+For *Ubuntu 12.04 LTS* and *14.04 LTS* systems, you can use our official
 packages found in *grnet/synnefo* Lauchpad PPA.
 
 Add the Synnefo PPA in your system:
@@ -83,7 +83,7 @@ Add the Synnefo PPA in your system:
 
 If *apt-add-repository* is missing, first install:
 
-*software-properties-common* (Ubuntu 12.10 & 13.04):
+*software-properties-common* (Ubuntu 14.04):
 
 .. code-block:: console
 
@@ -115,15 +115,15 @@ Install the package by issuing:
 Fedora
 ------
 
-For *Fedora 17* you can use our official packages hosted at the *synnefo*
+For *Fedora 20* you can use our official packages hosted at the *synnefo*
 repository of the openSUSE Build Service.
 
-Add the *synnefo* repository for *Fedora 17* to *yum*:
+Add the *synnefo* repository for *Fedora 20* to *yum*:
 
 .. code-block:: console
 
    $ cd /etc/yum.repos.d
-   $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_17/home:GRNET:synnefo.repo
+   $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_20/home:GRNET:synnefo.repo
 
 To list the *snf-image-creator* package use the following command:
 
