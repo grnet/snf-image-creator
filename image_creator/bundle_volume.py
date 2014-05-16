@@ -372,8 +372,8 @@ class BundleVolume(object):
                 lines = src.readlines()
             with open(f, 'w') as dest:
                 for line in lines:
-                    for i, uuid in new_uuid.items():
-                        line = re.sub(orig[i], uuid, line)
+                    for i, new in new_uuid.items():
+                        line = re.sub(orig[i], new, line)
                     dest.write(line)
 
     def _create_filesystems(self, image, partitions):
