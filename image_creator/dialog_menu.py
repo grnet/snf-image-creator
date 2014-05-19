@@ -41,6 +41,7 @@ import os
 import textwrap
 import StringIO
 import json
+import re
 
 from image_creator import __version__ as version
 from image_creator.util import MD5, FatalError
@@ -471,9 +472,11 @@ def add_property(session):
     """Add a new property to the image"""
     d = session['dialog']
 
+    regexp = re.compile('^[A-Za-z_]+$')
+
     while 1:
-        (code, answer) = d.inputbox("Please provide a name for a new image"
-                                    " property:", width=WIDTH)
+        (code, answer) = d.inputbox("Please provide a case-insensitive name "
+                                    "for a new image property:", width=WIDTH)
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
@@ -482,11 +485,22 @@ def add_property(session):
             d.msgbox("A property name cannot be empty", width=SMALL_WIDTH)
             continue
 
+        if not re.match(regexp, name):
+            d.msgbox("Allowed characters for name: [a-zA-Z0-9_]", width=WIDTH)
+            continue
+
+        # Image properties are case-insensitive
+        name = name.upper()
+
+        if name in session['metadata']:
+            d.msgbox("Image property: `%s' already exists" % name, width=WIDTH)
+            continue
+
         break
 
     while 1:
         (code, answer) = d.inputbox("Please provide a value for image "
-                                    "property %s" % name, width=WIDTH)
+                                    "property: `%s'" % name, width=WIDTH)
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
