@@ -534,64 +534,42 @@ def modify_properties(session):
             continue
 
         (code, choice) = d.menu(
-            "In this menu you can edit existing image properties or add new "
-            "ones. Be careful! Most properties have special meaning and "
-            "alter the image deployment behavior. Press <HELP> to see more "
-            "information about image properties. Press <BACK> when done.",
-            height=18, width=WIDTH, choices=choices, menu_height=10,
-            ok_label="Edit", extra_button=1, extra_label="Add", cancel="Back",
-            help_button=1, title="Image Properties")
+            "In this menu you can edit and delete existing image properties "
+            "or add new ones. Be careful! Most properties have special "
+            "meaning and alter the image deployment behavior. Press <HELP> to "
+            "see more information about image properties. Press <BACK> when "
+            "done.", height=18, width=WIDTH, choices=choices, menu_height=10,
+            ok_label="Edit/Del", extra_button=1, extra_label="Add",
+            cancel="Back", help_button=1, title="Image Properties")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return True
         # Edit button
         elif code == d.DIALOG_OK:
-            (code, answer) = d.inputbox("Please provide a new value for the "
-                                        "image property with name `%s':" %
-                                        choice,
-                                        init=session['metadata'][choice],
-                                        width=WIDTH)
-            if code not in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            (code, answer) = d.inputbox(
+                "Please provide a new value for `%s' image property or press "
+                "<Delete> to completely delete it." % choice,
+                init=session['metadata'][choice], width=WIDTH, extra_button=1,
+                extra_label="Delete")
+            if code == d.DIALOG_OK:
                 value = answer.strip()
                 if len(value) == 0:
                     d.msgbox("Value cannot be empty!")
                     continue
                 else:
                     session['metadata'][choice] = value
+            # Delete button
+            elif code == d.DIALOG_EXTRA:
+                if not d.yesno("Are you sure you want to delete `%s' image "
+                               "property?" % choice, width=WIDTH):
+                    del session['metadata'][choice]
+                    d.msgbox("Image property: `%s' was deleted." % choice,
+                         width=SMALL_WIDTH)
         # ADD button
         elif code == d.DIALOG_EXTRA:
             add_property(session)
         elif code == 'help':
             show_properties_help(session)
-
-
-def delete_properties(session):
-    """Delete an image property"""
-    d = session['dialog']
-
-    choices = []
-    for (key, val) in session['metadata'].items():
-        choices.append((key, "%s" % val, 0))
-
-    if len(choices) == 0:
-        d.msgbox("No available images properties to delete!",
-                 width=SMALL_WIDTH)
-        return True
-
-    (code, to_delete) = d.checklist("Choose which properties to delete:",
-                                    choices=choices, width=WIDTH)
-    to_delete = map(lambda x: x.strip('"'), to_delete)  # needed for OpenSUSE
-
-    # If the user exits with ESC or CANCEL, the returned tag list is empty.
-    for i in to_delete:
-        del session['metadata'][i]
-
-    cnt = len(to_delete)
-    if cnt > 0:
-        d.msgbox("%d image properties were deleted." % cnt, width=SMALL_WIDTH)
-        return True
-    else:
-        return False
 
 
 def exclude_tasks(session):
@@ -870,16 +848,14 @@ def customization_menu(session):
 
     choices = [("Sysprep", "Run various image preparation tasks"),
                ("Shrink", "Shrink image"),
-               ("View/Modify", "View/Modify image properties"),
-               ("Delete", "Delete image properties"),
+               ("Modify", "Modify image properties"),
                ("Exclude", "Exclude various deployment tasks from running")]
 
     default_item = 0
 
     actions = {"Sysprep": sysprep,
                "Shrink": shrink,
-               "View/Modify": modify_properties,
-               "Delete": delete_properties,
+               "Modify": modify_properties,
                "Exclude": exclude_tasks}
     while 1:
         (code, choice) = d.menu(
