@@ -100,10 +100,10 @@ class VM(object):
         args.extend(self.kvm)
 
         if 'smp' in self.params:
-            args.extend(['-smp', str(self.params['smp'])])
+            args.extend(['-smp', str(self.params['smp'].value)])
 
         if 'mem' in self.params:
-            args.extend(['-m', str(self.params['mem'])])
+            args.extend(['-m', str(self.params['mem'].value)])
 
         args.extend([
             '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk])
@@ -184,7 +184,7 @@ class VM(object):
     def rexec(self, command, fatal=True, debug=False):
         """Remote execute a command on the windows VM"""
 
-        user = self.params['admin']
+        user = self.params['admin'].value
         winexe = WinEXE(user, 'localhost', password=self.password)
         winexe.runas(user, self.password).uninstall().no_pass()
         if debug:

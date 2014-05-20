@@ -560,7 +560,7 @@ def modify_properties(session):
                                "property?" % choice, width=WIDTH):
                     del session['metadata'][choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
-                         width=SMALL_WIDTH)
+                             width=SMALL_WIDTH)
         # ADD button
         elif code == d.DIALOG_EXTRA:
             add_property(session)
@@ -640,78 +640,67 @@ def exclude_tasks(session):
     return True
 
 
+def update_sysprep_param(session, name):
+    """Modify the value of a sysprep parameter"""
+    d = session['dialog']
+    image = session['image']
+
+    param = image.os.sysprep_params[name]
+
+    while 1:
+        (code, answer) = d.inputbox(
+            "Please provide a new value for configuration parameter: `%s'" %
+            name, width=WIDTH, init=str(param.value))
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return False
+
+        value = answer.strip()
+
+        if param.set_value(value) is False:
+            d.msgbox("Unable to update the value. Reason: %s" % param.error,
+                     width=WIDTH)
+            param.error = None
+            continue
+        break
+
+
 def sysprep_params(session):
     """Collect the needed sysprep parameters"""
     d = session['dialog']
     image = session['image']
 
-    available = image.os.sysprep_params
-    needed = image.os.needed_sysprep_params
-
-    if len(needed) == 0:
-        return True
-
-    def print_form(names, extra_button=False):
-        """print the dialog form providing sysprep_params"""
-        fields = []
-        for name in names:
-            param = needed[name]
-            default = str(available[name]) if name in available else ""
-            fields.append(("%s: " % param.description, default,
-                           SYSPREP_PARAM_MAXLEN))
-
-        kwargs = {}
-        if extra_button:
-            kwargs['extra_button'] = 1
-            kwargs['extra_label'] = "Advanced"
-
-        txt = "Please provide the following system preparation parameters:"
-        return d.form(txt, height=13, width=WIDTH, form_height=len(fields),
-                      fields=fields, **kwargs)
-
-    def check_params(names, values):
-        """check if the provided sysprep parameters have legal values"""
-        for i in range(len(names)):
-            param = needed[names[i]]
-            try:
-                normalized = param.type(values[i])
-                if param.validate(normalized):
-                    image.os.sysprep_params[names[i]] = normalized
-                    continue
-            except ValueError:
-                pass
-
-            d.msgbox("Invalid value for parameter: `%s'" % names[i],
-                     width=SMALL_WIDTH)
-            return False
-        return True
-
-    simple_names = [k for k, v in needed.items() if v.default is None]
-    advanced_names = [k for k, v in needed.items() if v.default is not None]
-
+    default = None
     while 1:
+        choices = []
+        for name, param in image.os.sysprep_params.items():
+            choices.append((name, str(param.value)))
 
-        if len(simple_names) > 0:
-            extra_button = len(advanced_names) > 0
-            code, output = print_form(simple_names, extra_button=extra_button)
-            choice = simple_names
-        elif len(advanced_names) > 0:
-            code, output = print_form(advanced_names, extra_button=False)
-            choice = advanced_names
+        if len(choices) == 0:
+            d.msgbox("No customization parameters available", width=WIDTH)
+            return True
+
+        if default is None:
+            default = choices[0][0]
+
+        (code, choice) = d.menu(
+            "In this menu you can update the value for parameters used in the "
+            "system preparation tasks. Press <Details> to see more info about "
+            "a specific configuration parameters and <Back> when done.",
+            height=18, width=WIDTH, choices=choices, menu_height=10,
+            ok_label="Update", extra_button=1, extra_label="Details",
+            cancel="Back", title="System Preparation Parameters")
+
+        default = choice
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            return False
-        if code == d.DIALOG_EXTRA:
-            while 1:
-                code, output = print_form(advanced_names)
-                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                    break
-                if check_params(advanced_names, output):
-                    break
-            continue
-
-        if check_params(choice, output):
-            break
+            return True
+        # Edit button
+        elif code == d.DIALOG_OK:
+            update_sysprep_param(session, choice)
+        # More button
+        else:
+            d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
 
     return True
 
@@ -780,9 +769,6 @@ def sysprep(session):
                          title="System Preparation", width=SMALL_WIDTH)
                 continue
 
-            if not sysprep_params(session):
-                continue
-
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
                 image.out.add(infobox)
@@ -849,16 +835,18 @@ def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
 
-    choices = [("Sysprep", "Run various image preparation tasks"),
+    choices = [("Parameters", "Modify customization parameters"),
+               ("Sysprep", "Run various image preparation tasks"),
                ("Shrink", "Shrink image"),
-               ("Modify", "Modify image properties"),
+               ("Properties", "Modify image properties"),
                ("Exclude", "Exclude various deployment tasks from running")]
 
     default_item = 0
 
-    actions = {"Sysprep": sysprep,
+    actions = {"Parameters": sysprep_params,
+               "Sysprep": sysprep,
                "Shrink": shrink,
-               "Modify": modify_properties,
+               "Properties": modify_properties,
                "Exclude": exclude_tasks}
     while 1:
         (code, choice) = d.menu(

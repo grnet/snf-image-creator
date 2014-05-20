@@ -105,8 +105,9 @@ def parse_options(input_args):
                       metavar="SYSPREP")
 
     parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
-                      default=False, help="print the needed sysprep parameters"
-                      " for this input media", action="store_true")
+                      default=False, action="store_true",
+                      help="print the defined system preparation parameters "
+                      "for this input media")
 
     parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
                       help="Add KEY=VALUE system preparation parameter",

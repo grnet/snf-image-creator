@@ -81,7 +81,71 @@ def sysprep(message, enabled=True, **kwargs):
     return wrapper
 
 
-def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
+class SysprepParam(object):
+    """This class represents an system preparation parameter"""
+
+    def __init__(self, type, default, description):
+
+        type_checker = {"posint": self._check_posint,
+                        "string": self._check_string,
+                        "file": self._check_fname}
+
+        assert type in type_checker.keys(), "Invalid parameter type: %s" % type
+
+        self.type = type
+        self.default = default
+        self.description = description
+        self.value = default
+        self.error = None
+
+        self._checker = type_checker[type]
+
+    def set_value(self, value):
+        try:
+            self.value = self._checker(value)
+        except ValueError as e:
+            self.error = e.message
+            return False
+        return True
+
+    def _check_posint(self, value):
+        """Check if the value is a positive integer"""
+        try:
+            value = int(value)
+        except ValueError:
+            raise ValueError("Invalid number")
+
+        if value <= 0:
+            raise ValueError("Value is negative or zero")
+
+        return value
+
+    def _check_string(self, value):
+        """Check if a value is a string"""
+        return str(value)
+
+    def _check_fname(self, value):
+        """Check if the value is a valid filename"""
+
+        value = str(value)
+        if len(value) == 0:
+            return ""
+
+        import os
+
+        def isblockdev(filename):
+            import stat
+            try:
+                return stat.S_ISBLK(os.stat(filename).st_mode)
+            except OSError:
+                return False
+        if os.path.isfile(value) or isblockdev(value):
+            return value
+
+        raise ValueError("Invalid filename")
+
+
+def add_sysprep_param(name, type, default, descr):
     """Decorator for __init__ that adds the definition for a system preparation
     parameter in an instance of an os_type class
     """
@@ -89,15 +153,10 @@ def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
         @wraps(init)
         def inner(self, *args, **kwargs):
 
-            if not hasattr(self, 'needed_sysprep_params'):
-                self.needed_sysprep_params = {}
             if not hasattr(self, 'sysprep_params'):
                 self.sysprep_params = {}
 
-            self.needed_sysprep_params[name] = \
-                self.SysprepParam(type, default, descr, validate)
-            if default is not None:
-                self.sysprep_params[name] = default
+            self.sysprep_params[name] = SysprepParam(type, default, descr)
 
             init(self, *args, **kwargs)
         return inner
@@ -111,7 +170,7 @@ def del_sysprep_param(name):
     def wrapper(func):
         @wraps(func)
         def inner(self, *args, **kwargs):
-            del self.needed_sysprep_params[name]
+            del self.sysprep_params[name]
             func(self, *args, **kwargs)
         return inner
     return wrapper
@@ -120,9 +179,6 @@ def del_sysprep_param(name):
 class OSBase(object):
     """Basic operating system class"""
 
-    SysprepParam = namedtuple('SysprepParam',
-                              ['type', 'default', 'description', 'validate'])
-
     def __init__(self, image, **kargs):
         self.image = image
 
@@ -130,14 +186,15 @@ class OSBase(object):
         self.out = image.out
 
         # Could be defined in a decorator
-        if not hasattr(self, 'needed_sysprep_params'):
-            self.needed_sysprep_params = {}
         if not hasattr(self, 'sysprep_params'):
             self.sysprep_params = {}
 
         if 'sysprep_params' in kargs:
             for key, val in kargs['sysprep_params'].items():
-                self.sysprep_params[key] = val
+                param = self.sysprep_params[key]
+                if not param.set_value(val):
+                    raise FatalError("Invalid value for sysprep parameter: "
+                                     "`%s'. Reason: %s" % (key, param.error))
 
         self.meta = {}
         self.mounted = False
@@ -253,17 +310,23 @@ class OSBase(object):
     def print_sysprep_params(self):
         """Print the system preparation parameter the user may use"""
 
-        self.out.output("Needed system preparation parameters:")
+        self.out.output("System preparation parameters:")
+        self.out.output()
 
-        if len(self.needed_sysprep_params) == 0:
+        if len(self.sysprep_params) == 0:
             self.out.output("(none)")
             return
 
-        for name, param in self.needed_sysprep_params.items():
-            self.out.output("\t%s [%s]: %s" %
-                            (param.description, name,
-                             self.sysprep_params[name] if name in
-                             self.sysprep_params else "(none)"))
+        wrapper = textwrap.TextWrapper()
+        wrapper.subsequent_indent = "             "
+        wrapper.width = 72
+
+        for name, param in self.sysprep_params.items():
+            self.out.output("NAME:        %s" % name)
+            self.out.output("VALUE:       %s" % param.value)
+            self.out.output(
+                wrapper.fill("DESCRIPTION: %s" % param.description))
+            self.out.output()
 
     def do_sysprep(self):
         """Prepare system for image creation."""

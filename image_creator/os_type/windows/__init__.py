@@ -24,10 +24,7 @@ from image_creator.os_type.windows.vm import VM
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
 
-import hivex
 import tempfile
-import os
-import time
 import random
 import string
 import re
@@ -89,22 +86,32 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 for Itanium-Based Systems":
     "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
 
-_POSINT = lambda x: type(x) == int and x >= 0
+DESCRIPTION = {
+    "boot_timeout":
+    "Time in seconds to wait for the Windows customization VM to boot.",
+    "shutdown_timeout":
+    "Time in seconds to wait for the Windows customization VM to shut down "
+    "after the initial command is given.",
+    "connection_retries":
+    "Number of times to try to connect to the Windows customization VM after "
+    "it has booted, before giving up.",
+    "smp": "Number of CPUs to use for the Windows customization VM",
+    "mem": "Virtual RAM size in MiB for the Windows customization VM",
+    "admin": "Name of the Administration user"}
 
 
 class Windows(OSBase):
     """OS class for Windows"""
     @add_sysprep_param(
-        'shutdown_timeout', int, 120, "Shutdown Timeout (seconds)", _POSINT)
+        'admin', "string", 'Administrator', DESCRIPTION['admin'])
+    @add_sysprep_param('mem', "posint", 1024, DESCRIPTION['mem'])
+    @add_sysprep_param('smp', "posint", 1, DESCRIPTION['smp'])
     @add_sysprep_param(
-        'boot_timeout', int, 300, "Boot Timeout (seconds)", _POSINT)
+        'connection_retries', "posint", 5, DESCRIPTION['connection_retries'])
     @add_sysprep_param(
-        'connection_retries', int, 5, "Connection Retries", _POSINT)
+        'shutdown_timeout', "posint", 120, DESCRIPTION['shutdown_timeout'])
     @add_sysprep_param(
-        'smp', int, 1, "Number of CPUs for the helper VM", _POSINT)
-    @add_sysprep_param(
-        'mem', int, 1024, "Virtual RAM size for the helper VM (MiB)", _POSINT)
-    @add_sysprep_param('admin', str, 'Administrator', 'Administrator Username')
+        'boot_timeout', "posint", 300, DESCRIPTION['boot_timeout'])
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -303,14 +310,13 @@ class Windows(OSBase):
                 "Microsoft's System Preparation Tool has ran on the Image. "
                 "Further image customization is not possible.")
 
-        txt = "System preparation parameter: `%s' is needed but missing!"
-        for name, _ in self.needed_sysprep_params.items():
-            if name not in self.sysprep_params:
-                raise FatalError(txt % name)
+        admin = self.sysprep_params['admin'].value
+        timeout = self.sysprep_params['boot_timeout'].value
+        shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
         self.mount(readonly=False)
         try:
-            v_val = self.registry.reset_passwd(self.sysprep_params['admin'])
+            v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
             token = self._add_boot_scripts()
 
@@ -337,7 +343,6 @@ class Windows(OSBase):
                                  self.vm.display)
 
                 self.out.output("Waiting for OS to boot ...", False)
-                timeout = self.sysprep_params['boot_timeout']
                 if not self.vm.wait_on_serial(token, timeout):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
@@ -354,7 +359,7 @@ class Windows(OSBase):
                 self._exec_sysprep_tasks()
 
                 self.out.output("Waiting for windows to shut down ...", False)
-                self.vm.wait(self.sysprep_params['shutdown_timeout'])
+                self.vm.wait(shutdown_timeout)
                 self.out.success("done")
             finally:
                 # if the VM is not already dead here, a Fatal Error will have
@@ -371,7 +376,7 @@ class Windows(OSBase):
 
                 if not self.syspreped:
                     # Reset the old password
-                    admin = self.sysprep_params['admin']
+                    admin = self.sysprep_params['admin'].value
                     self.registry.reset_passwd(admin, v_val)
 
                 self.registry.update_firewalls(*firewall_states)
@@ -444,8 +449,8 @@ class Windows(OSBase):
              r'$port.Close()}"')
 
         # This will update the password of the admin user to self.vm.password
-        commands["UpdatePassword"] = \
-            "net user %s %s" % (self.sysprep_params['admin'], self.vm.password)
+        commands["UpdatePassword"] = "net user %s %s" % \
+            (self.sysprep_params['admin'].value, self.vm.password)
 
         # This is previously done with hivex when we executed
         # self.registry.update_uac_remote_setting(1).
@@ -476,7 +481,7 @@ class Windows(OSBase):
         # defined on the server either by a Group Policy object (GPO) or by a
         # local policy.
 
-        self.registry.enable_autologon(self.sysprep_params['admin'])
+        self.registry.enable_autologon(self.sysprep_params['admin'].value)
 
         return token
 
@@ -491,7 +496,7 @@ class Windows(OSBase):
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
 
-        retries = self.sysprep_params['connection_retries']
+        retries = self.sysprep_params['connection_retries'].value
         # If the connection_retries parameter is set to 0 disable the
         # connectivity check
         if retries == 0:
