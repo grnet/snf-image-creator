@@ -131,11 +131,6 @@ class Windows(OSBase):
             raise FatalError(
                 'For windows support libguestfs 1.16.11 or above is required')
 
-        # Check if winexe is installed
-        if not WinEXE.is_installed():
-            raise FatalError(
-                "For windows support `Winexe' needs to be installed")
-
         device = self.image.g.part_to_dev(self.root)
 
         self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
@@ -304,6 +299,12 @@ class Windows(OSBase):
 
     def do_sysprep(self):
         """Prepare system for image creation."""
+
+        # Check if winexe is installed
+        if not WinEXE.is_installed():
+            raise FatalError(
+                "Winexe not found! In order to be able to customize a Windows "
+                "image you need to have Winexe installed.")
 
         if self.syspreped:
             raise FatalError(
