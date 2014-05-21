@@ -24,7 +24,6 @@ user is asked if he wants to use the program in expert or wizard mode.
 import dialog
 import sys
 import os
-import stat
 import textwrap
 import signal
 import optparse
@@ -41,8 +40,8 @@ from image_creator.output.composite import CompositeOutput
 from image_creator.disk import Disk
 from image_creator.dialog_wizard import start_wizard
 from image_creator.dialog_menu import main_menu
-from image_creator.dialog_util import SMALL_WIDTH, WIDTH, confirm_exit, \
-    Reset, update_background_title
+from image_creator.dialog_util import WIDTH, confirm_exit, Reset, \
+    update_background_title, select_file
 
 PROGNAME = os.path.basename(sys.argv[0])
 
@@ -137,38 +136,6 @@ def create_image(d, media, out, tmp):
     return 0
 
 
-def select_file(d, media):
-    """Select a media file"""
-    if media == '/':
-        return '/'
-
-    default = os.getcwd() + os.sep
-    while 1:
-        if media is not None:
-            if not os.path.exists(media):
-                d.msgbox("The file `%s' you choose does not exist." % media,
-                         width=SMALL_WIDTH)
-            else:
-                mode = os.stat(media).st_mode
-                if not stat.S_ISDIR(mode):
-                    break
-                default = media
-
-        (code, media) = d.fselect(default, 10, 60, extra_button=1,
-                                  title="Please select an input media.",
-                                  extra_label="Bundle Host")
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            if confirm_exit(d, "You canceled the media selection dialog box."):
-                sys.exit(0)
-            else:
-                media = None
-                continue
-        elif code == d.DIALOG_EXTRA:
-            return '/'
-
-    return media
-
-
 def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
                  **kwargs):
     """Display a form box.
@@ -229,7 +196,16 @@ def dialog_main(media, logfile, tmpdir):
     d.setBackgroundTitle('snf-image-creator')
 
     try:
-        media = select_file(d, media)
+        while True:
+            media = select_file(d, init=media, ftype="br", bundle_host=True,
+                                title="Please select an input media.")
+            if media is None:
+                if confirm_exit(
+                        d, "You canceled the media selection dialog box."):
+                    return 0
+                continue
+            break
+
         log = SimpleOutput(False, logfile) if logfile is not None else Output()
         while 1:
             try:

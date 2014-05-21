@@ -20,6 +20,7 @@ snf-image-creator.
 """
 
 import os
+import stat
 import re
 import json
 from image_creator.output.dialog import GaugeOutput
@@ -28,6 +29,74 @@ from image_creator.kamaki_wrapper import Kamaki
 
 SMALL_WIDTH = 60
 WIDTH = 70
+
+
+def select_file(d, **kwargs):
+    """Select a file or directory.
+
+    The following optional arguments can be applied:
+
+    * init: Initial file path. If this path is valid this will be returned
+
+    * ftype: Allowed file types. If the value of this argument is "br" only
+             block devices and regular files are valid. For a list of available
+             file types, see here:
+             http://libguestfs.org/guestfs.3.html#guestfs_readdir
+
+    * title: The dialog box title. The default one is: "Please select a file"
+
+    * bundle_host: This can be True or False. If this is True, an extra
+      "Bundle Host" button will be present if the file selection dialog.
+    """
+
+    type_check = {'b': stat.S_ISBLK,   # Block special
+                  'c': stat.S_ISCHR,   # Char special
+                  'd': stat.S_ISDIR,   # Directory
+                  'f': stat.S_ISFIFO,  # FIFO (named pipe)
+                  'l': stat.S_ISLNK,   # Symbolic link
+                  'r': stat.S_ISREG,   # Regular file
+                  's': stat.S_ISSOCK}  # Socket
+
+    fname = None if "init" not in kwargs else kwargs['init']
+    ftype = set(t for t in kwargs['ftype']) if 'ftype' in kwargs else set('r')
+    title = kwargs['title'] if 'title' in kwargs else 'Please select a file.'
+
+    bundle_host = kwargs['bundle_host'] if 'bundle_host' in kwargs else None
+    extra_button = 1 if bundle_host else 0
+
+    for t in ftype:
+        assert t in type_check, "Invalid ftype: %s" % t
+
+    # This is a special case
+    if bundle_host and fname == os.sep:
+        return os.sep
+
+    default = os.getcwd() + os.sep
+
+    while 1:
+        if fname is not None:
+            if not os.path.exists(fname):
+                d.msgbox("The file `%s' you choose does not exist." % fname,
+                         width=SMALL_WIDTH)
+            else:
+                mode = os.stat(fname).st_mode
+                for i in ftype:
+                    if type_check[i](mode):
+                        return fname
+
+                if stat.S_ISDIR(mode):
+                    default = fname
+                else:
+                    d.msgbox("Invalid input.", width=SMALL_WIDTH)
+
+        (code, fname) = d.fselect(default, 10, 60, extra_button=extra_button,
+                                  title=title, extra_label="Bundle Host")
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return None
+        elif code == d.DIALOG_EXTRA:
+            return os.sep
+
+    return fname
 
 
 def update_background_title(session):
