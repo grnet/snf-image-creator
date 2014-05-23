@@ -317,6 +317,17 @@ class Windows(OSBase):
 
         self.mount(readonly=False)
         try:
+            virtio_state = self._virtio_state()
+            if len(virtio_state['viostor']) == 0:
+                raise FatalError(
+                    "The media has no VirtIO SCSI controller driver installed."
+                    " Further image customization is not possible.")
+
+            if len(virtio_state['netkvm']) == 0:
+                raise FatalError(
+                    "The media has no VirtIO Ethernet Adapter driver "
+                    "installed. Further image customization is not possible.")
+
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
             token = self._add_boot_scripts()
@@ -520,5 +531,43 @@ class Windows(OSBase):
 
         raise FatalError("Connection to the Windows VM failed after %d retries"
                          % retries)
+
+    def _virtio_state(self):
+        """Check if the virtio drivers are install and return the version of
+        the installed driver
+        """
+
+        virtio = {
+            'viostor': [],  # VirtIO SCSI controller
+            'vioscsi': [],  # VirtIO SCSI pass-through controller
+            'vioser': [],   # VirtIO-Serial Driver
+            'netkvm': [],   # VirtIO Ethernet Adapter
+            'balloon': []}  # VirtIO Balloon Driver
+
+        catalogfile_entry = re.compile(r'^\s*CatalogFile\s*=')
+        driverver_entry = re.compile(r'^\s*DriverVer\s*=')
+        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
+        inf_path = self.image.g.case_sensitive_path("%s/inf" % systemroot)
+
+        def examine_inf(filename):
+            catalogFile = None
+            driverVer = None
+            fullpath = "%s/%s" % (inf_path, filename)
+            for line in self.image.g.cat(fullpath).splitlines():
+                if catalogfile_entry.match(line):
+                    catalogFile = line.split("=")[1].strip().lower()
+                elif driverver_entry.match(line):
+                    driverVer = line.split("=")[1].strip()
+
+            for driver in virtio.keys():
+                if catalogFile == "%s.cat" % driver:
+                    virtio[driver].append((filename, driverVer))
+
+        oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
+        for f in self.image.g.readdir(inf_path):
+            if oem.match(f['name']):
+                examine_inf(f['name'])
+
+        return virtio
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
