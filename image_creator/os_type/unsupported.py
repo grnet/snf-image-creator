@@ -31,7 +31,7 @@ class Unsupported(OSBase):
 
     def _do_mount(self, readonly):
         """Mount partitions in correct order"""
-        self.out.warn('not supported on this media.')
+        self._mount_error = "not supported on this media"
         return False
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

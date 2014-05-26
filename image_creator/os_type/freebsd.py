@@ -118,7 +118,7 @@ class Freebsd(Unix):
                 self.image.g.mount_vfs(mopts, 'ufs', dev, mp)
             except RuntimeError as msg:
                 if mp in critical_mpoints:
-                    self.out.warn('unable to mount %s. Reason: %s' % (mp, msg))
+                    self._mount_error = str(msg)
                     return False
                 else:
                     self.out.warn('%s (ignored)' % msg)

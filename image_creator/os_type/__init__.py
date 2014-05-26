@@ -199,6 +199,9 @@ class OSBase(object):
         self.meta = {}
         self.mounted = False
 
+        # This will host the error if mount fails
+        self._mount_error = ""
+
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
         try:
@@ -340,7 +343,9 @@ class OSBase(object):
 
         try:
             if not self.mount(readonly=False):
-                raise FatalError("Unable to mount the media read-write")
+                msg = "Unable to mount the media read-write. Reason: %s" % \
+                    self._mount_error
+                raise FatalError(msg)
 
             enabled = [task for task in self.list_syspreps() if task.enabled]
 
@@ -365,6 +370,7 @@ class OSBase(object):
         mount_type = 'read-only' if readonly else 'read-write'
         self.out.output("Mounting the media %s ..." % mount_type, False)
 
+        self._mount_error = ""
         if not self._do_mount(readonly):
             return False
 
@@ -466,7 +472,7 @@ class OSBase(object):
             self.image.g.mount_options(
                 'ro' if readonly else 'rw', self.root, '/')
         except RuntimeError as msg:
-            self.out.warn("unable to mount the root partition: %s" % msg)
+            self._mount_error = str(msg)
             return False
 
         return True

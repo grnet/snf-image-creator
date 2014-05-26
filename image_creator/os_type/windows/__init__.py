@@ -315,8 +315,12 @@ class Windows(OSBase):
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
-        self.mount(readonly=False)
         try:
+            if not self.mount(readonly=False):
+                msg = "Unable to mount the media read-write. Reason: %s" % \
+                    self._mount_error
+                raise FatalError(msg)
+
             virtio_state = self._virtio_state()
             if len(virtio_state['viostor']) == 0:
                 raise FatalError(
