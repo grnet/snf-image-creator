@@ -141,13 +141,13 @@ class Windows(OSBase):
         self.registry = Registry(self.image.g, self.root)
 
         # If the image is already sysprepped we cannot further customize it
-        self.mount(readonly=True)
+        self.mount(readonly=True, silent=True)
         try:
             self.out.output("Checking if media is sysprepped ...", False)
             self.syspreped = self.registry.get_setup_state() > 0
             self.out.success("done")
         finally:
-            self.umount()
+            self.umount(silent=True)
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -300,6 +300,8 @@ class Windows(OSBase):
     def do_sysprep(self):
         """Prepare system for image creation."""
 
+        self.out.output('Preparing system for image creation:')
+
         # Check if winexe is installed
         if not WinEXE.is_installed():
             raise FatalError(
@@ -315,8 +317,9 @@ class Windows(OSBase):
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
+        self.out.output("Preparing media for boot ...", False)
         try:
-            if not self.mount(readonly=False):
+            if not self.mount(readonly=False, silent=True):
                 msg = "Unable to mount the media read-write. Reason: %s" % \
                     self._mount_error
                 raise FatalError(msg)
@@ -348,7 +351,8 @@ class Windows(OSBase):
                 pass
 
         finally:
-            self.umount()
+            self.umount(silent=True)
+        self.out.success('done')
 
         self.image.disable_guestfs()
         try:
@@ -365,13 +369,12 @@ class Windows(OSBase):
 
                 self.out.output("Checking connectivity to the VM ...", False)
                 self._check_connectivity()
-                self.out.success('done')
+                # self.out.success('done')
 
-                self.out.output("Disabling automatic logon ...", False)
+                # self.out.output("Disabling automatic logon ...", False)
                 self._disable_autologon()
                 self.out.success('done')
 
-                self.out.output('Preparing system for image creation:')
                 self._exec_sysprep_tasks()
 
                 self.out.output("Waiting for windows to shut down ...", False)
@@ -385,7 +388,8 @@ class Windows(OSBase):
         finally:
             self.image.enable_guestfs()
 
-            self.mount(readonly=False)
+            self.out.output("Reverting media boot preparations ...", False)
+            self.mount(readonly=False, silent=True)
             try:
                 if disabled_uac:
                     self.registry.update_uac_remote_setting(0)
@@ -397,7 +401,8 @@ class Windows(OSBase):
 
                 self.registry.update_firewalls(*firewall_states)
             finally:
-                self.umount()
+                self.umount(silent=True)
+            self.out.success("done")
 
     def _exec_sysprep_tasks(self):
         """This function hosts the actual code for executing the enabled

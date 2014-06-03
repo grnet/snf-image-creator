@@ -217,25 +217,25 @@ class OSBase(object):
 
         self.out.output('Running OS inspection:')
         try:
-            if not self.mount(readonly=True):
+            if not self.mount(readonly=True, silent=True):
                 raise FatalError("Unable to mount the media read-only")
             self._do_inspect()
         finally:
-            self.umount()
+            self.umount(silent=True)
 
         self.out.output()
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
         try:
-            if not self.mount(readonly=True):
+            if not self.mount(readonly=True, silent=True):
                 raise FatalError("Unable to mount the media read-only")
 
             self.out.output('Collecting image metadata ...', False)
             self._do_collect_metadata()
             self.out.success('done')
         finally:
-            self.umount()
+            self.umount(silent=True)
 
         self.out.output()
 
@@ -361,30 +361,34 @@ class OSBase(object):
 
         self.out.output()
 
-    def mount(self, readonly=False):
+    def mount(self, readonly=False, silent=False):
         """Mount image."""
 
         if getattr(self, "mounted", False):
             return True
 
         mount_type = 'read-only' if readonly else 'read-write'
-        self.out.output("Mounting the media %s ..." % mount_type, False)
+        if not silent:
+            self.out.output("Mounting the media %s ..." % mount_type, False)
 
         self._mount_error = ""
         if not self._do_mount(readonly):
             return False
 
         self.mounted = True
-        self.out.success('done')
+        if not silent:
+            self.out.success('done')
         return True
 
-    def umount(self):
+    def umount(self, silent=False):
         """Umount all mounted file systems."""
 
-        self.out.output("Umounting the media ...", False)
+        if not silent:
+            self.out.output("Umounting the media ...", False)
         self.image.g.umount_all()
         self.mounted = False
-        self.out.success('done')
+        if not silent:
+            self.out.success('done')
 
     def _is_sysprep(self, obj):
         """Checks if an object is a sysprep"""
@@ -447,6 +451,7 @@ class OSBase(object):
 
     def _do_inspect(self):
         """helper method for inspect"""
+        self.out.warn("No inspection method available")
         pass
 
     def _do_collect_metadata(self):
