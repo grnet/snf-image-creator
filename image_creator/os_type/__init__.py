@@ -88,7 +88,8 @@ class SysprepParam(object):
 
         type_checker = {"posint": self._check_posint,
                         "string": self._check_string,
-                        "file": self._check_fname}
+                        "file": self._check_fname,
+                        "dir": self._check_dname}
 
         assert type in type_checker.keys(), "Invalid parameter type: %s" % type
 
@@ -101,6 +102,7 @@ class SysprepParam(object):
         self._checker = type_checker[type]
 
     def set_value(self, value):
+        """Update the value of the parameter"""
         try:
             self.value = self._checker(value)
         except ValueError as e:
@@ -143,6 +145,19 @@ class SysprepParam(object):
             return value
 
         raise ValueError("Invalid filename")
+
+    def _check_dname(self, value):
+        """Check if the value is a valid directory"""
+
+        value = str(value)
+        if len(value) == 0:
+            return ""
+
+        import os
+        if os.path.isdir(value):
+            return value
+
+        raise ValueError("Invalid dirname")
 
 
 def add_sysprep_param(name, type, default, descr):

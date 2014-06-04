@@ -648,9 +648,13 @@ def update_sysprep_param(session, name):
     param = image.os.sysprep_params[name]
 
     while 1:
-        if param.type == "file":
-            title = "Please select a file to use for the `%s' parameter" % name
-            value = select_file(d, ftype="br", title=title)
+        if param.type in ("file", "dir"):
+
+            title = "Please select a %s to use for the `%s' parameter" % \
+                (name, 'file' if param.type == 'file' else 'directory')
+            ftype = "br" if param.type == 'file' else 'd'
+
+            value = select_file(d, ftype=ftype, title=title)
             if value is None:
                 return False
         else:
