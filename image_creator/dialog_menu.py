@@ -32,7 +32,7 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud
+    extract_image, add_cloud, edit_cloud, select_file
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -648,14 +648,20 @@ def update_sysprep_param(session, name):
     param = image.os.sysprep_params[name]
 
     while 1:
-        (code, answer) = d.inputbox(
-            "Please provide a new value for configuration parameter: `%s'" %
-            name, width=WIDTH, init=str(param.value))
+        if param.type == "file":
+            title = "Please select a file to use for the `%s' parameter" % name
+            value = select_file(d, ftype="br", title=title)
+            if value is None:
+                return False
+        else:
+            (code, answer) = d.inputbox(
+                "Please provide a new value for configuration parameter: `%s'"
+                % name, width=WIDTH, init=str(param.value))
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            return False
+            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                return False
 
-        value = answer.strip()
+            value = answer.strip()
 
         if param.set_value(value) is False:
             d.msgbox("Unable to update the value. Reason: %s" % param.error,
@@ -674,7 +680,10 @@ def sysprep_params(session):
     while 1:
         choices = []
         for name, param in image.os.sysprep_params.items():
-            choices.append((name, str(param.value)))
+            value = str(param.value)
+            if len(value) == 0:
+                value = "<empty>"
+            choices.append((name, value))
 
         if len(choices) == 0:
             d.msgbox("No customization parameters available", width=WIDTH)
@@ -684,23 +693,23 @@ def sysprep_params(session):
             default = choices[0][0]
 
         (code, choice) = d.menu(
-            "In this menu you can update the value for parameters used in the "
-            "system preparation tasks. Press <Details> to see more info about "
-            "a specific configuration parameters and <Back> when done.",
-            height=18, width=WIDTH, choices=choices, menu_height=10,
-            ok_label="Update", extra_button=1, extra_label="Details",
-            cancel="Back", title="System Preparation Parameters")
+            "In this menu you can see and update the value for parameters "
+            "used in the system preparation tasks. Press <Details> to see "
+            "more info about a specific configuration parameters and <Update> "
+            "to update its value. Press <Back> when done.", height=18,
+            width=WIDTH, choices=choices, menu_height=10, ok_label="Details",
+            extra_button=1, extra_label="Update", cancel="Back",
+            default_item=default, title="System Preparation Parameters")
 
         default = choice
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return True
-        # Edit button
+        # Details button
         elif code == d.DIALOG_OK:
-            update_sysprep_param(session, choice)
-        # More button
-        else:
             d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
+        else:  # Update button
+            update_sysprep_param(session, choice)
 
     return True
 
@@ -835,10 +844,10 @@ def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
 
-    choices = [("Parameters", "Modify customization parameters"),
+    choices = [("Parameters", "View & Modify customization parameters"),
                ("Sysprep", "Run various image preparation tasks"),
                ("Shrink", "Shrink image"),
-               ("Properties", "Modify image properties"),
+               ("Properties", "View & Modify image properties"),
                ("Exclude", "Exclude various deployment tasks from running")]
 
     default_item = 0
