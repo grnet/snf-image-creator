@@ -462,12 +462,7 @@ class Windows(OSBase):
         # This script will send a random string to the first serial port. This
         # can be used to determine when the OS has booted.
         token = "".join(random.choice(string.ascii_letters) for x in range(16))
-        commands['BootMonitor'] = \
-            (r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe '
-             r'-ExecutionPolicy RemoteSigned '
-             r'"&{$port=new-Object System.IO.Ports.SerialPort COM1,9600,'
-             r'None,8,one;$port.open();$port.WriteLine(\"' + token + r'\");'
-             r'$port.Close()}"')
+        commands['BootMonitor'] = "cmd /q /a /c echo " + token + " > COM1"
 
         # This will update the password of the admin user to self.vm.password
         commands["UpdatePassword"] = "net user %s %s" % \
