@@ -180,7 +180,8 @@ class Image(object):
         self.guestfs_enabled = False
         self.out.success('done')
 
-    def _get_os(self):
+    @property
+    def os(self):
         """Return an OS class instance for this image"""
         if hasattr(self, "_os"):
             return self._os
@@ -194,8 +195,6 @@ class Image(object):
         self._os.collect_metadata()
 
         return self._os
-
-    os = property(_get_os)
 
     def destroy(self):
         """Destroy this Image instance."""
