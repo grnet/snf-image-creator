@@ -72,6 +72,7 @@ class Disk(object):
         """
         self._cleanup_jobs = []
         self._images = []
+        self._device = None
         self.source = source
         self.out = output
         self.meta = {}
@@ -123,29 +124,36 @@ class Disk(object):
                 job, args = self._cleanup_jobs.pop()
                 job(*args)
 
-    def snapshot(self):
-        """Creates a snapshot of the original source media of the Disk
-        instance.
-        """
+    @property
+    def device(self):
+        """Convert the source media into a block device"""
+
+        if self._device is not None:
+            return self._device
 
         self.out.output("Examining source media `%s' ..." % self.source, False)
-        sourcedev = self.source
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
             self.out.success('looks like a directory')
-            return self._dir_to_disk()
+            self._device = self._dir_to_disk()
         elif stat.S_ISREG(mode):
             self.out.success('looks like an image file')
-            sourcedev = self._losetup(self.source)
+            self._device = self._losetup(self.source)
         elif not stat.S_ISBLK(mode):
             raise FatalError("Invalid media source. Only block devices, "
                              "regular files and directories are supported.")
         else:
             self.out.success('looks like a block device')
+            self._device = self.source
 
-        # Take a snapshot and return it to the user
+        return self._device
+
+    def snapshot(self):
+        """Creates a snapshot of the original source media of the Disk
+        instance.
+        """
         self.out.output("Snapshotting media source ...", False)
-        size = blockdev('--getsz', sourcedev)
+        size = blockdev('--getsz', self.device)
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
@@ -158,7 +166,7 @@ class Disk(object):
         try:
             try:
                 os.write(tablefd, "0 %d snapshot %s %s n 8" %
-                                  (int(size), sourcedev, cowdev))
+                                  (int(size), self.device, cowdev))
             finally:
                 os.close(tablefd)
 

@@ -61,8 +61,11 @@ def create_image(d, media, out, tmp):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     try:
-        snapshot = disk.snapshot()
-        image = disk.get_image(snapshot)
+        # There is no need to snapshot the media if it was created by the Disk
+        # instance as a temporary object.
+        device = disk.device if disk.source == '/' else disk.snapshot()
+
+        image = disk.get_image(device)
 
         out.output("Collecting image metadata ...")
         metadata = {}
