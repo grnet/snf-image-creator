@@ -267,7 +267,7 @@ class GPTPartitionTable(object):
         lba_count = new_size // BLOCKSIZE
 
         # Correct MBR
-        #TODO: Check if the partition tables is hybrid
+        # TODO: Check if the partition tables is hybrid
         self.mbr.part[0].sector_count = (new_size // BLOCKSIZE) - 1
 
         # Fix Primary header

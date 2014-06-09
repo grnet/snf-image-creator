@@ -137,8 +137,8 @@ class Image(object):
         else:
             self.g.set_recovery_proc(0)
 
-        #self.g.set_trace(1)
-        #self.g.set_verbose(1)
+        # self.g.set_trace(1)
+        # self.g.set_verbose(1)
 
         self.out.output('Launching helper VM (may take a while) ...', False)
         # self.progressbar = self.out.Progress(100, "Launching helper VM",
