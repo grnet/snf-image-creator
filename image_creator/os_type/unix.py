@@ -46,7 +46,8 @@ class Unix(OSBase):
         '.gnupg',
         '.ssh',
         '.kamakirc',
-        '.kamaki.history'
+        '.kamaki.history',
+        '.kamaki.log'
     ]
 
     def _mountpoints(self):
