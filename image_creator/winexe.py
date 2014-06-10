@@ -38,7 +38,7 @@
 import subprocess
 import time
 import signal
-import distutils
+from sh import which
 
 from image_creator.util import FatalError
 
@@ -53,7 +53,7 @@ class WinEXE:
 
     @staticmethod
     def is_installed(program='winexe'):
-        return distutils.spawn.find_executable(program) is not None
+        return which(program) is not None
 
     def __init__(self, username, password, hostname, program='winexe'):
         self._host = hostname
