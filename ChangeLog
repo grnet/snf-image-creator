@@ -1,3 +1,12 @@
+2014-06-10, v0.6.2
+	* Add support for Ubuntu 14.04
+	* Fix a bug in Windows image creation
+	* Add .kamaki.log in the user's personal data to be removed
+	* Fix minor issues in the documentation
+
+2014-01-10, v0.6.1
+	* Comply with the AstakosClient changes made in kamaki 0.12
+
 2014-01-08, v0.6
 	* Rename the dialog-based application to snf-image-creator and the
 	  non-interactive command line one to snf-mkimage
