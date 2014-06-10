@@ -209,7 +209,8 @@ class Windows(OSBase):
         """Clear all the event logs"""
 
         self._guest_exec(
-            r"cmd /q /c for /f %l in ('wevtutil el') do wevtutil cl %l")
+            "cmd /q /c for /f \"tokens=*\" %l in ('wevtutil el') do "
+            "wevtutil cl \"%l\"")
 
     @sysprep('Executing Sysprep on the image (may take more that 10 min)')
     def microsoft_sysprep(self):

@@ -314,8 +314,8 @@ them or perform system preparation operations.
 Logical Volumes
 ---------------
 
-The program cannot work on LVM partitions [#f1]_. The input media may only
-contain primary or logical partitions.
+The program cannot work on input media that contain LVM partitions inside
+[#f1]_. The input media may only contain primary or logical partitions.
 
 Para-virtualized drivers
 ------------------------
