@@ -1,3 +1,9 @@
+snf-image-creator (0.6.2-1~wheezy) wheezy; urgency=low
+
+  * New upstream version
+
+ -- Nikos Skalkotos <skalkoto@grnet.gr>  Tue, 10 Jun 2014 15:01:48 +0300
+
 snf-image-creator (0.6-1~wheezy) wheezy; urgency=low
 
   * New upstream version
@@ -57,6 +63,7 @@ snf-image-creator (0.1.0-1) stable; urgency=low
   * New upstream version
 
  -- Nikos Skalkotos <skalkoto@grnet.gr>  Thu, 01 Nov 2012 16:09:17 +0200
+
 
 
 
