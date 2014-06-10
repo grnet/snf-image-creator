@@ -28,6 +28,7 @@ import tempfile
 import random
 import string
 import re
+import os
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -86,7 +87,35 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 for Itanium-Based Systems":
     "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
 
-DESCRIPTION = {
+VIRTIO = [
+    "viostor",  # "VirtIO SCSI controller"
+    "vioscsi",  # "VirtIO SCSI pass-through controller"
+    "vioser",   # "VirtIO Serial Driver"
+    "netkvm",   # "VirtIO Ethernet Adapter"
+    "balloon"]  # "Virtio Balloon Driver
+
+
+def virtio_dir_check(dirname):
+    """Check if the needed virtio driver files are present in the dirname
+    directory
+    """
+    if not dirname:
+        return ""  # value not set
+
+    missing = []
+
+    files = set(os.listdir(dirname))
+    for nam in ["%s.%s" % (b, e) for b in VIRTIO for e in 'cat', 'inf', 'sys']:
+        if nam not in files:
+            missing.append(nam)
+
+    if len(missing):
+        raise ValueError("Invalid VirtIO directory. The following files were "
+                         "not found: %s" % ", ".join(missing))
+    return dirname
+
+
+DESCR = {
     "boot_timeout":
     "Time in seconds to wait for the Windows customization VM to boot.",
     "shutdown_timeout":
@@ -95,23 +124,23 @@ DESCRIPTION = {
     "connection_retries":
     "Number of times to try to connect to the Windows customization VM after "
     "it has booted, before giving up.",
-    "smp": "Number of CPUs to use for the Windows customization VM",
-    "mem": "Virtual RAM size in MiB for the Windows customization VM",
-    "admin": "Name of the Administration user"}
+    "smp": "Number of CPUs to use for the Windows customization VM.",
+    "mem": "Virtual RAM size in MiB for the Windows customization VM.",
+    "admin": "Name of the Administration user.",
+    "virtio": "Directory hosting the Windows virtio drivers."}
 
 
 class Windows(OSBase):
     """OS class for Windows"""
+    @add_sysprep_param('admin', "string", 'Administrator', DESCR['admin'])
+    @add_sysprep_param('mem', "posint", 1024, DESCR['mem'])
+    @add_sysprep_param('smp', "posint", 1, DESCR['smp'])
     @add_sysprep_param(
-        'admin', "string", 'Administrator', DESCRIPTION['admin'])
-    @add_sysprep_param('mem', "posint", 1024, DESCRIPTION['mem'])
-    @add_sysprep_param('smp', "posint", 1, DESCRIPTION['smp'])
+        'connection_retries', "posint", 5, DESCR['connection_retries'])
     @add_sysprep_param(
-        'connection_retries', "posint", 5, DESCRIPTION['connection_retries'])
-    @add_sysprep_param(
-        'shutdown_timeout', "posint", 120, DESCRIPTION['shutdown_timeout'])
-    @add_sysprep_param(
-        'boot_timeout', "posint", 300, DESCRIPTION['boot_timeout'])
+        'shutdown_timeout', "posint", 120, DESCR['shutdown_timeout'])
+    @add_sysprep_param('boot_timeout', "posint", 300, DESCR['boot_timeout'])
+    @add_sysprep_param('virtio', 'dir', "", DESCR['virtio'], virtio_dir_check)
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -251,7 +280,7 @@ class Windows(OSBase):
             #
             if line.find('reclaimable') >= 0:
                 answer = line.split(':')[1].strip()
-                m = re.search('(\d+) MB', answer)
+                m = re.search(r'(\d+) MB', answer)
                 if m:
                     querymax = m.group(1)
                 else:
@@ -316,6 +345,7 @@ class Windows(OSBase):
         admin = self.sysprep_params['admin'].value
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
+        virtio_dir = self.sysprep_params['virtio'].value
 
         self.out.output("Preparing media for boot ...", False)
         try:
@@ -325,15 +355,19 @@ class Windows(OSBase):
                 raise FatalError(msg)
 
             virtio_state = self._virtio_state()
-            if len(virtio_state['viostor']) == 0:
+            if len(virtio_state['viostor']) == 0 and not virtio_dir:
                 raise FatalError(
-                    "The media has no VirtIO SCSI controller driver installed."
-                    " Further image customization is not possible.")
+                    "The media has no VirtIO SCSI controller driver installed "
+                    "and you have not specified a directory to retrieve the "
+                    "VirtIO drivers from. Further image customization is not "
+                    "possible.")
 
-            if len(virtio_state['netkvm']) == 0:
+            if len(virtio_state['netkvm']) == 0 and not virtio_dir:
                 raise FatalError(
-                    "The media has no VirtIO Ethernet Adapter driver "
-                    "installed. Further image customization is not possible.")
+                    "The media has no VirtIO Ethernet Adapter driver installed"
+                    " and you have not specified a directory to retrieve the "
+                    "VirtIO drivers from. Further image customization is not "
+                    "possible.")
 
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
@@ -541,17 +575,14 @@ class Windows(OSBase):
         the installed driver
         """
 
-        virtio = {
-            'viostor': [],  # VirtIO SCSI controller
-            'vioscsi': [],  # VirtIO SCSI pass-through controller
-            'vioser': [],   # VirtIO-Serial Driver
-            'netkvm': [],   # VirtIO Ethernet Adapter
-            'balloon': []}  # VirtIO Balloon Driver
-
         catalogfile_entry = re.compile(r'^\s*CatalogFile\s*=')
         driverver_entry = re.compile(r'^\s*DriverVer\s*=')
         systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
         inf_path = self.image.g.case_sensitive_path("%s/inf" % systemroot)
+
+        state = {}
+        for driver in VIRTIO:
+            state[driver] = []
 
         def examine_inf(filename):
             catalogFile = None
@@ -563,15 +594,15 @@ class Windows(OSBase):
                 elif driverver_entry.match(line):
                     driverVer = line.split("=")[1].strip()
 
-            for driver in virtio.keys():
+            for driver in VIRTIO:
                 if catalogFile == "%s.cat" % driver:
-                    virtio[driver].append((filename, driverVer))
+                    state[driver].append((filename, driverVer))
 
         oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
         for f in self.image.g.readdir(inf_path):
             if oem.match(f['name']):
                 examine_inf(f['name'])
 
-        return virtio
+        return state
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -686,7 +686,7 @@ def sysprep_params(session):
         for name, param in image.os.sysprep_params.items():
             value = str(param.value)
             if len(value) == 0:
-                value = "<empty>"
+                value = "<not_set>"
             choices.append((name, value))
 
         if len(choices) == 0:
