@@ -79,6 +79,25 @@ class Registry(object):
 
         return OpenHive()
 
+    @property
+    def current_control_set(self):
+        """Returns the current control set of the registry"""
+
+        if hasattr(self, '_current_control_set'):
+            return self._current_control_set
+
+        with self.open_hive('SYSTEM') as hive:
+            select = hive.node_get_child(hive.root(), 'Select')
+            current_value = hive.node_get_value(select, 'Current')
+
+            # expecting a little endian dword
+            assert hive.value_type(current_value)[1] == 4
+            current = "%03d" % hive.value_dword(current_value)
+
+            self._current_control_set = 'ControlSet%s' % current
+
+        return self._current_control_set
+
     def get_setup_state(self):
         """Returns the stage of Windows Setup the image is in.
         The method will return an int with one of the following values:
@@ -176,15 +195,8 @@ class Registry(object):
             raise ValueError("Valid values for standard parameter are 0 and 1")
 
         with self.open_hive('SYSTEM', write=True) as hive:
-            select = hive.node_get_child(hive.root(), 'Select')
-            current_value = hive.node_get_value(select, 'Current')
-
-            # expecting a little endian dword
-            assert hive.value_type(current_value)[1] == 4
-            current = "%03d" % hive.value_dword(current_value)
-
             firewall_policy = hive.root()
-            for child in ('ControlSet%s' % current, 'services', 'SharedAccess',
+            for child in (self.current_control_set, 'services', 'SharedAccess',
                           'Parameters', 'FirewallPolicy'):
                 firewall_policy = hive.node_get_child(firewall_policy, child)
 
