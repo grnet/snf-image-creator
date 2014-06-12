@@ -38,6 +38,13 @@ REG_SZ = lambda k, v: {'key': k, 't': 1L,
 REG_BINARY = lambda k, v: {'key': k, 't': 3L, 'value': v}
 REG_DWORD = lambda k, v: {'key': k, 't': 4L, 'value': struct.pack('<I', v)}
 
+def safe_add_node(hive, parent, name):
+    """Add a registry node only if it is not present"""
+
+    node = hive.node_get_child(parent, name)
+    return hive.node_add_child(parent, name) if node is None else node
+
+
 class Registry(object):
     """Windows Registry manipulation methods"""
 
@@ -365,5 +372,67 @@ class Registry(object):
 
                 action(hive, username, rid_node)
 
+    def add_viostor(self):
+        """Add the viostor driver to the critical device database and register
+        the viostor service
+        """
+
+        path = r"system32\drivers\viostor.sys"
+        pci = r"PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00\3&13c0b0c5&0&20"
+
+        with self.open_hive('SYSTEM', write=True) as hive:
+
+            # SYSTEM/CurrentControlSet/Control/CriticalDeviceDatabase
+            control = hive.root()
+            for child in (self.current_control_set, 'Control'):
+                control = hive.node_get_child(control, child)
+            cdd = safe_add_node(hive, control, 'CriticalDeviceDatabase')
+
+            guid = "{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+
+            for subsys in '00000000', '00020000', '00021af4':
+                name = "pci#ven_1af4&dev_1001&subsys_%s" % subsys
+
+                node = safe_add_node(hive, cdd, name)
+
+                hive.node_set_value(node, REG_SZ('ClassGUID', guid))
+                hive.node_set_value(node, REG_SZ('Service', 'viostor'))
+
+
+            # SYSTEM/CurrentContolSet/Services/viostor
+            services = hive.root()
+            for child in (self.current_control_set, 'Services'):
+                services = hive.node_get_child(services, child)
+
+            viostor = safe_add_node(hive, services, 'viostor')
+            hive.node_set_value(viostor, REG_SZ('Group', 'SCSI miniport'))
+            hive.node_set_value(viostor, REG_SZ('ImagePath', path))
+            hive.node_set_value(viostor, REG_DWORD('ErrorControl', 1))
+            hive.node_set_value(viostor, REG_DWORD('Start', 0))
+            hive.node_set_value(viostor, REG_DWORD('Type', 1))
+            hive.node_set_value(viostor, REG_DWORD('Tag', 0x21))
+
+            params = safe_add_node(hive, viostor, 'Parameters')
+            hive.node_set_value(params, REG_DWORD('BusType', 1))
+
+            mts = safe_add_node(hive, params, 'MaxTransferSize')
+            hive.node_set_value(mts,
+                                REG_SZ('ParamDesc', 'Maximum Transfer Size'))
+            hive.node_set_value(mts, REG_SZ('type', 'enum'))
+            hive.node_set_value(mts, REG_SZ('default', '0'))
+
+            enum = safe_add_node(hive, mts, 'enum')
+            hive.node_set_value(enum, REG_SZ('0', '64  KB'))
+            hive.node_set_value(enum, REG_SZ('1', '128 KB'))
+            hive.node_set_value(enum, REG_SZ('2', '256 KB'))
+
+            pnp_interface = safe_add_node(hive, params, 'PnpInterface')
+            hive.node_set_value(pnp_interface, REG_DWORD('5', 1))
+            enum = safe_add_node(hive, viostor, 'Enum')
+            hive.node_set_value(enum, REG_SZ('0', pci))
+            hive.node_set_value(enum, REG_DWORD('Count', 1))
+            hive.node_set_value(enum, REG_DWORD('NextInstance', 1))
+
+            hive.commit(None)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

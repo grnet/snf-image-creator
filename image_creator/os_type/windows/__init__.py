@@ -361,6 +361,8 @@ class Windows(OSBase):
                     "and you have not specified a directory to retrieve the "
                     "VirtIO drivers from. Further image customization is not "
                     "possible.")
+            elif len(virtio_state['viostor']) == 0:
+                self._install_viostor_driver(virtio_dir)
 
             if len(virtio_state['netkvm']) == 0 and not virtio_dir:
                 raise FatalError(
@@ -604,5 +606,31 @@ class Windows(OSBase):
                 examine_inf(f['name'])
 
         return state
+
+    def _install_viostor_driver(self, dirname):
+        """Quick and dirty installation of the VirtIO SCSI controller driver.
+        It is done to make the image boot from the VirtIO disk.
+
+        http://rwmj.wordpress.com/2010/04/30/
+            tip-install-a-device-driver-in-a-windows-vm/
+        """
+
+        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
+        path = "%s/system32/drivers" % systemroot
+
+        try:
+            path = self.image.g.case_sensitive_path(path)
+        except RuntimeError as err:
+            raise FatalError("Unable to browse to directory: %s. Reason: %s" %
+                             (path, str(err)))
+        localpath = dirname + os.sep + 'viostor.sys'
+        try:
+            self.image.g.upload(localpath, path + '/viostor.sys')
+        except RuntimeError as err:
+            raise FatalError("Unable to upload file %s to %s. Reason: %s" %
+                             (localpath, path, str(err)))
+
+        self.registry.add_viostor()
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
