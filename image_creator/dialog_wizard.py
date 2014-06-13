@@ -316,46 +316,6 @@ def start_wizard(session):
         title="Image Description", default=session['metadata']['DESCRIPTION']
         if 'DESCRIPTION' in session['metadata'] else '')
 
-    # Create Sysprep Params Wizard Page
-    needed = image.os.needed_sysprep_params
-    # Only show the parameters that don't have default values
-    param_names = [param for param in needed if needed[param].default is None]
-
-    def sysprep_params_fields():
-        fields = []
-        available = image.os.sysprep_params
-        for name in param_names:
-            text = needed[name].description
-            default = str(available[name]) if name in available else ""
-            fields.append(("%s: " % text, default, SYSPREP_PARAM_MAXLEN))
-        return fields
-
-    def sysprep_params_validate(answer):
-        params = {}
-        for i in range(len(answer)):
-            try:
-                value = needed[param_names[i]].type(answer[i])
-                if needed[param_names[i]].validate(value):
-                    params[param_names[i]] = value
-                    continue
-            except ValueError:
-                pass
-
-            session['dialog'].msgbox("Invalid value for parameter `%s'" %
-                                     param_names[i])
-            raise WizardReloadPage
-        return params
-
-    def sysprep_params_display(params):
-        return ",".join(["%s=%s" % (key, val) for key, val in params.items()])
-
-    sysprep_params = WizardFormPage(
-        "SysprepParams", "Sysprep Parameters",
-        "Please fill in the following system preparation parameters:",
-        title="System Preparation Parameters", fields=sysprep_params_fields,
-        display=sysprep_params_display, validate=sysprep_params_validate
-    ) if len(needed) != 0 else None
-
     # Create Image Registration Wizard Page
     def registration_choices():
         return [("Private", "Image is accessible only by this user"),
@@ -371,8 +331,6 @@ def start_wizard(session):
     w.add_page(cloud)
     w.add_page(name)
     w.add_page(descr)
-    if sysprep_params is not None:
-        w.add_page(sysprep_params)
     w.add_page(registration)
 
     if w.run():
@@ -396,8 +354,6 @@ def create_image(session):
         out.clear()
 
         #Sysprep
-        if 'SysprepParams' in wizard:
-            image.os.sysprep_params.update(wizard['SysprepParams'])
         image.os.do_sysprep()
         metadata = image.os.meta
 
