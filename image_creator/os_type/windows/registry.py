@@ -35,6 +35,8 @@ WINDOWS_SETUP_STATES = (
 
 REG_SZ = lambda k, v: {'key': k, 't': 1L,
                        'value': (v + '\x00').encode('utf-16le')}
+REG_EXPAND_SZ = lambda k, v: {'key': k, 't': 2L,
+                              'value': (v + '\x00').encode('utf-16le')}
 REG_BINARY = lambda k, v: {'key': k, 't': 3L, 'value': v}
 REG_DWORD = lambda k, v: {'key': k, 't': 4L, 'value': struct.pack('<I', v)}
 
