@@ -165,6 +165,8 @@ class Windows(OSBase):
         self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
 
         self.product_name = self.image.g.inspect_get_product_name(self.root)
+        self.systemroot = self.image.g.inspect_get_windows_systemroot(
+            self.root)
 
         self.vm = VM(self.image.device, self.sysprep_params)
         self.registry = Registry(self.image.g, self.root)
@@ -379,9 +381,8 @@ class Windows(OSBase):
             firewall_states = self.registry.update_firewalls(0, 0, 0)
 
             # Delete the pagefile. It will be recreated when the system boots
-            systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
             try:
-                pagefile = "%s/pagefile.sys" % systemroot
+                pagefile = "%s/pagefile.sys" % self.systemroot
                 self.image.g.rm_rf(self.image.g.case_sensitive_path(pagefile))
             except RuntimeError:
                 pass
@@ -579,8 +580,7 @@ class Windows(OSBase):
 
         catalogfile_entry = re.compile(r'^\s*CatalogFile\s*=')
         driverver_entry = re.compile(r'^\s*DriverVer\s*=')
-        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
-        inf_path = self.image.g.case_sensitive_path("%s/inf" % systemroot)
+        inf_path = self.image.g.case_sensitive_path("%s/inf" % self.systemroot)
 
         state = {}
         for driver in VIRTIO:
@@ -615,8 +615,7 @@ class Windows(OSBase):
             tip-install-a-device-driver-in-a-windows-vm/
         """
 
-        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
-        path = "%s/system32/drivers" % systemroot
+        path = "%s/system32/drivers" % self.systemroot
 
         try:
             path = self.image.g.case_sensitive_path(path)
