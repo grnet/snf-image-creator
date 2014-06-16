@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module implements the "expert" mode of the dialog-based version of
 snf-image-creator.
@@ -50,7 +32,7 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud
+    extract_image, add_cloud, edit_cloud, select_file
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -578,7 +560,7 @@ def modify_properties(session):
                                "property?" % choice, width=WIDTH):
                     del session['metadata'][choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
-                         width=SMALL_WIDTH)
+                             width=SMALL_WIDTH)
         # ADD button
         elif code == d.DIALOG_EXTRA:
             add_property(session)
@@ -658,71 +640,80 @@ def exclude_tasks(session):
     return True
 
 
+def update_sysprep_param(session, name):
+    """Modify the value of a sysprep parameter"""
+    d = session['dialog']
+    image = session['image']
+
+    param = image.os.sysprep_params[name]
+
+    while 1:
+        if param.type in ("file", "dir"):
+
+            title = "Please select a %s to use for the `%s' parameter" % \
+                (name, 'file' if param.type == 'file' else 'directory')
+            ftype = "br" if param.type == 'file' else 'd'
+
+            value = select_file(d, ftype=ftype, title=title)
+            if value is None:
+                return False
+        else:
+            (code, answer) = d.inputbox(
+                "Please provide a new value for configuration parameter: `%s'"
+                % name, width=WIDTH, init=str(param.value))
+
+            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                return False
+
+            value = answer.strip()
+
+        if param.set_value(value) is False:
+            d.msgbox("Unable to update the value. Reason: %s" % param.error,
+                     width=WIDTH)
+            param.error = None
+            continue
+        break
+
+
 def sysprep_params(session):
     """Collect the needed sysprep parameters"""
     d = session['dialog']
     image = session['image']
 
-    available = image.os.sysprep_params
-    needed = image.os.needed_sysprep_params
-
-    if len(needed) == 0:
-        return True
-
-    def print_form(names, extra_button=False):
-        """print the dialog form providing sysprep_params"""
-        fields = []
-        for name in names:
-            param = needed[name]
-            default = str(available[name]) if name in available else ""
-            fields.append(("%s: " % param.description, default,
-                           SYSPREP_PARAM_MAXLEN))
-
-        kwargs = {}
-        if extra_button:
-            kwargs['extra_button'] = 1
-            kwargs['extra_label'] = "Advanced"
-
-        txt = "Please provide the following system preparation parameters:"
-        return d.form(txt, height=13, width=WIDTH, form_height=len(fields),
-                      fields=fields, **kwargs)
-
-    def check_params(names, values):
-        """check if the provided sysprep parameters have legal values"""
-        for i in range(len(names)):
-            param = needed[names[i]]
-            try:
-                normalized = param.type(values[i])
-                if param.validate(normalized):
-                    image.os.sysprep_params[names[i]] = normalized
-                    continue
-            except ValueError:
-                pass
-
-            d.msgbox("Invalid value for parameter: `%s'" % names[i],
-                     width=SMALL_WIDTH)
-            return False
-        return True
-
-    simple_names = [k for k, v in needed.items() if v.default is None]
-    advanced_names = [k for k, v in needed.items() if v.default is not None]
-
+    default = None
     while 1:
-        code, output = print_form(simple_names, extra_button=True)
+        choices = []
+        for name, param in image.os.sysprep_params.items():
+            value = str(param.value)
+            if len(value) == 0:
+                value = "<empty>"
+            choices.append((name, value))
+
+        if len(choices) == 0:
+            d.msgbox("No customization parameters available", width=WIDTH)
+            return True
+
+        if default is None:
+            default = choices[0][0]
+
+        (code, choice) = d.menu(
+            "In this menu you can see and update the value for parameters "
+            "used in the system preparation tasks. Press <Details> to see "
+            "more info about a specific configuration parameters and <Update> "
+            "to update its value. Press <Back> when done.", height=18,
+            width=WIDTH, choices=choices, menu_height=10, ok_label="Details",
+            extra_button=1, extra_label="Update", cancel="Back",
+            default_item=default, title="System Preparation Parameters")
+
+        default = choice
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            return False
-        if code == d.DIALOG_EXTRA:
-            while 1:
-                code, output = print_form(advanced_names)
-                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                    break
-                if check_params(advanced_names, output):
-                    break
-            continue
-
-        if check_params(simple_names, output):
-            break
+            return True
+        # Details button
+        elif code == d.DIALOG_OK:
+            d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
+        else:  # Update button
+            update_sysprep_param(session, choice)
 
     return True
 
@@ -791,9 +782,6 @@ def sysprep(session):
                          title="System Preparation", width=SMALL_WIDTH)
                 continue
 
-            if not sysprep_params(session):
-                continue
-
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
                 image.out.add(infobox)
@@ -860,16 +848,18 @@ def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
 
-    choices = [("Sysprep", "Run various image preparation tasks"),
+    choices = [("Parameters", "View & Modify customization parameters"),
+               ("Sysprep", "Run various image preparation tasks"),
                ("Shrink", "Shrink image"),
-               ("Modify", "Modify image properties"),
+               ("Properties", "View & Modify image properties"),
                ("Exclude", "Exclude various deployment tasks from running")]
 
     default_item = 0
 
-    actions = {"Sysprep": sysprep,
+    actions = {"Parameters": sysprep_params,
+               "Sysprep": sysprep,
                "Shrink": shrink,
-               "Modify": modify_properties,
+               "Properties": modify_properties,
                "Exclude": exclude_tasks}
     while 1:
         (code, choice) = d.menu(

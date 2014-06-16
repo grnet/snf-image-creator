@@ -1,43 +1,26 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """Module providing useful functions for the dialog-based version of
 snf-image-creator.
 """
 
 import os
+import stat
 import re
 import json
 from image_creator.output.dialog import GaugeOutput
@@ -46,6 +29,74 @@ from image_creator.kamaki_wrapper import Kamaki
 
 SMALL_WIDTH = 60
 WIDTH = 70
+
+
+def select_file(d, **kwargs):
+    """Select a file or directory.
+
+    The following optional arguments can be applied:
+
+    * init: Initial file path. If this path is valid this will be returned
+
+    * ftype: Allowed file types. If the value of this argument is "br" only
+             block devices and regular files are valid. For a list of available
+             file types, see here:
+             http://libguestfs.org/guestfs.3.html#guestfs_readdir
+
+    * title: The dialog box title. The default one is: "Please select a file"
+
+    * bundle_host: This can be True or False. If this is True, an extra
+      "Bundle Host" button will be present if the file selection dialog.
+    """
+
+    type_check = {'b': stat.S_ISBLK,   # Block special
+                  'c': stat.S_ISCHR,   # Char special
+                  'd': stat.S_ISDIR,   # Directory
+                  'f': stat.S_ISFIFO,  # FIFO (named pipe)
+                  'l': stat.S_ISLNK,   # Symbolic link
+                  'r': stat.S_ISREG,   # Regular file
+                  's': stat.S_ISSOCK}  # Socket
+
+    fname = None if "init" not in kwargs else kwargs['init']
+    ftype = set(t for t in kwargs['ftype']) if 'ftype' in kwargs else set('r')
+    title = kwargs['title'] if 'title' in kwargs else 'Please select a file.'
+
+    bundle_host = kwargs['bundle_host'] if 'bundle_host' in kwargs else None
+    extra_button = 1 if bundle_host else 0
+
+    for t in ftype:
+        assert t in type_check, "Invalid ftype: %s" % t
+
+    # This is a special case
+    if bundle_host and fname == os.sep:
+        return os.sep
+
+    default = os.getcwd() + os.sep
+
+    while 1:
+        if fname is not None:
+            if not os.path.exists(fname):
+                d.msgbox("The file `%s' you choose does not exist." % fname,
+                         width=SMALL_WIDTH)
+            else:
+                mode = os.stat(fname).st_mode
+                for i in ftype:
+                    if type_check[i](mode):
+                        return fname
+
+                if stat.S_ISDIR(mode):
+                    default = fname
+                else:
+                    d.msgbox("Invalid input.", width=SMALL_WIDTH)
+
+        (code, fname) = d.fselect(default, 10, 60, extra_button=extra_button,
+                                  title=title, extra_label="Bundle Host")
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return None
+        elif code == d.DIALOG_EXTRA:
+            return os.sep
+
+    return fname
 
 
 def update_background_title(session):

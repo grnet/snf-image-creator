@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This package provides various classes for preparing different Operating
 Systems for image creation.
@@ -99,18 +81,99 @@ def sysprep(message, enabled=True, **kwargs):
     return wrapper
 
 
-def add_sysprep_param(name, type, default, descr, validate=lambda x: True):
+class SysprepParam(object):
+    """This class represents an system preparation parameter"""
+
+    def __init__(self, type, default, description):
+
+        type_checker = {"posint": self._check_posint,
+                        "string": self._check_string,
+                        "file": self._check_fname,
+                        "dir": self._check_dname}
+
+        assert type in type_checker.keys(), "Invalid parameter type: %s" % type
+
+        self.type = type
+        self.default = default
+        self.description = description
+        self.value = default
+        self.error = None
+
+        self._checker = type_checker[type]
+
+    def set_value(self, value):
+        """Update the value of the parameter"""
+        try:
+            self.value = self._checker(value)
+        except ValueError as e:
+            self.error = e.message
+            return False
+        return True
+
+    def _check_posint(self, value):
+        """Check if the value is a positive integer"""
+        try:
+            value = int(value)
+        except ValueError:
+            raise ValueError("Invalid number")
+
+        if value <= 0:
+            raise ValueError("Value is negative or zero")
+
+        return value
+
+    def _check_string(self, value):
+        """Check if a value is a string"""
+        return str(value)
+
+    def _check_fname(self, value):
+        """Check if the value is a valid filename"""
+
+        value = str(value)
+        if len(value) == 0:
+            return ""
+
+        import os
+
+        def isblockdev(filename):
+            import stat
+            try:
+                return stat.S_ISBLK(os.stat(filename).st_mode)
+            except OSError:
+                return False
+        if os.path.isfile(value) or isblockdev(value):
+            return value
+
+        raise ValueError("Invalid filename")
+
+    def _check_dname(self, value):
+        """Check if the value is a valid directory"""
+
+        value = str(value)
+        if len(value) == 0:
+            return ""
+
+        import os
+        if os.path.isdir(value):
+            return value
+
+        raise ValueError("Invalid dirname")
+
+
+def add_sysprep_param(name, type, default, descr):
     """Decorator for __init__ that adds the definition for a system preparation
-    parameter in an instance of a os_type class
+    parameter in an instance of an os_type class
     """
     def wrapper(init):
         @wraps(init)
         def inner(self, *args, **kwargs):
+
+            if not hasattr(self, 'sysprep_params'):
+                self.sysprep_params = {}
+
+            self.sysprep_params[name] = SysprepParam(type, default, descr)
+
             init(self, *args, **kwargs)
-            self.needed_sysprep_params[name] = \
-                self.SysprepParam(type, default, descr, validate)
-            if default is not None:
-                self.sysprep_params[name] = default
         return inner
     return wrapper
 
@@ -122,7 +185,7 @@ def del_sysprep_param(name):
     def wrapper(func):
         @wraps(func)
         def inner(self, *args, **kwargs):
-            del self.needed_sysprep_params[name]
+            del self.sysprep_params[name]
             func(self, *args, **kwargs)
         return inner
     return wrapper
@@ -131,21 +194,28 @@ def del_sysprep_param(name):
 class OSBase(object):
     """Basic operating system class"""
 
-    SysprepParam = namedtuple('SysprepParam',
-                              ['type', 'default', 'description', 'validate'])
-
     def __init__(self, image, **kargs):
         self.image = image
 
         self.root = image.root
         self.out = image.out
 
-        self.needed_sysprep_params = {}
-        self.sysprep_params = \
-            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+        # Could be defined in a decorator
+        if not hasattr(self, 'sysprep_params'):
+            self.sysprep_params = {}
+
+        if 'sysprep_params' in kargs:
+            for key, val in kargs['sysprep_params'].items():
+                param = self.sysprep_params[key]
+                if not param.set_value(val):
+                    raise FatalError("Invalid value for sysprep parameter: "
+                                     "`%s'. Reason: %s" % (key, param.error))
 
         self.meta = {}
         self.mounted = False
+
+        # This will host the error if mount fails
+        self._mount_error = ""
 
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
@@ -162,25 +232,25 @@ class OSBase(object):
 
         self.out.output('Running OS inspection:')
         try:
-            if not self.mount(readonly=True):
+            if not self.mount(readonly=True, silent=True):
                 raise FatalError("Unable to mount the media read-only")
             self._do_inspect()
         finally:
-            self.umount()
+            self.umount(silent=True)
 
         self.out.output()
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
         try:
-            if not self.mount(readonly=True):
+            if not self.mount(readonly=True, silent=True):
                 raise FatalError("Unable to mount the media read-only")
 
             self.out.output('Collecting image metadata ...', False)
             self._do_collect_metadata()
             self.out.success('done')
         finally:
-            self.umount()
+            self.umount(silent=True)
 
         self.out.output()
 
@@ -258,17 +328,23 @@ class OSBase(object):
     def print_sysprep_params(self):
         """Print the system preparation parameter the user may use"""
 
-        self.out.output("Needed system preparation parameters:")
+        self.out.output("System preparation parameters:")
+        self.out.output()
 
-        if len(self.needed_sysprep_params) == 0:
+        if len(self.sysprep_params) == 0:
             self.out.output("(none)")
             return
 
-        for name, param in self.needed_sysprep_params.items():
-            self.out.output("\t%s [%s]: %s" %
-                            (param.description, name,
-                             self.sysprep_params[name] if name in
-                             self.sysprep_params else "(none)"))
+        wrapper = textwrap.TextWrapper()
+        wrapper.subsequent_indent = "             "
+        wrapper.width = 72
+
+        for name, param in self.sysprep_params.items():
+            self.out.output("NAME:        %s" % name)
+            self.out.output("VALUE:       %s" % param.value)
+            self.out.output(
+                wrapper.fill("DESCRIPTION: %s" % param.description))
+            self.out.output()
 
     def do_sysprep(self):
         """Prepare system for image creation."""
@@ -282,7 +358,9 @@ class OSBase(object):
 
         try:
             if not self.mount(readonly=False):
-                raise FatalError("Unable to mount the media read-write")
+                msg = "Unable to mount the media read-write. Reason: %s" % \
+                    self._mount_error
+                raise FatalError(msg)
 
             enabled = [task for task in self.list_syspreps() if task.enabled]
 
@@ -298,29 +376,34 @@ class OSBase(object):
 
         self.out.output()
 
-    def mount(self, readonly=False):
+    def mount(self, readonly=False, silent=False):
         """Mount image."""
 
         if getattr(self, "mounted", False):
             return True
 
         mount_type = 'read-only' if readonly else 'read-write'
-        self.out.output("Mounting the media %s ..." % mount_type, False)
+        if not silent:
+            self.out.output("Mounting the media %s ..." % mount_type, False)
 
+        self._mount_error = ""
         if not self._do_mount(readonly):
             return False
 
         self.mounted = True
-        self.out.success('done')
+        if not silent:
+            self.out.success('done')
         return True
 
-    def umount(self):
+    def umount(self, silent=False):
         """Umount all mounted file systems."""
 
-        self.out.output("Umounting the media ...", False)
+        if not silent:
+            self.out.output("Umounting the media ...", False)
         self.image.g.umount_all()
         self.mounted = False
-        self.out.success('done')
+        if not silent:
+            self.out.success('done')
 
     def _is_sysprep(self, obj):
         """Checks if an object is a sysprep"""
@@ -383,6 +466,7 @@ class OSBase(object):
 
     def _do_inspect(self):
         """helper method for inspect"""
+        self.out.warn("No inspection method available")
         pass
 
     def _do_collect_metadata(self):
@@ -408,7 +492,7 @@ class OSBase(object):
             self.image.g.mount_options(
                 'ro' if readonly else 'rw', self.root, '/')
         except RuntimeError as msg:
-            self.out.warn("unable to mount the root partition: %s" % msg)
+            self._mount_error = str(msg)
             return False
 
         return True

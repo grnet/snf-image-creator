@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module implements the "wizard" mode of the dialog-based version of
 snf-image-creator.
@@ -334,46 +316,6 @@ def start_wizard(session):
         title="Image Description", default=session['metadata']['DESCRIPTION']
         if 'DESCRIPTION' in session['metadata'] else '')
 
-    # Create Sysprep Params Wizard Page
-    needed = image.os.needed_sysprep_params
-    # Only show the parameters that don't have default values
-    param_names = [param for param in needed if needed[param].default is None]
-
-    def sysprep_params_fields():
-        fields = []
-        available = image.os.sysprep_params
-        for name in param_names:
-            text = needed[name].description
-            default = str(available[name]) if name in available else ""
-            fields.append(("%s: " % text, default, SYSPREP_PARAM_MAXLEN))
-        return fields
-
-    def sysprep_params_validate(answer):
-        params = {}
-        for i in range(len(answer)):
-            try:
-                value = needed[param_names[i]].type(answer[i])
-                if needed[param_names[i]].validate(value):
-                    params[param_names[i]] = value
-                    continue
-            except ValueError:
-                pass
-
-            session['dialog'].msgbox("Invalid value for parameter `%s'" %
-                                     param_names[i])
-            raise WizardReloadPage
-        return params
-
-    def sysprep_params_display(params):
-        return ",".join(["%s=%s" % (key, val) for key, val in params.items()])
-
-    sysprep_params = WizardFormPage(
-        "SysprepParams", "Sysprep Parameters",
-        "Please fill in the following system preparation parameters:",
-        title="System Preparation Parameters", fields=sysprep_params_fields,
-        display=sysprep_params_display, validate=sysprep_params_validate
-    ) if len(needed) != 0 else None
-
     # Create Image Registration Wizard Page
     def registration_choices():
         return [("Private", "Image is accessible only by this user"),
@@ -389,8 +331,6 @@ def start_wizard(session):
     w.add_page(cloud)
     w.add_page(name)
     w.add_page(descr)
-    if sysprep_params is not None:
-        w.add_page(sysprep_params)
     w.add_page(registration)
 
     if w.run():
@@ -414,8 +354,6 @@ def create_image(session):
         out.clear()
 
         #Sysprep
-        if 'SysprepParams' in wizard:
-            image.os.sysprep_params.update(wizard['SysprepParams'])
         image.os.do_sysprep()
         metadata = image.os.meta
 
