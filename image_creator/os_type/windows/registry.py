@@ -437,4 +437,34 @@ class Registry(object):
 
             hive.commit(None)
 
+    def update_devices_dirs(self, dirname, append=True):
+        """Update the value of the DevicePath registry key. If the append flag
+        is True, the dirname is appended to the list of devices directories,
+        otherwise the value is overwritten.
+
+        This function returns the old value of the registry key
+        """
+
+        with self.open_hive('SOFTWARE', write=True) as hive:
+
+            current_version = hive.root()
+            for child in ('Microsoft', 'Windows', 'CurrentVersion'):
+                current_version = hive.node_get_child(current_version, child)
+
+            device_path = hive.node_get_value(current_version, 'DevicePath')
+            regtype, value = hive.value_value(device_path)
+
+            assert regtype == 2L, "Type (=%d) is not REG_EXPAND_SZ" % regtype
+
+            # Remove the trailing '\x00' character
+            old_value = value.decode('utf-16le')[:-1]
+
+            new_value = "%s;%s" % (old_value, dirname) if append else dirname
+
+            hive.node_set_value(current_version,
+                                REG_EXPAND_SZ('DevicePath', new_value))
+            hive.commit(None)
+
+        return old_value
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

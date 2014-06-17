@@ -373,6 +373,9 @@ class Windows(OSBase):
                     "VirtIO drivers from. Further image customization is not "
                     "possible.")
 
+            if virtio_dir:
+                self._install_virtio_drivers(virtio_dir)
+
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
             token = self._add_boot_scripts()
@@ -615,21 +618,35 @@ class Windows(OSBase):
             tip-install-a-device-driver-in-a-windows-vm/
         """
 
-        path = "%s/system32/drivers" % self.systemroot
+        drivers_path = "%s/system32/drivers" % self.systemroot
 
         try:
-            path = self.image.g.case_sensitive_path(path)
+            drivers_path = self.image.g.case_sensitive_path(drivers_path)
         except RuntimeError as err:
             raise FatalError("Unable to browse to directory: %s. Reason: %s" %
-                             (path, str(err)))
-        localpath = dirname + os.sep + 'viostor.sys'
+                             (drivers_path, str(err)))
+        viostor = dirname + os.sep + 'viostor.sys'
         try:
-            self.image.g.upload(localpath, path + '/viostor.sys')
+            self.image.g.upload(viostor, drivers_path + '/viostor.sys')
         except RuntimeError as err:
             raise FatalError("Unable to upload file %s to %s. Reason: %s" %
-                             (localpath, path, str(err)))
+                             (viostor, drivers_path, str(err)))
 
         self.registry.add_viostor()
 
+
+    def _install_virtio_drivers(self, dirname):
+        """Install the virtio drivers to the media"""
+
+        virtio_dir = self.image.g.case_sensitive_path("%s/VirtIO" %
+                                                      self.systemroot)
+        self.image.g.mkdir_p(virtio_dir)
+
+        for fname in os.listdir(dirname):
+            full_path = os.path.join(dirname, fname)
+            if os.path.isfile(full_path):
+                self.image.g.upload(full_path, "%s/%s" % (virtio_dir, fname))
+
+        self.registry.update_devices_dirs(r"%SystemRoot%\VirtIO")
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
