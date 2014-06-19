@@ -23,6 +23,7 @@ from image_creator.util import FatalError
 from image_creator.os_type.windows.vm import VM
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
+from image_creator.os_type.windows.powershell import DRVINST
 
 import tempfile
 import random
@@ -174,11 +175,18 @@ class Windows(OSBase):
         # If the image is already sysprepped we cannot further customize it
         self.mount(readonly=True, silent=True)
         try:
-            self.out.output("Checking if media is sysprepped ...", False)
-            self.syspreped = self.registry.get_setup_state() > 0
+            self.out.output("Checking media state ...", False)
+            self.sysprepped = self.registry.get_setup_state() > 0
+            self.virtio_state = self._virtio_state()
             self.out.success("done")
         finally:
             self.umount(silent=True)
+
+        # If the image is sysprepped no driver mappings will be present.
+        self.systemdrive = None
+        for drive, root in self.image.g.inspect_get_drive_mappings(self.root):
+            if root == self.root:
+                self.systemdrive = drive
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -236,7 +244,7 @@ class Windows(OSBase):
 
         self.vm.rexec(r'C:\Windows\system32\sysprep\sysprep '
                       r'/quiet /generalize /oobe /shutdown')
-        self.syspreped = True
+        self.sysprepped = True
 
     @sysprep('Converting the image into a KMS client', enabled=False)
     def kms_client_setup(self):
@@ -339,15 +347,31 @@ class Windows(OSBase):
                 "Winexe not found! In order to be able to customize a Windows "
                 "image you need to have Winexe installed.")
 
-        if self.syspreped:
+        if self.sysprepped:
             raise FatalError(
                 "Microsoft's System Preparation Tool has ran on the Image. "
                 "Further image customization is not possible.")
 
+        virtio_dir = self.sysprep_params['virtio'].value
+
+        if len(self.virtio_state['viostor']) == 0 and not virtio_dir:
+            raise FatalError(
+                "The media has no VirtIO SCSI controller driver installed and "
+                "you have not specified a directory to retrieve the VirtIO "
+                "drivers from. Further image customization is not possible.")
+
+        if len(self.virtio_state['netkvm']) == 0 and not virtio_dir:
+            raise FatalError(
+                "The media has no VirtIO Ethernet Adapter driver installed and"
+                " you have not specified a directory to retrieve the VirtIO "
+                "drivers from. Further image customization is not possible.")
+
+        if virtio_dir:
+            self._install_virtio_drivers(virtio_dir)
+
         admin = self.sysprep_params['admin'].value
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
-        virtio_dir = self.sysprep_params['virtio'].value
 
         self.out.output("Preparing media for boot ...", False)
         try:
@@ -355,26 +379,6 @@ class Windows(OSBase):
                 msg = "Unable to mount the media read-write. Reason: %s" % \
                     self._mount_error
                 raise FatalError(msg)
-
-            virtio_state = self._virtio_state()
-            if len(virtio_state['viostor']) == 0 and not virtio_dir:
-                raise FatalError(
-                    "The media has no VirtIO SCSI controller driver installed "
-                    "and you have not specified a directory to retrieve the "
-                    "VirtIO drivers from. Further image customization is not "
-                    "possible.")
-            elif len(virtio_state['viostor']) == 0:
-                self._install_viostor_driver(virtio_dir)
-
-            if len(virtio_state['netkvm']) == 0 and not virtio_dir:
-                raise FatalError(
-                    "The media has no VirtIO Ethernet Adapter driver installed"
-                    " and you have not specified a directory to retrieve the "
-                    "VirtIO drivers from. Further image customization is not "
-                    "possible.")
-
-            if virtio_dir:
-                self._install_virtio_drivers(virtio_dir)
 
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
@@ -434,7 +438,7 @@ class Windows(OSBase):
                 if disabled_uac:
                     self.registry.update_uac_remote_setting(0)
 
-                if not self.syspreped:
+                if not self.sysprepped:
                     # Reset the old password
                     admin = self.sysprep_params['admin'].value
                     self.registry.reset_passwd(admin, v_val)
@@ -473,7 +477,7 @@ class Windows(OSBase):
             setattr(task.im_func, 'executed', True)
 
         self.out.output("Sending shut down command ...", False)
-        if not self.syspreped:
+        if not self.sysprepped:
             self._shutdown()
         self.out.success("done")
 
@@ -610,6 +614,54 @@ class Windows(OSBase):
 
         return state
 
+    def _install_virtio_drivers(self, dirname):
+
+        self.out.output('Installing virtio drivers...', False)
+
+        try:
+            if not self.mount(readonly=False, silent=True):
+                msg = "Unable to mount the media read-write. Reason: %s" % \
+                    self._mount_error
+                raise FatalError(msg)
+
+            admin = self.sysprep_params['admin'].value
+            v_val = self.registry.reset_passwd(admin)
+            self.registry.enable_autologon(admin)
+
+            self._install_viostor_driver(dirname)
+            self._upload_virtio_drivers(dirname)
+
+            remotedir = self.image.g.case_sensitive_path("%s/VirtIO" %
+                                                         self.systemroot)
+            self.image.g.write(remotedir + "/InstallDrivers.ps1",
+                               DRVINST.replace('\n', '\r\n'))
+
+            cmd = (
+                '%(drive)s:%(root)s\\System32\\WindowsPowerShell\\v1.0\\'
+                'powershell.exe -ExecutionPolicy RemoteSigned -File '
+                '%(drive)s:%(root)s\\VirtIO\\InstallDrivers.ps1 '
+                '%(drive)s:%(root)s\\Virtio' %
+                {'root': self.systemroot.replace('/', '\\'),
+                 'drive': self.systemdrive})
+
+            self.registry.runonce({'InstallDrivers': cmd})
+
+        finally:
+            self.umount(silent=True)
+
+        try:
+            self.vm.start()
+            self.out.success("started (console on VNC display: %d)" %
+                                 self.vm.display)
+        finally:
+            self.vm.stop(6000)
+            try:
+                self.mount(readonly=True, silent=True)
+                self.virtio_state = self._virtio_state()
+            finally:
+                self.umount(silent=True)
+
+
     def _install_viostor_driver(self, dirname):
         """Quick and dirty installation of the VirtIO SCSI controller driver.
         It is done to make the image boot from the VirtIO disk.
@@ -635,7 +687,7 @@ class Windows(OSBase):
         self.registry.add_viostor()
 
 
-    def _install_virtio_drivers(self, dirname):
+    def _upload_virtio_drivers(self, dirname):
         """Install the virtio drivers to the media"""
 
         virtio_dir = self.image.g.case_sensitive_path("%s/VirtIO" %
