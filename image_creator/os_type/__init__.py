@@ -401,6 +401,23 @@ class OSBase(object):
         if not silent:
             self.out.success('done')
 
+    def check_version(self, major, minor):
+        """Checks the OS version against the one specified by the major, minor
+        tuple.
+
+        Returns:
+            < 0 if the OS version is smaller than the specified one
+            = 0 if they are equal
+            > 0 if it is greater
+        """
+        guestfs = self.image.g
+        for a, b in ((guestfs.inspect_get_major_version(self.root), major),
+                     (guestfs.inspect_get_minor_version(self.root), minor)):
+            if a != b:
+                return a - b
+
+        return 0
+
     def _is_sysprep(self, obj):
         """Checks if an object is a sysprep"""
         return getattr(obj, 'sysprep', False) and callable(obj)
