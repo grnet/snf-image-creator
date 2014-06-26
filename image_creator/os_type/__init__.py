@@ -208,10 +208,10 @@ class OSBase(object):
                                      "`%s'. Reason: %s" % (key, param.error))
 
         self.meta = {}
-        self.mounted = False
 
         # This will host the error if mount fails
         self._mount_error = ""
+        self._mount_warnings = []
 
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
@@ -227,27 +227,19 @@ class OSBase(object):
             return
 
         self.out.output('Running OS inspection:')
-        try:
-            if not self.mount(readonly=True, silent=True):
-                raise FatalError("Unable to mount the media read-only")
+        with self.mount(readonly=True, silent=True):
             self._do_inspect()
-        finally:
-            self.umount(silent=True)
-
         self.out.output()
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
-        try:
-            if not self.mount(readonly=True, silent=True):
-                raise FatalError("Unable to mount the media read-only")
 
-            self.out.output('Collecting image metadata ...', False)
+        self.out.output('Collecting image metadata ...', False)
+
+        with self.mount(readonly=True, silent=True):
             self._do_collect_metadata()
-            self.out.success('done')
-        finally:
-            self.umount(silent=True)
 
+        self.out.success('done')
         self.out.output()
 
     def list_syspreps(self):
@@ -352,12 +344,7 @@ class OSBase(object):
                 "System preparation is disabled for unsupported media")
             return
 
-        try:
-            if not self.mount(readonly=False):
-                msg = "Unable to mount the media read-write. Reason: %s" % \
-                    self._mount_error
-                raise FatalError(msg)
-
+        with self.mount():
             enabled = [task for task in self.list_syspreps() if task.enabled]
 
             size = len(enabled)
@@ -367,39 +354,40 @@ class OSBase(object):
                 self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
                 task()
                 setattr(task.im_func, 'executed', True)
-        finally:
-            self.umount()
 
         self.out.output()
 
-    def mount(self, readonly=False, silent=False):
-        """Mount image."""
+    def mount(self, readonly=False, silent=False, fatal=True):
+        """Returns a context manager for mounting an image"""
 
-        if getattr(self, "mounted", False):
-            return True
+        parent = self
+        output = lambda msg='', nl=True: None if silent else self.out.output
+        success = lambda msg='', nl=True: None if silent else self.out.success
+        warn = lambda msg='', nl=True: None if silent else self.out.warn
 
-        mount_type = 'read-only' if readonly else 'read-write'
-        if not silent:
-            self.out.output("Mounting the media %s ..." % mount_type, False)
+        class Mount:
+            """The Mount context manager"""
+            def __enter__(self):
+                mount_type = 'read-only' if readonly else 'read-write'
+                output("Mounting the media %s ..." % mount_type, False)
 
-        self._mount_error = ""
-        if not self._do_mount(readonly):
-            return False
+                parent._mount_error = ""
+                del parent._mount_warnings[:]
 
-        self.mounted = True
-        if not silent:
-            self.out.success('done')
-        return True
+                if not parent._do_mount(readonly) and fatal:
+                    msg = "Unable to mount the media %s. Reason: %s" % \
+                        (mount_type, parent._mount_error)
+                    raise FatalError(msg)
+                for warning in parent._mount_warnings:
+                    warn(warning)
+                success('done')
 
-    def umount(self, silent=False):
-        """Umount all mounted file systems."""
+            def __exit__(self, exc_type, exc_value, traceback):
+                output("Umounting the media ...", False)
+                parent.image.g.umount_all()
+                success('done')
 
-        if not silent:
-            self.out.output("Umounting the media ...", False)
-        self.image.g.umount_all()
-        self.mounted = False
-        if not silent:
-            self.out.success('done')
+        return Mount()
 
     def check_version(self, major, minor):
         """Checks the OS version against the one specified by the major, minor

@@ -173,14 +173,11 @@ class Windows(OSBase):
         self.registry = Registry(self.image.g, self.root)
 
         # If the image is already sysprepped we cannot further customize it
-        self.mount(readonly=True, silent=True)
-        try:
+        with self.mount(readonly=True, silent=True):
             self.out.output("Checking media state ...", False)
             self.sysprepped = self.registry.get_setup_state() > 0
             self.virtio_state = self._virtio_state()
             self.out.success("done")
-        finally:
-            self.umount(silent=True)
 
         # If the image is sysprepped no driver mappings will be present.
         self.systemdrive = None
@@ -374,12 +371,8 @@ class Windows(OSBase):
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
         self.out.output("Preparing media for boot ...", False)
-        try:
-            if not self.mount(readonly=False, silent=True):
-                msg = "Unable to mount the media read-write. Reason: %s" % \
-                    self._mount_error
-                raise FatalError(msg)
 
+        with self.mount(readonly=False, silent=True):
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
             token = self._add_boot_scripts()
@@ -394,8 +387,6 @@ class Windows(OSBase):
             except RuntimeError:
                 pass
 
-        finally:
-            self.umount(silent=True)
         self.out.success('done')
 
         self.image.disable_guestfs()
@@ -433,8 +424,7 @@ class Windows(OSBase):
             self.image.enable_guestfs()
 
             self.out.output("Reverting media boot preparations ...", False)
-            self.mount(readonly=False, silent=True)
-            try:
+            with self.mount(readonly=False, silent=True, fatal=False):
                 if disabled_uac:
                     self.registry.update_uac_remote_setting(0)
 
@@ -444,8 +434,6 @@ class Windows(OSBase):
                     self.registry.reset_passwd(admin, v_val)
 
                 self.registry.update_firewalls(*firewall_states)
-            finally:
-                self.umount(silent=True)
             self.out.success("done")
 
     def _exec_sysprep_tasks(self):
@@ -618,11 +606,7 @@ class Windows(OSBase):
 
         self.out.output('Installing virtio drivers...', False)
 
-        try:
-            if not self.mount(readonly=False, silent=True):
-                msg = "Unable to mount the media read-write. Reason: %s" % \
-                    self._mount_error
-                raise FatalError(msg)
+        with self.mount(readonly=False, silent=True):
 
             admin = self.sysprep_params['admin'].value
             v_val = self.registry.reset_passwd(admin)
@@ -646,20 +630,15 @@ class Windows(OSBase):
 
             self.registry.runonce({'InstallDrivers': cmd})
 
-        finally:
-            self.umount(silent=True)
-
         try:
             self.vm.start()
             self.out.success("started (console on VNC display: %d)" %
                                  self.vm.display)
         finally:
             self.vm.stop(6000)
-            try:
-                self.mount(readonly=True, silent=True)
+
+            with self.mount(readonly=True, silent=True):
                 self.virtio_state = self._virtio_state()
-            finally:
-                self.umount(silent=True)
 
 
     def _install_viostor_driver(self, dirname):

@@ -66,7 +66,7 @@ class Unix(OSBase):
                     self._mount_error = str(msg)
                     return False
                 else:
-                    self.out.warn('%s (ignored)' % msg)
+                    self._mount_warnings.append('%s (ignored)' % msg)
 
         return True
 
