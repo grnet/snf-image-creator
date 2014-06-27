@@ -18,6 +18,7 @@
 """This module hosts Windows PowerShell scripts that need to be injected into
 the windows image"""
 
+# Installs drivers found in a directory
 DRVINST = r"""
 #requires -version 2
 
@@ -41,7 +42,15 @@ if (Test-Path "$dirName/viostor.inf") {
 
 pnputil.exe -a "$dirname\*.inf"
 
-shutdown /s /t 5
 """
 
+# Reboots system in safe mode
+SAFEBOOT = r"""
+bcdedit /set safeboot minimal
+New-ItemProperty `
+    -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
+    -Name *snf-image-creator-restart -PropertyType String `
+    -Value 'cmd /q /c "bcdedit /deletevalue safeboot & shutdown /s /t 0"'
+
+"""
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

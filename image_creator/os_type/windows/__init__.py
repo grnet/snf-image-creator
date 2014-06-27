@@ -23,7 +23,7 @@ from image_creator.util import FatalError
 from image_creator.os_type.windows.vm import VM
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
-from image_creator.os_type.windows.powershell import DRVINST
+from image_creator.os_type.windows.powershell import DRVINST, SAFEBOOT
 
 import tempfile
 import random
@@ -611,14 +611,23 @@ class Windows(OSBase):
             admin = self.sysprep_params['admin'].value
             v_val = self.registry.reset_passwd(admin)
             self.registry.enable_autologon(admin)
-
-            self._install_viostor_driver(dirname)
             self._upload_virtio_drivers(dirname)
+
+            drvs_install = DRVINST.replace('\n', '\r\n')
+
+            if self.check_version(6, 1) <= 0:
+                self._install_viostor_driver(dirname)
+            else:
+                # In newer windows, in order to reduce the boot process the
+                # boot drivers are cached. To be able to boot with viostor, we
+                # need to reboot in safe mode.
+                drvs_install += SAFEBOOT.replace('\n', '\r\n')
+
+            drvs_install += "\r\nshutdown /s /t 0\r\n"
 
             remotedir = self.image.g.case_sensitive_path("%s/VirtIO" %
                                                          self.systemroot)
-            self.image.g.write(remotedir + "/InstallDrivers.ps1",
-                               DRVINST.replace('\n', '\r\n'))
+            self.image.g.write(remotedir + "/InstallDrivers.ps1", drvs_install)
 
             cmd = (
                 '%(drive)s:%(root)s\\System32\\WindowsPowerShell\\v1.0\\'
@@ -628,18 +637,32 @@ class Windows(OSBase):
                 {'root': self.systemroot.replace('/', '\\'),
                  'drive': self.systemdrive})
 
-            self.registry.runonce({'InstallDrivers': cmd})
+            # The value name of RunOnce keys can be prefixed with an asterisk
+            # (*) to force the program to run even in Safe mode.
+            self.registry.runonce({'*InstallDrivers': cmd})
 
         try:
-            self.vm.start()
+            if self.check_version(6, 1) <= 0:
+                self.vm.start()
+            else:
+                self.vm.interface = 'ide'
+                self.vm.start(extra_disk=('/dev/null', 'virtio'))
+                self.vm.interface = 'virtio'
+
             self.out.success("started (console on VNC display: %d)" %
                                  self.vm.display)
         finally:
             self.vm.stop(6000)
 
-            with self.mount(readonly=True, silent=True):
-                self.virtio_state = self._virtio_state()
+        if self.check_version(6, 1) > 0:
+            # Hopefully restart in safe mode.
+            try:
+                self.vm.start()
+            finally:
+                self.vm.stop(6000)
 
+        with self.mount(readonly=True, silent=True):
+            self.virtio_state = self._virtio_state()
 
     def _install_viostor_driver(self, dirname):
         """Quick and dirty installation of the VirtIO SCSI controller driver.
@@ -664,7 +687,6 @@ class Windows(OSBase):
                              (viostor, drivers_path, str(err)))
 
         self.registry.add_viostor()
-
 
     def _upload_virtio_drivers(self, dirname):
         """Install the virtio drivers to the media"""

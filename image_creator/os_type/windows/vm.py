@@ -36,6 +36,7 @@ class VM(object):
 
         self.disk = disk
         self.params = params
+        self.interface = 'virtio'
 
         kvm, needed_args = get_kvm_binary()
         if kvm is None:
@@ -93,7 +94,7 @@ class VM(object):
         """Check if the VM is alive"""
         return self.process is not None and self.process.poll() is None
 
-    def start(self):
+    def start(self, **kwargs):
         """Start the windows VM"""
 
         args = []
@@ -105,12 +106,19 @@ class VM(object):
         if 'mem' in self.params:
             args.extend(['-m', str(self.params['mem'].value)])
 
-        args.extend([
-            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk])
+        args.extend(['-drive',
+                     'file=%s,format=raw,cache=unsafe,if=%s' %
+                     (self.disk, self.interface)])
 
         args.extend(
             ['-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % self.mac])
+             '-device', 'rtl8139,mac=%s,netdev=netdev0' % self.mac])
+
+        if 'extra_disk' in kwargs:
+            fname, iftype = kwargs['extra_disk']
+            args.extend(['-drive',
+                         'file=%s,format=raw,cache=unsafe,if=%s' %
+                         (fname, iftype)])
 
         args.extend(['-vnc', ":%d" % self.display])
 
