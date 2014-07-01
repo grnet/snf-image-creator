@@ -40,6 +40,7 @@ REG_EXPAND_SZ = lambda k, v: {'key': k, 't': 2L,
 REG_BINARY = lambda k, v: {'key': k, 't': 3L, 'value': v}
 REG_DWORD = lambda k, v: {'key': k, 't': 4L, 'value': struct.pack('<I', v)}
 
+
 def safe_add_node(hive, parent, name):
     """Add a registry node only if it is not present"""
 
@@ -400,7 +401,6 @@ class Registry(object):
                 hive.node_set_value(node, REG_SZ('ClassGUID', guid))
                 hive.node_set_value(node, REG_SZ('Service', 'viostor'))
 
-
             # SYSTEM/CurrentContolSet/Services/viostor
             services = hive.root()
             for child in (self.current_control_set, 'Services'):
@@ -436,6 +436,17 @@ class Registry(object):
             hive.node_set_value(enum, REG_DWORD('NextInstance', 1))
 
             hive.commit(None)
+
+    def check_viostor_service(self):
+        """Checks if the viostor service is installed"""
+        with self.open_hive('SYSTEM', write=False) as hive:
+
+            # SYSTEM/CurrentContolSet/Services/viostor
+            services = hive.root()
+            for child in (self.current_control_set, 'Services'):
+                services = hive.node_get_child(services, child)
+
+        return hive.node_get_child(services, 'viostor') is not None
 
     def update_devices_dirs(self, dirname, append=True):
         """Update the value of the DevicePath registry key. If the append flag

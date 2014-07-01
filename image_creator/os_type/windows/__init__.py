@@ -20,14 +20,13 @@ Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError
-from image_creator.os_type.windows.vm import VM
+from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
-from image_creator.os_type.windows.powershell import DRVINST, SAFEBOOT
+from image_creator.os_type.windows.powershell import DRVINST_HEAD, SAFEBOOT, \
+    DRVINST_TAIL
 
 import tempfile
-import random
-import string
 import re
 import os
 
@@ -77,8 +76,7 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 Standard": "TM24T-X9RMF-VWXK6-X8JC9-BFGM2",
     "Windows Server 2008 Standard without Hyper-V":
     "W7VD6-7JFBR-RX26B-YKQ3Y-6FFFJ",
-    "Windows Server 2008 Enterprise":
-    "YQGMW-MPWTJ-34KDK-48M3W-X4Q6V",
+    "Windows Server 2008 Enterprise": "YQGMW-MPWTJ-34KDK-48M3W-X4Q6V",
     "Windows Server 2008 Enterprise without Hyper-V":
     "39BXF-X8Q23-P2WWT-38T2F-G3FPG",
     "Windows Server 2008 HPC": "RCTX3-KWVHP-BR6TB-RB6DM-6X7HP",
@@ -128,7 +126,9 @@ DESCR = {
     "smp": "Number of CPUs to use for the Windows customization VM.",
     "mem": "Virtual RAM size in MiB for the Windows customization VM.",
     "admin": "Name of the Administration user.",
-    "virtio": "Directory hosting the Windows virtio drivers."}
+    "virtio": "Directory hosting the Windows virtio drivers.",
+    "virtio_timeout": "Time in seconds to wait for the installation of the "
+    "VirtIO drivers."}
 
 
 class Windows(OSBase):
@@ -142,6 +142,8 @@ class Windows(OSBase):
         'shutdown_timeout', "posint", 120, DESCR['shutdown_timeout'])
     @add_sysprep_param('boot_timeout', "posint", 300, DESCR['boot_timeout'])
     @add_sysprep_param('virtio', 'dir', "", DESCR['virtio'], virtio_dir_check)
+    @add_sysprep_param(
+        'virtio_timeout', 'posint', 300, DESCR['virtio_timeout'])
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -375,7 +377,7 @@ class Windows(OSBase):
         with self.mount(readonly=False, silent=True):
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
-            token = self._add_boot_scripts()
+            self._add_boot_scripts()
 
             # disable the firewalls
             firewall_states = self.registry.update_firewalls(0, 0, 0)
@@ -398,7 +400,7 @@ class Windows(OSBase):
                                  self.vm.display)
 
                 self.out.output("Waiting for OS to boot ...", False)
-                if not self.vm.wait_on_serial(token, timeout):
+                if not self.vm.wait_on_serial(timeout):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
 
@@ -485,16 +487,14 @@ class Windows(OSBase):
 
     def _add_boot_scripts(self):
         """Add various scripts in the registry that will be executed during the
-        next boot. It returns a random string that will be send to the serial
-        port of the VM when the OS boots.
+        next boot.
         """
 
         commands = {}
 
         # This script will send a random string to the first serial port. This
         # can be used to determine when the OS has booted.
-        token = "".join(random.choice(string.ascii_letters) for x in range(16))
-        commands['BootMonitor'] = "cmd /q /a /c echo " + token + " > COM1"
+        commands['BootMonitor'] = "cmd /q /a /c echo " + TOKEN + " > COM1"
 
         # This will update the password of the admin user to self.vm.password
         commands["UpdatePassword"] = "net user %s %s" % \
@@ -530,8 +530,6 @@ class Windows(OSBase):
         # local policy.
 
         self.registry.enable_autologon(self.sysprep_params['admin'].value)
-
-        return token
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
@@ -613,7 +611,7 @@ class Windows(OSBase):
             self.registry.enable_autologon(admin)
             self._upload_virtio_drivers(dirname)
 
-            drvs_install = DRVINST.replace('\n', '\r\n')
+            drvs_install = DRVINST_HEAD.replace('\n', '\r\n')
 
             if self.check_version(6, 1) <= 0:
                 self._install_viostor_driver(dirname)
@@ -623,7 +621,7 @@ class Windows(OSBase):
                 # need to reboot in safe mode.
                 drvs_install += SAFEBOOT.replace('\n', '\r\n')
 
-            drvs_install += "\r\nshutdown /s /t 0\r\n"
+            drvs_install += DRVINST_TAIL.replace('\n', '\r\n')
 
             remotedir = self.image.g.case_sensitive_path("%s/VirtIO" %
                                                          self.systemroot)
@@ -641,6 +639,9 @@ class Windows(OSBase):
             # (*) to force the program to run even in Safe mode.
             self.registry.runonce({'*InstallDrivers': cmd})
 
+        timeout = self.sysprep_params['boot_timeout'].value
+        shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
+        virtio_timeout = self.sysprep_params['virtio_timeout'].value
         try:
             if self.check_version(6, 1) <= 0:
                 self.vm.start()
@@ -650,19 +651,38 @@ class Windows(OSBase):
                 self.vm.interface = 'virtio'
 
             self.out.success("started (console on VNC display: %d)" %
-                                 self.vm.display)
+                             self.vm.display)
+            self.out.output("Wait while os booting...", False)
+            if not self.vm.wait_on_serial(timeout):
+                raise FatalError("Windows VM booting timed out!")
+            self.out.success('done')
+            self.out.output("wait while drivers installing...", False)
+            if not self.vm.wait_on_serial(virtio_timeout):
+                raise FatalError("Windows VirtIO installation timed out!")
+            self.out.success('done')
+            self.out.output('wait while shutting down....', False)
+            self.vm.wait(shutdown_timeout)
+            self.out.success('done')
         finally:
-            self.vm.stop(6000)
-
-        if self.check_version(6, 1) > 0:
-            # Hopefully restart in safe mode.
-            try:
-                self.vm.start()
-            finally:
-                self.vm.stop(6000)
+            self.vm.stop(1, fatal=False)
 
         with self.mount(readonly=True, silent=True):
             self.virtio_state = self._virtio_state()
+            viostor_service_found = self.registry.check_viostor_service()
+
+        if not (len(self.virtio_state['viostor']) and viostor_service_found):
+            raise FatalError("viostor was not successfully installed")
+
+        if self.check_version(6, 1) > 0:
+            # Hopefully restart in safe mode. Newer windows will not boot from
+            # a viostor device unless we initially start them in safe mode
+            try:
+                self.out.output('Restarting Windows VM in safe mode...', False)
+                self.vm.start()
+                self.vm.wait(timeout + shutdown_timeout)
+                self.out.success('done')
+            finally:
+                self.vm.stop(1, fatal=False)
 
     def _install_viostor_driver(self, dirname):
         """Quick and dirty installation of the VirtIO SCSI controller driver.

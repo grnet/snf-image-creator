@@ -18,8 +18,19 @@
 """This module hosts Windows PowerShell scripts that need to be injected into
 the windows image"""
 
+# Just a random 16 character long token
+from image_creator.os_type.windows.vm import RANDOM_TOKEN
+
+COM1_WRITE = r"""
+$port=new-Object System.IO.Ports.SerialPort COM1,9600,None,8,one
+$port.open()
+$port.WriteLine('""" + RANDOM_TOKEN + """')
+$port.Close()
+
+"""
+
 # Installs drivers found in a directory
-DRVINST = r"""
+DRVINST_HEAD = r"""
 #requires -version 2
 
 Param([string]$dirName=$(throw "You need to provide a directory name"))
@@ -28,6 +39,8 @@ if (!(Test-Path -PathType Container "$dirName")) {
     Write-Error -Category InvalidArgument "Invalid Directory: $dirName"
     Exit
 }
+
+""" + COM1_WRITE + """
 
 foreach ($file in Get-ChildItem "$dirName" -Filter *.cat) {
     $cert = (Get-AuthenticodeSignature $file.FullName).SignerCertificate
@@ -41,6 +54,12 @@ if (Test-Path "$dirName/viostor.inf") {
 }
 
 pnputil.exe -a "$dirname\*.inf"
+
+"""
+
+DRVINST_TAIL = COM1_WRITE + """
+
+shutdown /s /t 0
 
 """
 

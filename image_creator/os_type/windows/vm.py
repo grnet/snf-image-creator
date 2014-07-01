@@ -28,6 +28,9 @@ from string import lowercase, uppercase, digits
 from image_creator.util import FatalError, get_kvm_binary
 from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
 
+# Just a random 16 character long token
+RANDOM_TOKEN = "".join(random.choice(lowercase + uppercase) for _ in range(16))
+
 
 class VM(object):
     """Windows Virtual Machine"""
@@ -37,6 +40,9 @@ class VM(object):
         self.disk = disk
         self.params = params
         self.interface = 'virtio'
+
+        # expected number of token occurrences in serial port
+        self._ntokens = 0
 
         kvm, needed_args = get_kvm_binary()
         if kvm is None:
@@ -96,6 +102,8 @@ class VM(object):
 
     def start(self, **kwargs):
         """Start the windows VM"""
+
+        self._ntokens = 0
 
         args = []
         args.extend(self.kvm)
@@ -161,15 +169,20 @@ class VM(object):
                 except FileNotFoundError:
                     pass
 
-    def wait_on_serial(self, msg, timeout):
-        """Wait until a message appears on the VM's serial port"""
+    def wait_on_serial(self, timeout):
+        """Wait until the random token appears on the VM's serial port"""
+
+        self._ntokens += 1
 
         for _ in xrange(timeout):
             time.sleep(1)
             with open(self.serial) as f:
+                current = 0
                 for line in f:
-                    if line.startswith(msg):
-                        return True
+                    if line.startswith(RANDOM_TOKEN):
+                        current += 1
+                        if current == self._ntokens:
+                            return True
             if not self.isalive():
                 raise FatalError("Windows VM died unexpectedly!")
 
