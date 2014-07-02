@@ -563,36 +563,72 @@ class Windows(OSBase):
                          % retries)
 
     def _virtio_state(self):
-        """Check if the virtio drivers are install and return the version of
-        the installed driver
+        """Check if the virtio drivers are install and return the information
+        about the installed driver
         """
 
-        catalogfile_entry = re.compile(r'^\s*CatalogFile\s*=')
-        driverver_entry = re.compile(r'^\s*DriverVer\s*=')
         inf_path = self.image.g.case_sensitive_path("%s/inf" % self.systemroot)
 
         state = {}
         for driver in VIRTIO:
-            state[driver] = []
+            state[driver] = {}
 
-        def examine_inf(filename):
-            catalogFile = None
-            driverVer = None
+        def parse_inf(filename):
+            """Parse a Windows INF file and fetch all information found in the
+            Version section.
+            """
+            version = {}  # The 'Version' section
+            strings = {}  # The 'Strings' section
+            section = ""
+            current = None
+            prev_line = ""
             fullpath = "%s/%s" % (inf_path, filename)
             for line in self.image.g.cat(fullpath).splitlines():
-                if catalogfile_entry.match(line):
-                    catalogFile = line.split("=")[1].strip().lower()
-                elif driverver_entry.match(line):
-                    driverVer = line.split("=")[1].strip()
+                line = prev_line + line.strip().split(';')[0].strip()
+                prev_line = ""
 
+                if not len(line):
+                    continue
+
+                if line[-1] == "\\":
+                    prev_line = line
+                    continue
+
+                # Does the line denote a section?
+                if line.startswith('[') and line.endswith(']'):
+                    section = line[1:-1].lower()
+                    if section == 'version':
+                        current = version
+                    if section == 'strings':
+                        current = strings
+
+                # We only care about 'version' and 'string' sections
+                if section not in ('version', 'strings'):
+                    continue
+
+                # We only care about param = value lines
+                if line.find('=') < 0:
+                    continue
+
+                param, value = line.split('=', 1)
+                current[param.strip()] = value.strip()
+
+            # Replace all strkey tokens with their actual value
+            for k, v in version.items():
+                if v.startswith('%') and v.endswith('%'):
+                    strkey = v[1:-1]
+                    if strkey in strings:
+                        version[k] = strings[strkey]
+
+            cat = version['CatalogFile'] if 'CatalogFile' in version else ""
             for driver in VIRTIO:
-                if catalogFile == "%s.cat" % driver:
-                    state[driver].append((filename, driverVer))
+                if cat.lower() == "%s.cat" % driver:
+                    state[driver][filename] = version
 
         oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
         for f in self.image.g.readdir(inf_path):
             if oem.match(f['name']):
-                examine_inf(f['name'])
+                parse_inf(f['name'])
 
         return state
 
