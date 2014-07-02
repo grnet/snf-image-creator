@@ -91,7 +91,8 @@ VIRTIO = [
     "vioscsi",  # "VirtIO SCSI pass-through controller"
     "vioser",   # "VirtIO Serial Driver"
     "netkvm",   # "VirtIO Ethernet Adapter"
-    "balloon"]  # "Virtio Balloon Driver
+    "balloon",  # "VirtIO Balloon Driver
+    "viorng"]   # "VirtIO RNG Driver"
 
 
 def virtio_dir_check(dirname):
@@ -101,10 +102,12 @@ def virtio_dir_check(dirname):
     if not dirname:
         return ""  # value not set
 
+    critical = ('viostor', 'netkvm')
+    extension = ('cat', 'inf', 'sys')
     missing = []
 
     files = set(os.listdir(dirname))
-    for nam in ["%s.%s" % (b, e) for b in VIRTIO for e in 'cat', 'inf', 'sys']:
+    for nam in ["%s.%s" % (b, e) for b in critical for e in extension]:
         if nam not in files:
             missing.append(nam)
 
@@ -348,25 +351,18 @@ class Windows(OSBase):
 
         if self.sysprepped:
             raise FatalError(
-                "Microsoft's System Preparation Tool has ran on the Image. "
+                "Microsoft's System Preparation Tool has ran on the media. "
                 "Further image customization is not possible.")
 
-        virtio_dir = self.sysprep_params['virtio'].value
-
-        if len(self.virtio_state['viostor']) == 0 and not virtio_dir:
+        if len(self.virtio_state['viostor']) == 0:
             raise FatalError(
-                "The media has no VirtIO SCSI controller driver installed and "
-                "you have not specified a directory to retrieve the VirtIO "
-                "drivers from. Further image customization is not possible.")
+                "The media has no VirtIO SCSI controller driver installed. "
+                "Further image customization is not possible.")
 
-        if len(self.virtio_state['netkvm']) == 0 and not virtio_dir:
+        if len(self.virtio_state['netkvm']) == 0:
             raise FatalError(
-                "The media has no VirtIO Ethernet Adapter driver installed and"
-                " you have not specified a directory to retrieve the VirtIO "
-                "drivers from. Further image customization is not possible.")
-
-        if virtio_dir:
-            self._install_virtio_drivers(virtio_dir)
+                "The media has no VirtIO Ethernet Adapter driver installed. "
+                "Further image customization is not possible.")
 
         admin = self.sysprep_params['admin'].value
         timeout = self.sysprep_params['boot_timeout'].value
@@ -600,9 +596,14 @@ class Windows(OSBase):
 
         return state
 
-    def _install_virtio_drivers(self, dirname):
+    def install_virtio_drivers(self):
+        """Install the virtio drivers on the media"""
 
-        self.out.output('Installing virtio drivers...', False)
+        dirname = self.sysprep_params['virtio'].value
+        if not dirname:
+            raise FatalError('No directory hosting the VirtIO drivers defined')
+
+        self.out.output('Installing virtio drivers:')
 
         with self.mount(readonly=False, silent=True):
 
@@ -642,6 +643,7 @@ class Windows(OSBase):
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
         virtio_timeout = self.sysprep_params['virtio_timeout'].value
+        self.out.output("Starting Windows VM ...", False)
         try:
             if self.check_version(6, 1) <= 0:
                 self.vm.start()
@@ -652,15 +654,15 @@ class Windows(OSBase):
 
             self.out.success("started (console on VNC display: %d)" %
                              self.vm.display)
-            self.out.output("Wait while os booting...", False)
+            self.out.output("Waiting for Windows to boot ...", False)
             if not self.vm.wait_on_serial(timeout):
                 raise FatalError("Windows VM booting timed out!")
             self.out.success('done')
-            self.out.output("wait while drivers installing...", False)
+            self.out.output("Performing the drivers installation ...", False)
             if not self.vm.wait_on_serial(virtio_timeout):
                 raise FatalError("Windows VirtIO installation timed out!")
             self.out.success('done')
-            self.out.output('wait while shutting down....', False)
+            self.out.output('Shutting down ...', False)
             self.vm.wait(shutdown_timeout)
             self.out.success('done')
         finally:
@@ -677,12 +679,13 @@ class Windows(OSBase):
             # Hopefully restart in safe mode. Newer windows will not boot from
             # a viostor device unless we initially start them in safe mode
             try:
-                self.out.output('Restarting Windows VM in safe mode...', False)
+                self.out.output('Rebooting Windows VM in safe mode ...', False)
                 self.vm.start()
                 self.vm.wait(timeout + shutdown_timeout)
                 self.out.success('done')
             finally:
                 self.vm.stop(1, fatal=False)
+        self.out.output("VirtIO drivers were successfully installed")
 
     def _install_viostor_driver(self, dirname):
         """Quick and dirty installation of the VirtIO SCSI controller driver.
