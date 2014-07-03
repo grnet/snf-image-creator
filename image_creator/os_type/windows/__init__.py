@@ -86,13 +86,13 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 for Itanium-Based Systems":
     "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
 
-VIRTIO = [
+VIRTIO = (
     "viostor",  # "VirtIO SCSI controller"
     "vioscsi",  # "VirtIO SCSI pass-through controller"
     "vioser",   # "VirtIO Serial Driver"
     "netkvm",   # "VirtIO Ethernet Adapter"
     "balloon",  # "VirtIO Balloon Driver
-    "viorng"]   # "VirtIO RNG Driver"
+    "viorng")   # "VirtIO RNG Driver"
 
 
 def virtio_dir_check(dirname):
@@ -102,18 +102,19 @@ def virtio_dir_check(dirname):
     if not dirname:
         return ""  # value not set
 
-    critical = ('viostor', 'netkvm')
-    extension = ('cat', 'inf', 'sys')
-    missing = []
+    ext = ('cat', 'inf', 'sys')
 
-    files = set(os.listdir(dirname))
-    for nam in ["%s.%s" % (b, e) for b in critical for e in extension]:
-        if nam not in files:
-            missing.append(nam)
+    # Check files in a case insensitive manner
+    files = set([f.lower() for f in os.listdir(dirname)])
 
-    if len(missing):
-        raise ValueError("Invalid VirtIO directory. The following files were "
-                         "not found: %s" % ", ".join(missing))
+    found = False
+    for cat, inf, sys in [["%s.%s" % (b, e) for e in ext] for b in VIRTIO]:
+        if cat in files and inf in files and sys in files:
+            found = True
+
+    if not found:
+        raise ValueError("Invalid VirtIO directory. No VirtIO driver found")
+
     return dirname
 
 
