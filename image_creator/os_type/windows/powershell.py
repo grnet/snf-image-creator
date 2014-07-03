@@ -72,4 +72,7 @@ New-ItemProperty `
     -Value 'cmd /q /c "bcdedit /deletevalue safeboot & shutdown /s /t 0"'
 
 """
+
+DRVUNINST = 'pnputil.exe -f -d %s\n'
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
