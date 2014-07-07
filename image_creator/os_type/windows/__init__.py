@@ -155,7 +155,8 @@ def parse_inf(inf):
 
     if len(models):
         # [models-section-name] | [models-section-name.TargetOSVersion]
-        models_section_name = re.compile('^(' + "|".join(models) + ')(\..+)?$')
+        models_section_name = \
+            re.compile('^(' + "|".join(models) + ')(\\..+)?$')
         for model in [s for s in sections if models_section_name.match(s)]:
             for value in sections[model].values():
                 value = value.split(',')
@@ -172,11 +173,11 @@ def parse_inf(inf):
 
     if 'version' in sections and 'strings' in sections:
         # Replace all strkey tokens with their actual value
-        for k, v in sections['version'].items():
-            if v.startswith('%') and v.endswith('%'):
-                strkey = v[1:-1]
+        for key, val in sections['version'].items():
+            if val.startswith('%') and val.endswith('%'):
+                strkey = val[1:-1]
                 if strkey in sections['strings']:
-                    sections['version'][k] = sections['strings'][strkey]
+                    sections['version'][key] = sections['strings'][strkey]
 
     if len(target_os) == 0:
         target_os.add('ntx86')
@@ -197,8 +198,8 @@ def virtio_dir_check(dirname):
     files = set(os.listdir(dirname))
 
     for inf in [f for f in files if f.lower().endswith('.inf')]:
-        with open(os.path.join(dirname, inf)) as f:
-            driver, _, _ = parse_inf(f)
+        with open(os.path.join(dirname, inf)) as content:
+            driver, _, _ = parse_inf(content)
             if driver:
                 return dirname
 
@@ -218,8 +219,8 @@ DESCR = {
     "mem": "Virtual RAM size in MiB for the Windows customization VM.",
     "admin": "Name of the Administration user.",
     "virtio": "Directory hosting the Windows virtio drivers.",
-    "virtio_timeout": "Time in seconds to wait for the installation of the "
-    "VirtIO drivers."}
+    "virtio_timeout":
+    "Time in seconds to wait for the installation of the VirtIO drivers."}
 
 
 class Windows(OSBase):
@@ -650,7 +651,8 @@ class Windows(OSBase):
 
             log = tempfile.NamedTemporaryFile(delete=False)
             try:
-                log.file.write(stdout)
+                log.file.write("STDOUT:\n%s\n" % stdout)
+                log.file.write("STDERR:\n%s\n" % stderr)
             finally:
                 log.close()
             self.out.output("failed! See: `%s' for the full output" % log.name)
@@ -672,8 +674,7 @@ class Windows(OSBase):
             # Read oem*.inf files under \Windows\Inf\ directory
             path = self.image.g.case_sensitive_path("%s/inf" % self.systemroot)
             oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
-            for f in self.image.g.readdir(path):
-                name = f['name']
+            for name in [f['name'] for f in self.image.g.readdir(path)]:
                 if not oem.match(name):
                     continue
                 yield name, \
@@ -686,8 +687,8 @@ class Windows(OSBase):
             for name in os.listdir(directory):
                 fullpath = os.path.join(directory, name)
                 if inf.match(name) and os.path.isfile(fullpath):
-                    with open(fullpath, 'r') as f:
-                        yield name, f
+                    with open(fullpath, 'r') as content:
+                        yield name, content
 
         for name, txt in oem_files() if directory is None else local_files():
             driver, target, content = parse_inf(txt)
@@ -774,7 +775,7 @@ class Windows(OSBase):
 
             for dtype in new_drvs:
                 drvs_install += "".join([ADD_CERTIFICATE % d['CatalogFile']
-                                        for d in new_drvs[dtype].values()])
+                                         for d in new_drvs[dtype].values()])
                 cmd = ADD_DRIVER if dtype != 'viostor' else INSTALL_DRIVER
                 drvs_install += "".join([cmd % i for i in new_drvs[dtype]])
 
