@@ -40,27 +40,36 @@ if (!(Test-Path -PathType Container "$dirName")) {
     Exit
 }
 
-""" + COM1_WRITE + """
+""" + COM1_WRITE + r"""
 
-foreach ($file in Get-ChildItem "$dirName" -Filter *.cat) {
-    $cert = (Get-AuthenticodeSignature $file.FullName).SignerCertificate
-    $certFile = $dirName + "\" + $file.BaseName + ".cer"
+function Cat2Cert
+{
+    $catFile = Get-Item $args[0]
+    $cert = (Get-AuthenticodeSignature $catFile.FullName).SignerCertificate
+    $certFile = "$dirName" + "\" + $catFile.BaseName + ".cer"
     [System.IO.File]::WriteAllBytes($certFile, $cert.Export("Cert"))
-    CertUtil -addstore TrustedPublisher "$certFile"
+    return $certFile
 }
+"""
 
-if (Test-Path "$dirName/viostor.inf") {
-    pnputil.exe -i -a "$dirName/viostor.inf"
-}
+ADD_CERTIFICATE = r"""
+CertUtil -addstore TrustedPublisher "$(Cat2Cert "$dirName\%s")"
+"""
 
-pnputil.exe -a "$dirname\*.inf"
+ADD_DRIVER = r"""
+PnPUtil -a "$dirName\%s"
+"""
 
+INSTALL_DRIVER = r"""
+PnPUtil -i -a "$dirName\%s"
+"""
+
+REMOVE_DRIVER = r"""
+PnPUtil -f -d %s
 """
 
 DRVINST_TAIL = COM1_WRITE + """
-
 shutdown /s /t 0
-
 """
 
 # Reboots system in safe mode
@@ -70,9 +79,6 @@ New-ItemProperty `
     -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
     -Name *snf-image-creator-restart -PropertyType String `
     -Value 'cmd /q /c "bcdedit /deletevalue safeboot & shutdown /s /t 0"'
-
 """
-
-DRVUNINST = 'pnputil.exe -f -d %s\n'
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

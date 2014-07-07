@@ -24,7 +24,7 @@ from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
 from image_creator.os_type.windows.powershell import DRVINST_HEAD, SAFEBOOT, \
-    DRVINST_TAIL, DRVUNINST
+    DRVINST_TAIL, ADD_CERTIFICATE, ADD_DRIVER, INSTALL_DRIVER, REMOVE_DRIVER
 
 import tempfile
 import re
@@ -704,9 +704,14 @@ class Windows(OSBase):
         """
         collection = self._virtio_state(dirname)
 
+        files = set([f.lower() for f in os.listdir(dirname)
+                     if os.path.isfile(dirname + os.sep + f)])
+
+        num = 0
         self.out.output('Checking new drivers:')
         for drv_type, drvs in collection.items():
             for inf, content in drvs.items():
+                valid = True
                 found_match = False
                 # Check if the driver is suitable for the input media
                 for target in content['TargetOSVersions']:
@@ -719,14 +724,26 @@ class Windows(OSBase):
 
                 if not found_match:  # Wrong Target
                     self.out.warn(
-                        'Ignoring %s. Not suitable for this OS version.' % inf)
-                    del collection[drv_type][inf]
-                else:
-                    self.out.output('Found %s driver: %s' % (drv_type, inf))
+                        'Ignoring %s. Driver not targeted for this OS.' % inf)
+                    valid = False
+                elif 'CatalogFile' not in content:
+                    self.out.warn(
+                        'Ignoring %s. CatalogFile entry missing.' % inf)
+                    valid = False
+                elif content['CatalogFile'].lower() not in files:
+                    self.out.warn('Ignoring %s. Catalog File not found.' % inf)
+                    valid = False
 
+                if not valid:
+                    del collection[drv_type][inf]
+                    continue
+
+                num += 1
             if len(drvs) == 0:
                 del collection[drv_type]
 
+        self.out.output('Found %d valid driver%s' %
+                        (num, "s" if num != 1 else ""))
         return collection
 
     def install_virtio_drivers(self, upgrade=True):
@@ -738,13 +755,14 @@ class Windows(OSBase):
         if not dirname:
             raise FatalError('No directory hosting the VirtIO drivers defined')
 
+        self.out.output('Installing VirtIO drivers:')
+
         new_drvs = self._fetch_virtio_drivers(dirname)
 
         if not len(new_drvs):
             self.out.warn('No suitable driver found to install!')
             return
 
-        self.out.output('Installing VirtIO drivers:')
         with self.mount(readonly=False, silent=True):
 
             admin = self.sysprep_params['admin'].value
@@ -754,11 +772,17 @@ class Windows(OSBase):
 
             drvs_install = DRVINST_HEAD
 
+            for dtype in new_drvs:
+                drvs_install += "".join([ADD_CERTIFICATE % d['CatalogFile']
+                                        for d in new_drvs[dtype].values()])
+                cmd = ADD_DRIVER if dtype != 'viostor' else INSTALL_DRIVER
+                drvs_install += "".join([cmd % i for i in new_drvs[dtype]])
+
             if upgrade:
                 # Add code to remove the old drivers
-                for drv in new_drvs:
-                    for oem in self.virtio_state[drv]:
-                        drvs_install += DRVUNINST % oem
+                for dtype in new_drvs:
+                    for oem in self.virtio_state[dtype]:
+                        drvs_install += REMOVE_DRIVER % oem
 
             if self.check_version(6, 1) <= 0:
                 self._install_viostor_driver(dirname)
