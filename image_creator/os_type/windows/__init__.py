@@ -800,13 +800,18 @@ class Windows(OSBase):
             self.image.g.write(remotedir + "/InstallDrivers.ps1",
                                drvs_install.replace('\n', '\r\n'))
 
+            # The -windowstyle option was introduced in PowerShell V2. We need
+            # to have at least Windows NT 6.1 (Windows 7 or Windows 2008R2) to
+            # make this work.
+            hidden_support = self.check_version(6, 1) >= 0
             cmd = (
                 '%(drive)s:%(root)s\\System32\\WindowsPowerShell\\v1.0\\'
-                'powershell.exe -ExecutionPolicy RemoteSigned -File '
-                '%(drive)s:%(root)s\\VirtIO\\InstallDrivers.ps1 '
+                'powershell.exe -ExecutionPolicy RemoteSigned %(hidden)s '
+                '-File %(drive)s:%(root)s\\VirtIO\\InstallDrivers.ps1 '
                 '%(drive)s:%(root)s\\Virtio' %
                 {'root': self.systemroot.replace('/', '\\'),
-                 'drive': self.systemdrive})
+                 'drive': self.systemdrive,
+                 'hidden': '-windowstyle hidden' if hidden_support else ""})
 
             # The value name of RunOnce keys can be prefixed with an asterisk
             # (*) to force the program to run even in Safe mode.
