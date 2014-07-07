@@ -29,6 +29,7 @@ from image_creator.os_type.windows.powershell import DRVINST_HEAD, SAFEBOOT, \
 import tempfile
 import re
 import os
+import uuid
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -671,7 +672,7 @@ class Windows(OSBase):
             state[driver] = {}
 
         def oem_files():
-            # Read oem*.inf files under \Windows\Inf\ directory
+            """Parse oem*.inf files under the %SystemRoot%/Inf directory"""
             path = self.image.g.case_sensitive_path("%s/inf" % self.systemroot)
             oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
             for name in [f['name'] for f in self.image.g.readdir(path)]:
@@ -681,7 +682,7 @@ class Windows(OSBase):
                     self.image.g.cat("%s/%s" % (path, name)).splitlines()
 
         def local_files():
-            # Read *.inf files under a local directory
+            """Parse *.inf files under a local directory"""
             assert os.path.isdir(directory)
             inf = re.compile(r'^.+\.inf', flags=re.IGNORECASE)
             for name in os.listdir(directory):
@@ -709,7 +710,6 @@ class Windows(OSBase):
                      if os.path.isfile(dirname + os.sep + f)])
 
         num = 0
-        self.out.output('Checking new drivers:')
         for drv_type, drvs in collection.items():
             for inf, content in drvs.items():
                 valid = True
@@ -758,30 +758,49 @@ class Windows(OSBase):
 
         self.out.output('Installing VirtIO drivers:')
 
-        new_drvs = self._fetch_virtio_drivers(dirname)
-
-        if not len(new_drvs):
+        valid_drvs = self._fetch_virtio_drivers(dirname)
+        if not len(valid_drvs):
             self.out.warn('No suitable driver found to install!')
             return
 
-        with self.mount(readonly=False, silent=True):
+        self._upload_virtio_drivers(dirname, valid_drvs, upgrade)
+        self._boot_virtio_vm()
 
+        self.out.output("VirtIO drivers were successfully installed")
+        self.out.output()
+
+    def _upload_virtio_drivers(self, dirname, drvs, delete_old=True):
+        """Upload the VirtIO drivers and installation scripts to the media.
+        The functions returns the temporary directory under %SystemRoot% that
+        hosts the uploaded drivers.
+        """
+        with self.mount(readonly=False, silent=True):
             admin = self.sysprep_params['admin'].value
             v_val = self.registry.reset_passwd(admin)
             self.registry.enable_autologon(admin)
-            self._upload_virtio_drivers(dirname)
+
+            tmp = uuid.uuid4().hex
+            self.image.g.mkdir_p("%s/%s" % (self.systemroot, tmp))
+
+            for fname in os.listdir(dirname):
+                full_path = os.path.join(dirname, fname)
+                if os.path.isfile(full_path):
+                    self.image.g.upload(
+                        full_path, "%s/%s/%s" % (self.systemroot, tmp, fname))
+
+            self.registry.update_devices_dirs("%SystemRoot%\\" + tmp)
 
             drvs_install = DRVINST_HEAD
 
-            for dtype in new_drvs:
+            for dtype in drvs:
                 drvs_install += "".join([ADD_CERTIFICATE % d['CatalogFile']
-                                         for d in new_drvs[dtype].values()])
+                                         for d in drvs[dtype].values()])
                 cmd = ADD_DRIVER if dtype != 'viostor' else INSTALL_DRIVER
-                drvs_install += "".join([cmd % i for i in new_drvs[dtype]])
+                drvs_install += "".join([cmd % i for i in drvs[dtype]])
 
-            if upgrade:
+            if delete_old:
                 # Add code to remove the old drivers
-                for dtype in new_drvs:
+                for dtype in drvs:
                     for oem in self.virtio_state[dtype]:
                         drvs_install += REMOVE_DRIVER % oem
 
@@ -795,10 +814,8 @@ class Windows(OSBase):
 
             drvs_install += DRVINST_TAIL
 
-            remotedir = self.image.g.case_sensitive_path("%s/VirtIO" %
-                                                         self.systemroot)
-            self.image.g.write(remotedir + "/InstallDrivers.ps1",
-                               drvs_install.replace('\n', '\r\n'))
+            target = "%s/%s/InstallDrivers.ps1" % (self.systemroot, tmp)
+            self.image.g.write(target, drvs_install.replace('\n', '\r\n'))
 
             # The -windowstyle option was introduced in PowerShell V2. We need
             # to have at least Windows NT 6.1 (Windows 7 or Windows 2008R2) to
@@ -807,15 +824,21 @@ class Windows(OSBase):
             cmd = (
                 '%(drive)s:%(root)s\\System32\\WindowsPowerShell\\v1.0\\'
                 'powershell.exe -ExecutionPolicy RemoteSigned %(hidden)s '
-                '-File %(drive)s:%(root)s\\VirtIO\\InstallDrivers.ps1 '
-                '%(drive)s:%(root)s\\Virtio' %
+                '-File %(drive)s:%(root)s\\%(tmp)s\\InstallDrivers.ps1 '
+                '%(drive)s:%(root)s\\%(tmp)s' %
                 {'root': self.systemroot.replace('/', '\\'),
                  'drive': self.systemdrive,
+                 'tmp': tmp,
                  'hidden': '-windowstyle hidden' if hidden_support else ""})
 
             # The value name of RunOnce keys can be prefixed with an asterisk
             # (*) to force the program to run even in Safe mode.
             self.registry.runonce({'*InstallDrivers': cmd})
+
+        return tmp
+
+    def _boot_virtio_vm(self):
+        """Boot the media and install the VirtIO drivers"""
 
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
@@ -862,7 +885,6 @@ class Windows(OSBase):
                 self.out.success('done')
             finally:
                 self.vm.stop(1, fatal=False)
-        self.out.output("VirtIO drivers were successfully installed")
 
     def _install_viostor_driver(self, dirname):
         """Quick and dirty installation of the VirtIO SCSI controller driver.
@@ -887,19 +909,5 @@ class Windows(OSBase):
                              (viostor, drivers_path, str(err)))
 
         self.registry.add_viostor()
-
-    def _upload_virtio_drivers(self, dirname):
-        """Install the virtio drivers to the media"""
-
-        virtio_dir = self.image.g.case_sensitive_path("%s/VirtIO" %
-                                                      self.systemroot)
-        self.image.g.mkdir_p(virtio_dir)
-
-        for fname in os.listdir(dirname):
-            full_path = os.path.join(dirname, fname)
-            if os.path.isfile(full_path):
-                self.image.g.upload(full_path, "%s/%s" % (virtio_dir, fname))
-
-        self.registry.update_devices_dirs(r"%SystemRoot%\VirtIO")
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
