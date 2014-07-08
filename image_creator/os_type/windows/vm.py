@@ -138,7 +138,8 @@ class VM(object):
         args.extend(['-monitor', 'stdio'])
 
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)
 
     def stop(self, timeout=0, fatal=True):
         """Stop the VM"""
@@ -184,7 +185,9 @@ class VM(object):
                         if current == self._ntokens:
                             return True
             if not self.isalive():
-                raise FatalError("Windows VM died unexpectedly!")
+                (stdout, stderr, rc) = self.wait()
+                raise FatalError("Windows VM died unexpectedly!\n\n"
+                                 "(rc=%d)\n%s" % (rc, stderr))
 
         return False
 
