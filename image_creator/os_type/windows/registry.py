@@ -51,23 +51,26 @@ def safe_add_node(hive, parent, name):
 class Registry(object):
     """Windows Registry manipulation methods"""
 
-    def __init__(self, guestfs_handler, root_partition):
-        self.g = guestfs_handler
-        self.root = root_partition
+    def __init__(self, image):
+        # Do not copy the guestfs handler. It may be overwritten by the image
+        # class in the future
+        self.image = image
+        self.root = image.root
 
     def open_hive(self, hive, write=False):
         """Returns a context manager for opening a hive file of the image for
         reading or writing.
         """
-        systemroot = self.g.inspect_get_windows_systemroot(self.root)
+        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
         path = "%s/system32/config/%s" % (systemroot, hive)
         try:
-            path = self.g.case_sensitive_path(path)
+            path = self.image.g.case_sensitive_path(path)
         except RuntimeError as err:
             raise FatalError("Unable to retrieve file: %s. Reason: %s" %
                              (hive, str(err)))
 
-        g = self.g  # OpenHive class needs this since 'self' gets overwritten
+        # OpenHive class needs this since 'self' gets overwritten
+        g = self.image.g
 
         class OpenHive:
             """The OpenHive context manager"""

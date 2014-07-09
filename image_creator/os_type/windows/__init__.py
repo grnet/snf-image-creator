@@ -265,7 +265,7 @@ class Windows(OSBase):
             self.root)
 
         self.vm = VM(self.image.device, self.sysprep_params)
-        self.registry = Registry(self.image.g, self.root)
+        self.registry = Registry(self.image)
 
         # If the image is already sysprepped we cannot further customize it
         with self.mount(readonly=True, silent=True):
