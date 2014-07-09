@@ -205,14 +205,32 @@ class VM(object):
 
         return (stdout, stderr, self.process.poll())
 
-    def rexec(self, command, fatal=True, debug=False):
-        """Remote execute a command on the windows VM"""
+    def rexec(self, command, **kwargs):
+        """Remote execute a command on the windows VM
+
+        The following optional flags are allowed:
+
+        * fatal: If True, a FatalError is thrown if the command fails
+
+        * debug: If True, WinEXE is executed in the highest debug level
+
+        * uninstall: If True, the winexesvc.exe service will be uninstalled
+          after the execution of the command.
+        """
+
+        fatal = kwargs['fatal'] if 'fatal' in kwargs else True
+        debug = kwargs['debug'] if 'debug' in kwargs else False
+        uninstall = kwargs['uninstall'] if 'uninstall' in kwargs else False
 
         user = self.params['admin'].value
         winexe = WinEXE(user, 'localhost', password=self.password)
-        winexe.runas(user, self.password).uninstall().no_pass()
+        winexe.runas(user, self.password).no_pass()
+
         if debug:
             winexe.debug(9)
+
+        if uninstall:
+            winexe.uninstall()
 
         try:
             (stdout, stderr, rc) = winexe.run(command)
@@ -220,11 +238,18 @@ class VM(object):
             FatalError("Command: `%s' timeout out." % command)
 
         if rc != 0 and fatal:
-            reason = stderr if len(stderr) else stdout
+            log = tempfile.NamedTemporaryFile(delete=False)
+            try:
+                log.file.write("STDOUT:\n%s\n" % stdout)
+                log.file.write("STDERR:\n%s\n" % stderr)
+            finally:
+                fname = log.name
+                log.close()
+
             # self.out.output("Command: `%s' failed (rc=%d). Reason: %s" %
             #                 (command, rc, reason))
-            raise FatalError("Command: `%s' failed (rc=%d). Reason: %s" %
-                             (command, rc, reason))
+            raise FatalError("Command: `%s' failed (rc=%d). See: %s" %
+                             (command, rc, fname))
 
         return (stdout, stderr, rc)
 

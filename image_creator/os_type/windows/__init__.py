@@ -30,6 +30,7 @@ import tempfile
 import re
 import os
 import uuid
+import time
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -339,7 +340,7 @@ class Windows(OSBase):
         """
 
         self.vm.rexec(r'C:\Windows\system32\sysprep\sysprep '
-                      r'/quiet /generalize /oobe /shutdown')
+                      r'/quiet /generalize /oobe /shutdown', uninstall=True)
         self.sysprepped = True
 
     @sysprep('Converting the image into a KMS client', enabled=False)
@@ -422,7 +423,7 @@ class Windows(OSBase):
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
-        stdout, stderr, rc = self.vm.rexec(cmd, False)
+        stdout, stderr, rc = self.vm.rexec(cmd, fatal=False)
 
         if rc != 0:
             FatalError("Shrinking failed. Please make sure the media is "
@@ -430,7 +431,7 @@ class Windows(OSBase):
                        "`Defrag.exe /U /X /W'")
         for line in stdout.splitlines():
             if line.find('shrunk') >= 0:
-                self.out.output(line)
+                self.out.output(" %s" % line)
 
     def do_sysprep(self):
         """Prepare system for image creation."""
@@ -495,6 +496,11 @@ class Windows(OSBase):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
                 booted = True
+
+                # Since the password is reset when logging in, sleep a little
+                # bit before checking the connectivity, to avoid race
+                # conditions
+                time.sleep(2)
 
                 self.out.output("Checking connectivity to the VM ...", False)
                 self._check_connectivity()
@@ -565,7 +571,7 @@ class Windows(OSBase):
 
     def _shutdown(self):
         """Shuts down the windows VM"""
-        self.vm.rexec(r'shutdown /s /t 5')
+        self.vm.rexec(r'shutdown /s /t 5', uninstall=True)
 
     def _disable_autologon(self):
         """Disable automatic logon on the windows image"""
