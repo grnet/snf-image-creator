@@ -315,12 +315,6 @@ class Windows(OSBase):
 
         self.vm.rexec('netsh firewall set icmpsetting 8')
 
-    @sysprep('Disabling hibernation support')
-    def disable_hibernation(self):
-        """Disable hibernation support and remove the hibernation file"""
-
-        self.vm.rexec(r'powercfg.exe /hibernate off')
-
     @sysprep('Setting the system clock to UTC')
     def utc(self):
         """Set the hardware clock to UTC"""
@@ -590,6 +584,8 @@ class Windows(OSBase):
 
         commands = {}
 
+        # Disable hibernation. This is not needed for a VM
+        commands['hibernate'] = r'powercfg.exe /hibernate off'
         # This script will send a random string to the first serial port. This
         # can be used to determine when the OS has booted.
         commands['BootMonitor'] = "cmd /q /a /c echo " + TOKEN + " > COM1"

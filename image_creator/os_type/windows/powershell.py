@@ -50,6 +50,9 @@ function Cat2Cert
     [System.IO.File]::WriteAllBytes($certFile, $cert.Export("Cert"))
     return $certFile
 }
+
+# This is not needed on VMs
+powercfg.exe /hibernate off
 """
 
 ADD_CERTIFICATE = r"""
