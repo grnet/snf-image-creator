@@ -330,7 +330,7 @@ class Registry(object):
                 # http://www.beginningtoseethelight.org/ntsecurity/index.htm
                 #        #D3BC3F5643A17823
                 fmt = '%ds4x8s4x%ds' % (0xa0, len(v_val) - 0xb0)
-                new = ("\x00" * 4).join(struct.unpack(fmt,  v_val))
+                new = ("\x00" * 4).join(struct.unpack(fmt, v_val))
 
             hive.node_set_value(rid_node, REG_BINARY('V', new))
             hive.commit(None)
@@ -340,6 +340,47 @@ class Registry(object):
 
         assert 'old' in parent, "user: `%s' does not exist" % user
         return parent['old']
+
+    def reset_account(self, user, activate=True):
+
+        # This is a hack. I cannot assign a new value to nonlocal variable.
+        # This is why I'm using a dict
+        state = {}
+
+        # Convert byte to int
+        to_int = lambda b: int(b.encode('hex'), 16)
+
+        # Under HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID% there is
+        # an F field that contains information about this user account. Bytes
+        # 56 & 57 are the account type and status flags. The first bit is the
+        # 'account disabled' bit:
+        #
+        # http://www.beginningtoseethelight.org/ntsecurity/index.htm
+        #        #8603CF0AFBB170DD
+        #
+        isactive = lambda f: (to_int(f[56]) & 0x01) == 0
+
+        def update_f_field(hive, username, rid_node):
+
+            field = hive.node_get_value(rid_node, 'F')
+            f_type, f_val = hive.value_value(field)
+            assert f_type == 3L, "F field type (=%d) isn't REG_BINARY" % f_type
+
+            state['old'] = isactive(f_val)
+            if activate is state['old']:
+                # nothing to do
+                return
+
+            mask = (lambda b: b & 0xfe) if activate else (lambda b: b | 0x01)
+            new = struct.pack("56sB23s", f_val[:56], mask(to_int(f_val[56])),
+                              f_val[57:])
+
+            hive.node_set_value(rid_node, REG_BINARY('F', new))
+            hive.commit(None)
+
+        self._foreach_user([user], update_f_field, write=True)
+
+        return state['old']
 
     def _foreach_user(self, userlist, action, write=False):
         """Performs an action on the RID node of a user in the registry, for

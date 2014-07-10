@@ -466,6 +466,7 @@ class Windows(OSBase):
         self.out.output("Preparing media for boot ...", False)
 
         with self.mount(readonly=False, silent=True):
+            activated = self.registry.reset_account(admin)
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
             self._add_boot_scripts()
@@ -533,9 +534,11 @@ class Windows(OSBase):
                     if disabled_uac:
                         self.registry.update_uac_remote_setting(0)
 
+                    if not activated:
+                        self.registry.reset_account(admin, False)
+
                     if not self.sysprepped:
                         # Reset the old password
-                        admin = self.sysprep_params['admin'].value
                         self.registry.reset_passwd(admin, v_val)
 
                     self.registry.update_firewalls(*firewall_states)
@@ -786,6 +789,7 @@ class Windows(OSBase):
         with self.mount(readonly=False, silent=True):
             admin = self.sysprep_params['admin'].value
             v_val = self.registry.reset_passwd(admin)
+            activated = self.registry.reset_account(admin)
             self.registry.enable_autologon(admin)
 
             tmp = uuid.uuid4().hex
