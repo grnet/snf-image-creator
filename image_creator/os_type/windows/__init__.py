@@ -488,6 +488,7 @@ class Windows(OSBase):
         self.out.success('done')
 
         self.image.disable_guestfs()
+        booted = False
         try:
             self.out.output("Starting windows VM ...", False)
             self.vm.start()
@@ -499,6 +500,7 @@ class Windows(OSBase):
                 if not self.vm.wait_on_serial(timeout):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
+                booted = True
 
                 self.out.output("Checking connectivity to the VM ...", False)
                 self._check_connectivity()
@@ -517,7 +519,7 @@ class Windows(OSBase):
                 # if the VM is not already dead here, a Fatal Error will have
                 # already been raised. There is no reason to make the command
                 # fatal.
-                self.vm.stop(1, fatal=False)
+                self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
         finally:
             self.image.enable_guestfs()
 
@@ -844,6 +846,7 @@ class Windows(OSBase):
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
         virtio_timeout = self.sysprep_params['virtio_timeout'].value
         self.out.output("Starting Windows VM ...", False)
+        booted = False
         try:
             if self.check_version(6, 1) <= 0:
                 self.vm.start()
@@ -858,6 +861,7 @@ class Windows(OSBase):
             if not self.vm.wait_on_serial(timeout):
                 raise FatalError("Windows VM booting timed out!")
             self.out.success('done')
+            booted = True
             self.out.output("Installing new drivers ...", False)
             if not self.vm.wait_on_serial(virtio_timeout):
                 raise FatalError("Windows VirtIO installation timed out!")
@@ -866,7 +870,7 @@ class Windows(OSBase):
             self.vm.wait(shutdown_timeout)
             self.out.success('done')
         finally:
-            self.vm.stop(1, fatal=False)
+            self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
 
         with self.mount(readonly=True, silent=True):
             self.virtio_state = self._virtio_state()
@@ -884,7 +888,7 @@ class Windows(OSBase):
                 self.vm.wait(timeout + shutdown_timeout)
                 self.out.success('done')
             finally:
-                self.vm.stop(1, fatal=False)
+                self.vm.stop(1, fatal=True)
 
     def _install_viostor_driver(self, dirname):
         """Quick and dirty installation of the VirtIO SCSI controller driver.
