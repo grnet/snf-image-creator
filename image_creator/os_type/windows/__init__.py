@@ -525,16 +525,21 @@ class Windows(OSBase):
 
             self.out.output("Reverting media boot preparations ...", False)
             with self.mount(readonly=False, silent=True, fatal=False):
-                if disabled_uac:
-                    self.registry.update_uac_remote_setting(0)
 
-                if not self.sysprepped:
-                    # Reset the old password
-                    admin = self.sysprep_params['admin'].value
-                    self.registry.reset_passwd(admin, v_val)
+                if not self.ismounted:
+                    self.out.warn("The boot changes cannot be reverted. "
+                                  "The snapshot may be in a corrupted state.")
+                else:
+                    if disabled_uac:
+                        self.registry.update_uac_remote_setting(0)
 
-                self.registry.update_firewalls(*firewall_states)
-            self.out.success("done")
+                    if not self.sysprepped:
+                        # Reset the old password
+                        admin = self.sysprep_params['admin'].value
+                        self.registry.reset_passwd(admin, v_val)
+
+                    self.registry.update_firewalls(*firewall_states)
+                    self.out.success("done")
 
     def _exec_sysprep_tasks(self):
         """This function hosts the actual code for executing the enabled

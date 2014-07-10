@@ -212,6 +212,7 @@ class OSBase(object):
         # This will host the error if mount fails
         self._mount_error = ""
         self._mount_warnings = []
+        self._mounted = False
 
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
@@ -357,6 +358,10 @@ class OSBase(object):
 
         self.out.output()
 
+    @property
+    def ismounted(self):
+        return self._mounted
+
     def mount(self, readonly=False, silent=False, fatal=True):
         """Returns a context manager for mounting an image"""
 
@@ -374,17 +379,30 @@ class OSBase(object):
                 parent._mount_error = ""
                 del parent._mount_warnings[:]
 
-                if not parent._do_mount(readonly) and fatal:
+                try:
+                    parent._mounted = parent._do_mount(readonly)
+                except:
+                    parent.image.g.umount_all()
+                    raise
+
+                if not parent.ismounted:
                     msg = "Unable to mount the media %s. Reason: %s" % \
                         (mount_type, parent._mount_error)
-                    raise FatalError(msg)
+                    if fatal:
+                        raise FatalError(msg)
+                    else:
+                        warn(msg)
+
                 for warning in parent._mount_warnings:
                     warn(warning)
-                success('done')
+
+                if parent.ismounted:
+                    success('done')
 
             def __exit__(self, exc_type, exc_value, traceback):
                 output("Umounting the media ...", False)
                 parent.image.g.umount_all()
+                parent._mounted = False
                 success('done')
 
         return Mount()
