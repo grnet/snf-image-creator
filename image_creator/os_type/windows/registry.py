@@ -382,6 +382,37 @@ class Registry(object):
 
         return state['old']
 
+    def reset_first_logon_animation(self, activate=True):
+        """Enable or disable the first-logon animation.
+
+        The method return the old value
+        """
+
+        with self.open_hive('SOFTWARE', write=True) as hive:
+            # Navigate to Microsoft/Windows/CurrentVersion/Policies/System
+            system = hive.root()
+            for child in ('Microsoft', 'Windows', 'CurrentVersion', 'Policies',
+                          'System'):
+                system = hive.node_get_child(system, child)
+            try:
+                val = hive.node_get_value(system, 'EnableFirstLogonAnimation')
+                old = bool(hive.value_dword(val))
+
+                # There is no need to reset the value
+                if old is activate:
+                    return old
+            except RuntimeError:
+                # The value is not present at all
+                if activate is False:
+                    return False
+                old = False
+
+            hive.node_set_value(system, REG_DWORD('EnableFirstLogonAnimation',
+                                                  int(activate)))
+            hive.commit(None)
+
+        return old
+
     def _foreach_user(self, userlist, action, write=False):
         """Performs an action on the RID node of a user in the registry, for
         every user found in the userlist. If userlist is empty, it performs the

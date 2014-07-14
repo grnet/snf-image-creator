@@ -791,6 +791,7 @@ class Windows(OSBase):
             v_val = self.registry.reset_passwd(admin)
             activated = self.registry.reset_account(admin)
             self.registry.enable_autologon(admin)
+            self.registry.reset_first_logon_animation(False)
 
             tmp = uuid.uuid4().hex
             self.image.g.mkdir_p("%s/%s" % (self.systemroot, tmp))
