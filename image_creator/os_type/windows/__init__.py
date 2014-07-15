@@ -24,7 +24,8 @@ from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
 from image_creator.os_type.windows.powershell import DRVINST_HEAD, SAFEBOOT, \
-    DRVINST_TAIL, ADD_CERTIFICATE, ADD_DRIVER, INSTALL_DRIVER, REMOVE_DRIVER
+    DRVINST_TAIL, ADD_CERTIFICATE, ADD_DRIVER, INSTALL_DRIVER, REMOVE_DRIVER, \
+    DISABLE_AUTOLOGON
 
 import tempfile
 import re
@@ -775,34 +776,51 @@ class Windows(OSBase):
             self.out.warn('No suitable driver found to install!')
             return
 
-        self._upload_virtio_drivers(dirname, valid_drvs, upgrade)
-        self._boot_virtio_vm()
+        try:
+            self._upload_virtio_drivers(dirname, valid_drvs, upgrade)
+            self._boot_virtio_vm()
+        finally:
+            with self.mount(readonly=False, silent=True, fatal=False):
+                if not self.ismounted:
+                    self.out.warn("The boot changes cannot be reverted. "
+                                  "The image may be in a corrupted state.")
+                else:
+                    self._cleanup('virtio')
 
         self.out.output("VirtIO drivers were successfully installed")
         self.out.output()
 
     def _upload_virtio_drivers(self, dirname, drvs, delete_old=True):
         """Upload the VirtIO drivers and installation scripts to the media.
-        The functions returns the temporary directory under %SystemRoot% that
-        hosts the uploaded drivers.
         """
         with self.mount(readonly=False, silent=True):
             admin = self.sysprep_params['admin'].value
+
             v_val = self.registry.reset_passwd(admin)
-            activated = self.registry.reset_account(admin)
+            self._add_cleanup('virtio',
+                              self.registry.reset_passwd, admin, v_val)
+
+            active = self.registry.reset_account(admin)
+            self._add_cleanup('virtio',
+                              self.registry.reset_account, admin, active)
+
+            # We disable this with powershell scripts
             self.registry.enable_autologon(admin)
-            self.registry.reset_first_logon_animation(False)
+
+            active = self.registry.reset_first_logon_animation(False)
+            self._add_cleanup(
+                'virtio', self.registry.reset_first_logon_animation, active)
 
             tmp = uuid.uuid4().hex
             self.image.g.mkdir_p("%s/%s" % (self.systemroot, tmp))
+            self._add_cleanup('virtio', self.image.g.rm_rf,
+                              "%s/%s" % (self.systemroot, tmp))
 
             for fname in os.listdir(dirname):
                 full_path = os.path.join(dirname, fname)
                 if os.path.isfile(full_path):
                     self.image.g.upload(
                         full_path, "%s/%s/%s" % (self.systemroot, tmp, fname))
-
-            self.registry.update_devices_dirs("%SystemRoot%\\" + tmp)
 
             drvs_install = DRVINST_HEAD
 
@@ -820,6 +838,10 @@ class Windows(OSBase):
 
             if self.check_version(6, 1) <= 0:
                 self._install_viostor_driver(dirname)
+                old = self.registry.update_devices_dirs("%SystemRoot%\\" + tmp)
+                self._add_cleanup(
+                    'virtio', self.registry.update_devices_dirs, old, False)
+                drvs_install += DISABLE_AUTOLOGON
             else:
                 # In newer windows, in order to reduce the boot process the
                 # boot drivers are cached. To be able to boot with viostor, we
@@ -848,8 +870,6 @@ class Windows(OSBase):
             # The value name of RunOnce keys can be prefixed with an asterisk
             # (*) to force the program to run even in Safe mode.
             self.registry.runonce({'*InstallDrivers': cmd})
-
-        return tmp
 
     def _boot_virtio_vm(self):
         """Boot the media and install the VirtIO drivers"""

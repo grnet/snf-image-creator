@@ -221,6 +221,29 @@ class OSBase(object):
         except RuntimeError:
             self._scrub_support = False
 
+        self._cleanup_jobs = {}
+
+    def _add_cleanup(self, namespace, job, *args):
+        """Add a new job in a cleanup list"""
+
+        if namespace not in self._cleanup_jobs:
+            self._cleanup_jobs[namespace] = []
+
+        self._cleanup_jobs[namespace].append((job, args))
+
+    def _cleanup(self, namespace):
+        """Run the cleanup tasks that are defined under a specific namespace"""
+
+        if namespace not in self._cleanup_jobs:
+            self.out.warn("Cleanup namespace: `%s' is not defined", namespace)
+            return
+
+        while len(self._cleanup_jobs[namespace]):
+            job, args = self._cleanup_jobs[namespace].pop()
+            job(*args)
+
+        del self._cleanup_jobs[namespace]
+
     def inspect(self):
         """Inspect the media to check if it is supported"""
 

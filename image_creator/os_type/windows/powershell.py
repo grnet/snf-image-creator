@@ -75,13 +75,45 @@ DRVINST_TAIL = COM1_WRITE + """
 shutdown /s /t 0
 """
 
+DISABLE_AUTOLOGON = r"""
+Remove-ItemProperty -Path `
+    'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\' `
+    DefaultUserName
+Remove-ItemProperty -Path `
+    'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\' `
+    DefaultPassword
+Remove-ItemProperty -Path `
+    'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\' `
+    AutoAdminLogon
+"""
+
 # Reboots system in safe mode
 SAFEBOOT = r"""
 bcdedit /set safeboot minimal
+
+$winlogon = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 New-ItemProperty `
     -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
-    -Name *snf-image-creator-restart -PropertyType String `
-    -Value 'cmd /q /c "bcdedit /deletevalue safeboot & shutdown /s /t 0"'
+    -Name *1snf-image-creator-safeboot -PropertyType String `
+    -Value 'bcdedit /deletevalue safeboot'
+
+New-ItemProperty `
+    -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
+    -Name *2snf-image-creator-safeboot -PropertyType String `
+    -Value "reg delete `"$winlogon`" /v DefaultUserName /f"
+New-ItemProperty `
+    -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
+    -Name *3snf-image-creator-safeboot -PropertyType String `
+    -Value "reg delete `"$winlogon`" /v DefaultPassword /f"
+New-ItemProperty `
+    -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
+    -Name *4snf-image-creator-safeboot -PropertyType String `
+    -Value "reg delete `"$winlogon`" /v AutoAdminLogon /f"
+
+New-ItemProperty `
+    -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce `
+    -Name *5snf-image-creator-safeboot -PropertyType String `
+    -Value 'shutdown /s /t 5'
 """
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
