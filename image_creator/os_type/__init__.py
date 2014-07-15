@@ -205,6 +205,9 @@ class OSBase(object):
 
         if 'sysprep_params' in kargs:
             for key, val in kargs['sysprep_params'].items():
+                if key not in self.sysprep_params:
+                    self.out.warn("Ignoring invalid `%s' parameter." % key)
+                    continue
                 param = self.sysprep_params[key]
                 if not param.set_value(val):
                     raise FatalError("Invalid value for sysprep parameter: "

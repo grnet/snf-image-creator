@@ -104,13 +104,16 @@ def parse_options(input_args):
                       "input media", default=[], action="append",
                       metavar="SYSPREP")
 
+    parser.add_option("--install-virtio", dest="virtio", type="string",
+                      help="install VirtIO drivers hosted under DIR "
+                      "(Windows only)", metavar="DIR")
     parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
                       default=False, action="store_true",
                       help="print the defined system preparation parameters "
                       "for this input media")
 
     parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
-                      help="Add KEY=VALUE system preparation parameter",
+                      help="add KEY=VALUE system preparation parameter",
                       action="append")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
@@ -125,7 +128,7 @@ def parse_options(input_args):
                       action="store_true")
 
     parser.add_option("--allow-unsupported", dest="allow_unsupported",
-                      help="Proceed with the image creation even if the media "
+                      help="proceed with the image creation even if the media "
                       "is not supported", default=False, action="store_true")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
@@ -174,6 +177,10 @@ def parse_options(input_args):
             raise FatalError("Sysprep parameter option: `%s' is not in "
                              "KEY=VALUE format." % p)
         sysprep_params[key] = value
+
+    if options.virtio is not None:
+        sysprep_params['virtio'] = options.virtio
+
     options.sysprep_params = sysprep_params
 
     return options
@@ -288,6 +295,10 @@ def image_creator():
 
         if options.outfile is None and not options.upload:
             return 0
+
+        if options.virtio is not None and \
+                hasattr(image.os, 'install_virtio_drivers'):
+            image.os.install_virtio_drivers()
 
         if options.sysprep:
             image.os.do_sysprep()
