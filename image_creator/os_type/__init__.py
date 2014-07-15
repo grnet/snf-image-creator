@@ -82,29 +82,25 @@ def sysprep(message, enabled=True, **kwargs):
 
 
 class SysprepParam(object):
-    """This class represents an system preparation parameter"""
+    """This class represents a system preparation parameter"""
 
-    def __init__(self, type, default, description):
+    def __init__(self, type, default, description, check=lambda x: x):
 
-        type_checker = {"posint": self._check_posint,
-                        "string": self._check_string,
-                        "file": self._check_fname,
-                        "dir": self._check_dname}
-
-        assert type in type_checker.keys(), "Invalid parameter type: %s" % type
+        assert hasattr(self, "_check_%s" % type), "Invalid type: %s" % type
 
         self.type = type
         self.default = default
         self.description = description
         self.value = default
         self.error = None
-
-        self._checker = type_checker[type]
+        self.check = check
 
     def set_value(self, value):
         """Update the value of the parameter"""
+
+        check_type = getattr(self, "_check_%s" % self.type)
         try:
-            self.value = self._checker(value)
+            self.value = self.check(check_type(value))
         except ValueError as e:
             self.error = e.message
             return False
@@ -126,7 +122,7 @@ class SysprepParam(object):
         """Check if a value is a string"""
         return str(value)
 
-    def _check_fname(self, value):
+    def _check_file(self, value):
         """Check if the value is a valid filename"""
 
         value = str(value)
@@ -146,7 +142,7 @@ class SysprepParam(object):
 
         raise ValueError("Invalid filename")
 
-    def _check_dname(self, value):
+    def _check_dir(self, value):
         """Check if the value is a valid directory"""
 
         value = str(value)
@@ -160,7 +156,7 @@ class SysprepParam(object):
         raise ValueError("Invalid dirname")
 
 
-def add_sysprep_param(name, type, default, descr):
+def add_sysprep_param(name, type, default, descr, check=lambda x: x):
     """Decorator for __init__ that adds the definition for a system preparation
     parameter in an instance of an os_type class
     """
@@ -171,8 +167,8 @@ def add_sysprep_param(name, type, default, descr):
             if not hasattr(self, 'sysprep_params'):
                 self.sysprep_params = {}
 
-            self.sysprep_params[name] = SysprepParam(type, default, descr)
-
+            self.sysprep_params[name] = SysprepParam(type, default, descr,
+                                                     check)
             init(self, *args, **kwargs)
         return inner
     return wrapper

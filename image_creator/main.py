@@ -257,9 +257,10 @@ def image_creator():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     try:
-        snapshot = disk.snapshot()
-
-        image = disk.get_image(snapshot, sysprep_params=options.sysprep_params)
+        # There is no need to snapshot the media if it was created by the Disk
+        # instance as a temporary object.
+        device = disk.device if disk.source == '/' else disk.snapshot()
+        image = disk.get_image(device, sysprep_params=options.sysprep_params)
 
         if image.is_unsupported() and not options.allow_unsupported:
             raise FatalError(
@@ -323,7 +324,7 @@ def image_creator():
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        # Destroy the image instance. We only need the snapshot from now on
+        # Destroy the image instance. We only need the disk device from now on
         disk.destroy_image(image)
 
         out.output()
@@ -331,7 +332,7 @@ def image_creator():
             uploaded_obj = ""
             if options.upload:
                 out.output("Uploading image to the storage service:")
-                with open(snapshot, 'rb') as f:
+                with open(device, 'rb') as f:
                     uploaded_obj = kamaki.upload(
                         f, size, options.upload,
                         "(1/3)  Calculating block hashes",

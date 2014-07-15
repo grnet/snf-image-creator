@@ -353,11 +353,11 @@ def create_image(session):
     try:
         out.clear()
 
-        #Sysprep
+        # Sysprep
         image.os.do_sysprep()
         metadata = image.os.meta
 
-        #Shrink
+        # Shrink
         size = image.shrink()
         session['shrinked'] = True
         update_background_title(session)
@@ -365,7 +365,7 @@ def create_image(session):
         metadata.update(image.meta)
         metadata['DESCRIPTION'] = wizard['ImageDescription']
 
-        #MD5
+        # MD5
         md5 = MD5(out)
         session['checksum'] = md5.compute(image.device, size)
 

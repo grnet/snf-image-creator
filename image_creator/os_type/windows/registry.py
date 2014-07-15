@@ -33,6 +33,10 @@ WINDOWS_SETUP_STATES = (
     "IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE",
     "IMAGE_STATE_SPECIALIZE_RESEAL_TO_AUDIT")
 
+REG_SZ = lambda k, v: {'key': k, 't': 1L,
+                       'value': (v + '\x00').encode('utf-16le')}
+REG_BINARY = lambda k, v: {'key': k, 't': 3L, 'value': v}
+REG_DWORD = lambda k, v: {'key': k, 't': 4L, 'value': struct.pack('<I', v)}
 
 class Registry(object):
     """Windows Registry manipulation methods"""
@@ -148,12 +152,11 @@ class Registry(object):
 
             for desc, cmd in commands.items():
                 assert type(desc) is str and type(cmd) is str
-                value = {'key': desc, 't': 1, 'value': cmd.encode('utf-16le')}
-                hive.node_set_value(runonce, value)
+                hive.node_set_value(runonce, REG_SZ(desc, cmd))
 
             hive.commit(None)
 
-    def enable_autologon(self, username, password="", autoadminlogon=True):
+    def enable_autologon(self, username, password=""):
         """Enable automatic logon for a specific user"""
 
         assert type(username) is str and type(password) is str
@@ -165,16 +168,9 @@ class Registry(object):
                           'Winlogon'):
                 winlogon = hive.node_get_child(winlogon, child)
 
-            hive.node_set_value(winlogon,
-                                {'key': 'DefaultUserName', 't': 1,
-                                 'value': username.encode('utf-16le')})
-            hive.node_set_value(winlogon,
-                                {'key': 'DefaultPassword', 't': 1,
-                                 'value':  password.encode('utf-16le')})
-            hive.node_set_value(
-                winlogon,
-                {'key': 'AutoAdminLogon', 't': 1,
-                 'value': ("%d" % int(autoadminlogon)).encode('utf-16le')})
+            hive.node_set_value(winlogon, REG_SZ('DefaultUserName', username))
+            hive.node_set_value(winlogon, REG_SZ('DefaultPassword', password))
+            hive.node_set_value(winlogon, REG_SZ('AutoAdminLogon', "1"))
 
             hive.commit(None)
 
@@ -212,9 +208,8 @@ class Registry(object):
                 assert hive.value_type(old_value)[1] == 4
                 old_values.append(hive.value_dword(old_value))
 
-                hive.node_set_value(
-                    node, {'key': 'EnableFirewall', 't': 4L,
-                           'value': struct.pack("<I", new_values.pop(0))})
+                hive.node_set_value(node, REG_DWORD('EnableFirewall',
+                                                    new_values.pop(0)))
             hive.commit(None)
 
         return old_values
@@ -255,10 +250,8 @@ class Registry(object):
             elif value == 0:
                 return False
 
-            new_value = {'key': "LocalAccountTokenFilterPolicy", 't': 4L,
-                         'value': struct.pack("<I", value)}
-
-            hive.node_set_value(key, new_value)
+            hive.node_set_value(
+                key, REG_DWORD("LocalAccountTokenFilterPolicy", value))
             hive.commit(None)
 
         return True
@@ -326,7 +319,7 @@ class Registry(object):
                 fmt = '%ds4x8s4x%ds' % (0xa0, len(v_val) - 0xb0)
                 new = ("\x00" * 4).join(struct.unpack(fmt,  v_val))
 
-            hive.node_set_value(rid_node, {'key': "V", 't': 3L, 'value': new})
+            hive.node_set_value(rid_node, REG_BINARY('V', new))
             hive.commit(None)
             parent['old'] = v_val
 

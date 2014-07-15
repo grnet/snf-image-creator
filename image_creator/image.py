@@ -137,8 +137,8 @@ class Image(object):
         else:
             self.g.set_recovery_proc(0)
 
-        #self.g.set_trace(1)
-        #self.g.set_verbose(1)
+        # self.g.set_trace(1)
+        # self.g.set_verbose(1)
 
         self.out.output('Launching helper VM (may take a while) ...', False)
         # self.progressbar = self.out.Progress(100, "Launching helper VM",
@@ -180,7 +180,8 @@ class Image(object):
         self.guestfs_enabled = False
         self.out.success('done')
 
-    def _get_os(self):
+    @property
+    def os(self):
         """Return an OS class instance for this image"""
         if hasattr(self, "_os"):
             return self._os
@@ -194,8 +195,6 @@ class Image(object):
         self._os.collect_metadata()
 
         return self._os
-
-    os = property(_get_os)
 
     def destroy(self):
         """Destroy this Image instance."""

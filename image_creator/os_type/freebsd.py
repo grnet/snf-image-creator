@@ -55,7 +55,7 @@ class Freebsd(Unix):
         super(Freebsd, self)._do_collect_metadata()
         self.meta["USERS"] = " ".join(self._get_passworded_users())
 
-        #The original product name key is long and ugly
+        # The original product name key is long and ugly
         self.meta['DESCRIPTION'] = \
             self.meta['DESCRIPTION'].split('#')[0].strip()
 
