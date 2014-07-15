@@ -84,7 +84,7 @@ def sysprep(message, enabled=True, **kwargs):
 class SysprepParam(object):
     """This class represents a system preparation parameter"""
 
-    def __init__(self, type, default, description, check=lambda x: x):
+    def __init__(self, type, default, description, **kargs):
 
         assert hasattr(self, "_check_%s" % type), "Invalid type: %s" % type
 
@@ -93,7 +93,8 @@ class SysprepParam(object):
         self.description = description
         self.value = default
         self.error = None
-        self.check = check
+        self.check = kargs['check'] if 'check' in kargs else lambda x: x
+        self.hidden = kargs['hidden'] if 'hidden' in kargs else False
 
     def set_value(self, value):
         """Update the value of the parameter"""
@@ -156,10 +157,12 @@ class SysprepParam(object):
         raise ValueError("Invalid dirname")
 
 
-def add_sysprep_param(name, type, default, descr, check=lambda x: x):
+def add_sysprep_param(name, type, default, descr, **kargs):
     """Decorator for __init__ that adds the definition for a system preparation
     parameter in an instance of an os_type class
     """
+    extra = kargs
+
     def wrapper(init):
         @wraps(init)
         def inner(self, *args, **kwargs):
@@ -167,8 +170,8 @@ def add_sysprep_param(name, type, default, descr, check=lambda x: x):
             if not hasattr(self, 'sysprep_params'):
                 self.sysprep_params = {}
 
-            self.sysprep_params[name] = SysprepParam(type, default, descr,
-                                                     check)
+            self.sysprep_params[name] = \
+                SysprepParam(type, default, descr, **extra)
             init(self, *args, **kwargs)
         return inner
     return wrapper
@@ -343,7 +346,9 @@ class OSBase(object):
         self.out.output("System preparation parameters:")
         self.out.output()
 
-        if len(self.sysprep_params) == 0:
+        public_params = [(n, p) for n, p in self.sysprep_params.items()
+                         if not p.hidden]
+        if len(public_params) == 0:
             self.out.output("(none)")
             return
 
@@ -351,7 +356,9 @@ class OSBase(object):
         wrapper.subsequent_indent = "             "
         wrapper.width = 72
 
-        for name, param in self.sysprep_params.items():
+        for name, param in public_params:
+            if param.hidden:
+                continue
             self.out.output("NAME:        %s" % name)
             self.out.output("VALUE:       %s" % param.value)
             self.out.output(

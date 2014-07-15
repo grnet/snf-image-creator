@@ -689,6 +689,11 @@ def sysprep_params(session):
     while 1:
         choices = []
         for name, param in image.os.sysprep_params.items():
+
+            # Don't show the hidden parameters
+            if param.hidden:
+                continue
+
             value = str(param.value)
             if len(value) == 0:
                 value = "<not_set>"
