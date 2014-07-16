@@ -274,7 +274,7 @@ class Windows(OSBase):
         with self.mount(readonly=True, silent=True):
             self.out.output("Checking media state ...", False)
             self.sysprepped = self.registry.get_setup_state() > 0
-            self.virtio_state = self._virtio_state()
+            self.virtio_state = self.compute_virtio_state()
             arch = self.image.g.inspect_get_arch(self.root)
             if arch == 'x86_64':
                 arch = 'amd64'
@@ -677,7 +677,7 @@ class Windows(OSBase):
         raise FatalError("Connection to the Windows VM failed after %d retries"
                          % retries)
 
-    def _virtio_state(self, directory=None):
+    def compute_virtio_state(self, directory=None):
         """Returns information about the VirtIO drivers found either in a
         directory or the media itself if the directory is None.
         """
@@ -718,7 +718,7 @@ class Windows(OSBase):
         """Examines a directory for VirtIO drivers and returns only the drivers
         that are suitable for this media.
         """
-        collection = self._virtio_state(dirname)
+        collection = self.compute_virtio_state(dirname)
 
         files = set([f.lower() for f in os.listdir(dirname)
                      if os.path.isfile(dirname + os.sep + f)])
@@ -906,7 +906,7 @@ class Windows(OSBase):
             self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
 
         with self.mount(readonly=True, silent=True):
-            self.virtio_state = self._virtio_state()
+            self.virtio_state = self.compute_virtio_state()
             viostor_service_found = self.registry.check_viostor_service()
 
         if not (len(self.virtio_state['viostor']) and viostor_service_found):

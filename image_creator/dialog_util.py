@@ -336,4 +336,56 @@ def edit_cloud(session, name):
 
     return True
 
+
+def virtio_versions(virtio_state):
+    """Returns the versions of the drivers defined by the virtio state"""
+
+    ret = {}
+    for name, infs in virtio_state.items():
+        driver_ver = [drv['DriverVer'].split(',', 1) if 'DriverVer' in drv
+                      else [] for drv in infs.values()]
+        vers = [v[1] if len(v) > 1 else " " for v in driver_ver]
+        ret[name] = "<not found>" if len(infs) == 0 else ", ".join(vers)
+
+    return ret
+
+
+def update_sysprep_param(session, name, title=None):
+    """Modify the value of a sysprep parameter"""
+    d = session['dialog']
+    image = session['image']
+
+    param = image.os.sysprep_params[name]
+
+    while 1:
+        if param.type in ("file", "dir"):
+            if not title:
+                title = "Please select a %s to use for the `%s' parameter" % \
+                    ('file' if param.type == 'file' else 'directory', name)
+            ftype = "br" if param.type == 'file' else 'd'
+
+            value = select_file(d, ftype=ftype, title=title)
+            if value is None:
+                return False
+        else:
+            if not title:
+                title = "Please provide a new value for configuration " \
+                        "parameter: `%s'" % name
+            (code, answer) = d.inputbox(
+                title, width=WIDTH, init=str(param.value))
+
+            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                return False
+
+            value = answer.strip()
+
+        if param.set_value(value) is False:
+            d.msgbox("Unable to update the value. Reason: %s" % param.error,
+                     width=WIDTH)
+            param.error = None
+            continue
+        break
+
+    return True
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

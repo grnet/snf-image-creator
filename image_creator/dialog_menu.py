@@ -33,7 +33,7 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud, select_file
+    extract_image, add_cloud, edit_cloud, virtio_versions, update_sysprep_param
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -641,45 +641,6 @@ def exclude_tasks(session):
     return True
 
 
-def update_sysprep_param(session, name, title=None):
-    """Modify the value of a sysprep parameter"""
-    d = session['dialog']
-    image = session['image']
-
-    param = image.os.sysprep_params[name]
-
-    while 1:
-        if param.type in ("file", "dir"):
-            if not title:
-                title = "Please select a %s to use for the `%s' parameter" % \
-                    ('file' if param.type == 'file' else 'directory', name)
-            ftype = "br" if param.type == 'file' else 'd'
-
-            value = select_file(d, ftype=ftype, title=title)
-            if value is None:
-                return False
-        else:
-            if not title:
-                title = "Please provide a new value for configuration " \
-                        "parameter: `%s'" % name
-            (code, answer) = d.inputbox(
-                title, width=WIDTH, init=str(param.value))
-
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                return False
-
-            value = answer.strip()
-
-        if param.set_value(value) is False:
-            d.msgbox("Unable to update the value. Reason: %s" % param.error,
-                     width=WIDTH)
-            param.error = None
-            continue
-        break
-
-    return True
-
-
 def sysprep_params(session):
     """Collect the needed sysprep parameters"""
     d = session['dialog']
@@ -740,11 +701,7 @@ def virtio(session):
     default_item = image.os.virtio_state.keys()[0]
     while 1:
         choices = []
-        for name, infs in image.os.virtio_state.items():
-            driver_ver = [drv['DriverVer'].split(',', 1) if 'DriverVer' in drv
-                          else [] for drv in infs.values()]
-            vers = [v[1] if len(v) > 1 else " " for v in driver_ver]
-            details = "<not installed>" if len(infs) == 0 else ", ".join(vers)
+        for name, details in virtio_versions(image.os.virtio_state).items():
             choices.append((name, details))
 
         (code, choice) = d.menu(
