@@ -229,7 +229,7 @@ def image_creator():
             account = Kamaki.get_account(options.cloud)
             if account is None:
                 raise FatalError(
-                    "Cloud: `$s' exists but is not valid!" % options.cloud)
+                    "Cloud: `%s' exists but is not valid!" % options.cloud)
             else:
                 kamaki = Kamaki(account, out)
         except ClientError as e:
