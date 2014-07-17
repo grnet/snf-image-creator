@@ -161,7 +161,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
         item = field[1]
         item_len = field[2]
         cmd.extend((label, str(line), str(1), item, str(line),
-                   str(label_len + 1), str(input_len), str(item_len)))
+                    str(label_len + 1), str(input_len), str(item_len)))
         line += 1
 
     code, output = self._perform(*(cmd,), **kwargs)
@@ -218,14 +218,14 @@ def dialog_main(media, logfile, tmpdir):
             except Reset:
                 log.output("Resetting everything ...")
                 continue
-    except FatalError as e:
-        msg = textwrap.fill(str(e), width=WIDTH-4)
+    except FatalError as error:
+        msg = textwrap.fill(str(error), width=WIDTH-4)
         d.infobox(msg, width=WIDTH, title="Fatal Error")
         return 1
 
 
 def main():
-
+    """Entrance Point"""
     if os.geteuid() != 0:
         sys.stderr.write("Error: You must run %s as root\n" % PROGNAME)
         sys.exit(2)
@@ -252,9 +252,9 @@ def main():
 
     try:
         logfile = open(opts.logfile, 'w') if opts.logfile is not None else None
-    except IOError as e:
+    except IOError as error:
         parser.error("Unable to open logfile `%s' for writing. Reason: %s" %
-                     (opts.logfile, e.strerror))
+                     (opts.logfile, error.strerror))
 
     try:
         # Save the terminal attributes

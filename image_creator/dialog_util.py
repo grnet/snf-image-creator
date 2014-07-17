@@ -228,10 +228,10 @@ def extract_image(session):
     return True
 
 
-def _check_cloud(session, name, description, url, token):
+def _check_cloud(session, name, url, token):
     """Checks if the provided info for a cloud are valid"""
     d = session['dialog']
-    regexp = re.compile('^[~@#$:\-\w]+$')
+    regexp = re.compile(r'^[~@#$:\-\w]+$')
 
     if not re.match(regexp, name):
         d.msgbox("Allowed characters for name: a-zA-Z0-9_~@#$:-", width=WIDTH)
@@ -283,7 +283,7 @@ def add_cloud(session):
         url = url.strip()
         token = token.strip()
 
-        if _check_cloud(session, name, description, url, token):
+        if _check_cloud(session, name, url, token):
             if name in Kamaki.get_clouds().keys():
                 d.msgbox("A cloud with name `%s' already exists. If you want "
                          "to edit the existing cloud account, use the edit "
@@ -328,7 +328,7 @@ def edit_cloud(session, name):
         url = url.strip()
         token = token.strip()
 
-        if _check_cloud(session, name, description, url, token):
+        if _check_cloud(session, name, url, token):
             Kamaki.save_cloud(name, url, token, description)
             break
 

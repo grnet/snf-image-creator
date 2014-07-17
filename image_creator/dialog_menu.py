@@ -37,17 +37,17 @@ from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
-        ["linux", "windows"]),
+     ["linux", "windows"]),
     ("File system resize",
-        ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
-        ["linux", "windows"]),
+     ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
+     ["linux", "windows"]),
     ("Swap partition configuration", ["AddSwap"], ["linux"]),
     ("SSH keys removal", ["DeleteSSHKeys"], ["linux"]),
     ("Temporal RDP disabling", ["DisableRemoteDesktopConnections"],
-        ["windows"]),
+     ["windows"]),
     ("SELinux relabeling at next boot", ["SELinuxAutorelabel"], ["linux"]),
     ("Hostname/Computer Name assignment", ["AssignHostname"],
-        ["windows", "linux"]),
+     ["windows", "linux"]),
     ("Password change", ["ChangePassword"], ["windows", "linux"]),
     ("File injection", ["EnforcePersonality"], ["windows", "linux"])
 ]
@@ -60,13 +60,14 @@ class MetadataMonitor(object):
     def __init__(self, session, meta):
         self.session = session
         self.meta = meta
+        self.old = {}
 
     def __enter__(self):
         self.old = {}
         for (k, v) in self.meta.items():
             self.old[k] = v
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         d = self.session['dialog']
 
         altered = {}
@@ -102,8 +103,6 @@ def upload_image(session):
     """Upload the image to the storage service"""
     d = session["dialog"]
     image = session['image']
-    meta = session['metadata']
-    size = image.size
 
     if "account" not in session:
         d.msgbox("You need to select a valid cloud before you can upload "
@@ -113,8 +112,8 @@ def upload_image(session):
     while 1:
         if 'upload' in session:
             init = session['upload']
-        elif 'OS' in meta:
-            init = "%s.diskdump" % meta['OS']
+        elif 'OS' in session['metadata']:
+            init = "%s.diskdump" % session['metadata']['OS']
         else:
             init = ""
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
@@ -151,13 +150,13 @@ def upload_image(session):
         try:
             if 'checksum' not in session:
                 md5 = MD5(out)
-                session['checksum'] = md5.compute(image.device, size)
+                session['checksum'] = md5.compute(image.device, image.size)
 
             try:
                 # Upload image file
                 with open(image.device, 'rb') as f:
                     session["pithos_uri"] = \
-                        kamaki.upload(f, size, filename,
+                        kamaki.upload(f, image.size, filename,
                                       "Calculating block hashes",
                                       "Uploading missing blocks")
                 # Upload md5sum file
@@ -206,9 +205,8 @@ def register_image(session):
         session['metadata'] else ""
 
     while 1:
-        fields = [
-            ("Registration name:", name, 60),
-            ("Description (optional):", description, 80)]
+        fields = [("Registration name:", name, 60),
+                  ("Description (optional):", description, 80)]
 
         (code, output) = d.form(
             "Please provide the following registration info:", height=11,
@@ -225,14 +223,13 @@ def register_image(session):
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
 
-        ret = d.yesno("Make the image public?\\nA public image is accessible "
-                      "by every user of the service.", defaultno=1,
-                      width=WIDTH)
-        if ret not in (0, 1):
+        answer = d.yesno("Make the image public?\\nA public image is "
+                         "accessible by every user of the service.",
+                         defaultno=1, width=WIDTH)
+        if answer not in (0, 1):
             continue
 
-        is_public = True if ret == 0 else False
-
+        is_public = (answer == 0)
         break
 
     session['metadata']['DESCRIPTION'] = description
@@ -267,8 +264,8 @@ def register_image(session):
                     kamaki.share("%s.meta" % session['upload'])
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
-            except ClientError as e:
-                d.msgbox("Error in storage service client: %s" % e.message)
+            except ClientError as error:
+                d.msgbox("Error in storage service client: %s" % error.message)
                 return False
         finally:
             out.remove(gauge)
@@ -336,8 +333,8 @@ def delete_clouds(session):
         d.msgbox("Nothing selected!", width=SMALL_WIDTH)
         return False
 
-    if not d.yesno("Are you sure you want to remove the selected cloud "
-                   "accounts?", width=WIDTH, defaultno=1):
+    if not d.yesno("Are you sure you want to remove the selected accounts?",
+                   width=WIDTH, defaultno=1):
         for i in to_delete:
             Kamaki.remove_cloud(i)
             if 'cloud' in session and session['cloud'] == i:
@@ -602,13 +599,14 @@ def exclude_tasks(session):
         index += 1
 
     while 1:
+        text = "Please choose which configuration tasks you would like to " \
+               "prevent from running during image deployment. " \
+               "Press <No Config> to suppress any configuration. " \
+               "Press <Help> for more help on the image deployment " \
+               "configuration tasks."
+
         (code, tags) = d.checklist(
-            text="Please choose which configuration tasks you would like to "
-                 "prevent from running during image deployment. "
-                 "Press <No Config> to suppress any configuration. "
-                 "Press <Help> for more help on the image deployment "
-                 "configuration tasks.",
-            choices=choices, height=19, list_height=8, width=WIDTH,
+            text=text, choices=choices, height=19, list_height=8, width=WIDTH,
             help_button=1, extra_button=1, extra_label="No Config",
             title="Exclude Configuration Tasks")
         tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
@@ -680,8 +678,7 @@ def sysprep_params(session):
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return True
-        # Details button
-        elif code == d.DIALOG_OK:
+        elif code == d.DIALOG_OK:  # Details button
             d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
         else:  # Update button
             update_sysprep_param(session, choice)
@@ -823,13 +820,13 @@ def sysprep(session):
         help_title = "System Preparation Tasks"
         sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
-        for sysprep in syspreps:
-            name, descr = image.os.sysprep_info(sysprep)
+        for task in syspreps:
+            name, descr = image.os.sysprep_info(task)
             display_name = name.replace('-', ' ').capitalize()
             sysprep_help += "%s\n" % display_name
             sysprep_help += "%s\n" % ('-' * len(display_name))
             sysprep_help += "%s\n\n" % wrapper.fill(" ".join(descr.split()))
-            enabled = 1 if sysprep.enabled else 0
+            enabled = 1 if task.enabled else 0
             choices.append((str(index + 1), display_name, enabled))
             index += 1
 
@@ -875,10 +872,10 @@ def sysprep(session):
                         try:
                             image.os.do_sysprep()
                             infobox.finalize()
-                        except FatalError as e:
-                            title = "System Preparation"
-                            d.msgbox("System Preparation failed: %s" % e,
-                                     title=title, width=SMALL_WIDTH)
+                        except FatalError as error:
+                            d.msgbox("System Preparation failed: %s" % error,
+                                     title="System Preparation",
+                                     width=SMALL_WIDTH)
                 finally:
                     image.out.remove(infobox)
             finally:
@@ -976,13 +973,13 @@ def main_menu(session):
 
     actions = {"Customize": customization_menu, "Register": kamaki_menu,
                "Extract": extract_image}
+    title = "Image Creator for Synnefo (snf-image-creator v%s)" % version
     while 1:
         (code, choice) = d.menu(
             text="Choose one of the following or press <Exit> to exit.",
             width=WIDTH, choices=choices, cancel="Exit", height=13,
             default_item=default_item, menu_height=len(choices),
-            title="Image Creator for Synnefo (snf-image-creator version %s)" %
-                  version)
+            title=title)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d):
