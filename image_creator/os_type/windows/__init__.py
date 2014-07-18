@@ -23,9 +23,7 @@ from image_creator.util import FatalError
 from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
-from image_creator.os_type.windows.powershell import DRVINST_HEAD, SAFEBOOT, \
-    DRVINST_TAIL, ADD_CERTIFICATE, ADD_DRIVER, INSTALL_DRIVER, REMOVE_DRIVER, \
-    DISABLE_AUTOLOGON
+from image_creator.os_type.windows import powershell
 
 import tempfile
 import re
@@ -823,33 +821,35 @@ class Windows(OSBase):
                     self.image.g.upload(
                         full_path, "%s/%s/%s" % (self.systemroot, tmp, fname))
 
-            drvs_install = DRVINST_HEAD
+            drvs_install = powershell.DRVINST_HEAD
 
             for dtype in drvs:
-                drvs_install += "".join([ADD_CERTIFICATE % d['CatalogFile']
-                                         for d in drvs[dtype].values()])
-                cmd = ADD_DRIVER if dtype != 'viostor' else INSTALL_DRIVER
+                drvs_install += "".join(
+                    [powershell.ADD_CERTIFICATE % d['CatalogFile']
+                     for d in drvs[dtype].values()])
+                cmd = powershell.ADD_DRIVER if dtype != 'viostor' \
+                    else powershell.INSTALL_DRIVER
                 drvs_install += "".join([cmd % i for i in drvs[dtype]])
 
             if delete_old:
                 # Add code to remove the old drivers
                 for dtype in drvs:
                     for oem in self.virtio_state[dtype]:
-                        drvs_install += REMOVE_DRIVER % oem
+                        drvs_install += powershell.REMOVE_DRIVER % oem
 
             if self.check_version(6, 1) <= 0:
                 self._install_viostor_driver(dirname)
                 old = self.registry.update_devices_dirs("%SystemRoot%\\" + tmp)
                 self._add_cleanup(
                     'virtio', self.registry.update_devices_dirs, old, False)
-                drvs_install += DISABLE_AUTOLOGON
+                drvs_install += powershell.DISABLE_AUTOLOGON
             else:
                 # In newer windows, in order to reduce the boot process the
                 # boot drivers are cached. To be able to boot with viostor, we
                 # need to reboot in safe mode.
-                drvs_install += SAFEBOOT
+                drvs_install += powershell.SAFEBOOT
 
-            drvs_install += DRVINST_TAIL
+            drvs_install += powershell.DRVINST_TAIL
 
             target = "%s/%s/InstallDrivers.ps1" % (self.systemroot, tmp)
             self.image.g.write(target, drvs_install.replace('\n', '\r\n'))
