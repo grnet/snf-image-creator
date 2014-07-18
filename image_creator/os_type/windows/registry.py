@@ -48,6 +48,23 @@ def safe_add_node(hive, parent, name):
     return hive.node_add_child(parent, name) if node is None else node
 
 
+def traverse(hive, path):
+    """Traverse a hive following a path"""
+
+    node = hive.root()
+
+    for name in path.split('/'):
+
+        if len(name) == 0:
+            continue
+
+        node = hive.node_get_child(node, name)
+        if node is None:
+            break
+
+    return node
+
+
 class Registry(object):
     """Windows Registry manipulation methods"""
 
@@ -246,25 +263,22 @@ class Registry(object):
             raise ValueError("Valid values for value parameter are 0 and 1")
 
         with self.open_hive('SOFTWARE', write=True) as hive:
-            key = hive.root()
-            for child in ('Microsoft', 'Windows', 'CurrentVersion', 'Policies',
-                          'System'):
-                key = hive.node_get_child(key, child)
+            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
+            system = traverse(hive, path)
 
             policy = None
-            for val in hive.node_values(key):
+            for val in hive.node_values(system):
                 if hive.value_key(val) == "LocalAccountTokenFilterPolicy":
                     policy = val
 
             if policy is not None:
-                dword = hive.value_dword(policy)
-                if dword == value:
+                if value == hive.value_dword(policy):
                     return False
             elif value == 0:
                 return False
 
             hive.node_set_value(
-                key, REG_DWORD("LocalAccountTokenFilterPolicy", value))
+                system, REG_DWORD("LocalAccountTokenFilterPolicy", value))
             hive.commit(None)
 
         return True
@@ -277,10 +291,10 @@ class Registry(object):
         users = []
         active = []
 
-        # Under HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID% there is
-        # an F field that contains information about this user account. Bytes
-        # 56 & 57 are the account type and status flags. The first bit is the
-        # 'account disabled' bit:
+        # Under HKLM\SAM\SAM\Domains\Account\Users\%RID% there is an F field
+        # that contains information about this user account.Bytes 56 & 57 are
+        # the account type and status flags and the first bit in this flag is
+        # the 'account disabled' bit:
         #
         # http://www.beginningtoseethelight.org/ntsecurity/index.htm
         #        #8603CF0AFBB170DD
@@ -389,11 +403,8 @@ class Registry(object):
         """
 
         with self.open_hive('SOFTWARE', write=True) as hive:
-            # Navigate to Microsoft/Windows/CurrentVersion/Policies/System
-            system = hive.root()
-            for child in ('Microsoft', 'Windows', 'CurrentVersion', 'Policies',
-                          'System'):
-                system = hive.node_get_child(system, child)
+            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
+            system = traverse(hive, path)
             try:
                 val = hive.node_get_value(system, 'EnableFirstLogonAnimation')
                 old = bool(hive.value_dword(val))
@@ -421,13 +432,11 @@ class Registry(object):
         """
 
         with self.open_hive('SAM', write) as hive:
-            # Navigate to /SAM/Domains/Account/Users
-            users_node = hive.root()
-            for child in ('SAM', 'Domains', 'Account', 'Users'):
-                users_node = hive.node_get_child(users_node, child)
+
+            users = traverse(hive, 'SAM/Domains/Account/Users')
 
             # Navigate to /SAM/Domains/Account/Users/Names
-            names_node = hive.node_get_child(users_node, 'Names')
+            names = hive.node_get_child(users, 'Names')
 
             # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%
             # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\Names\%Username%
@@ -435,18 +444,18 @@ class Registry(object):
             # The RID (relative identifier) of each user is stored as the
             # type!!!! (not the value) of the default key of the node under
             # Names whose name is the user's username.
-            for user_node in hive.node_children(names_node):
+            for node in hive.node_children(names):
 
-                username = hive.node_name(user_node)
+                username = hive.node_name(node)
 
                 if len(userlist) != 0 and username not in userlist:
                     continue
 
-                rid = hive.value_type(hive.node_get_value(user_node, ""))[0]
+                rid = hive.value_type(hive.node_get_value(node, ""))[0]
                 # if RID is 500 (=0x1f4), the corresponding node name under
                 # Users is '000001F4'
                 key = ("%8.x" % rid).replace(' ', '0').upper()
-                rid_node = hive.node_get_child(users_node, key)
+                rid_node = hive.node_get_child(users, key)
 
                 action(hive, username, rid_node)
 
@@ -461,9 +470,7 @@ class Registry(object):
         with self.open_hive('SYSTEM', write=True) as hive:
 
             # SYSTEM/CurrentControlSet/Control/CriticalDeviceDatabase
-            control = hive.root()
-            for child in (self.current_control_set, 'Control'):
-                control = hive.node_get_child(control, child)
+            control = traverse(hive, "/%s/Control" % self.current_control_set)
             cdd = safe_add_node(hive, control, 'CriticalDeviceDatabase')
 
             guid = "{4D36E97B-E325-11CE-BFC1-08002BE10318}"
@@ -514,14 +521,11 @@ class Registry(object):
 
     def check_viostor_service(self):
         """Checks if the viostor service is installed"""
+
+        service = '%s/Services/viostor' % self.current_control_set
+
         with self.open_hive('SYSTEM', write=False) as hive:
-
-            # SYSTEM/CurrentContolSet/Services/viostor
-            services = hive.root()
-            for child in (self.current_control_set, 'Services'):
-                services = hive.node_get_child(services, child)
-
-        return hive.node_get_child(services, 'viostor') is not None
+            return traverse(hive, service) is not None
 
     def update_devices_dirs(self, dirname, append=True):
         """Update the value of the DevicePath registry key. If the append flag
@@ -533,11 +537,9 @@ class Registry(object):
 
         with self.open_hive('SOFTWARE', write=True) as hive:
 
-            current_version = hive.root()
-            for child in ('Microsoft', 'Windows', 'CurrentVersion'):
-                current_version = hive.node_get_child(current_version, child)
+            current = traverse(hive, '/Microsoft/Windows/CurrentVersion')
 
-            device_path = hive.node_get_value(current_version, 'DevicePath')
+            device_path = hive.node_get_value(current, 'DevicePath')
             regtype, value = hive.value_value(device_path)
 
             assert regtype == 2L, "Type (=%d) is not REG_EXPAND_SZ" % regtype
@@ -547,7 +549,7 @@ class Registry(object):
 
             new_value = "%s;%s" % (old_value, dirname) if append else dirname
 
-            hive.node_set_value(current_version,
+            hive.node_set_value(current,
                                 REG_EXPAND_SZ('DevicePath', new_value))
             hive.commit(None)
 
