@@ -174,9 +174,12 @@ class Image(object):
         # process was introduced in version 1.19.16
         if self.check_guestfs_version(1, 19, 16) >= 0:
             self.g.shutdown()
-            self.g.close()
         else:
             self.g.kill_subprocess()
+
+        # We will reset the guestfs handler if needed
+        if self.check_guestfs_version(1, 18, 4) < 0:
+            self.g.close()
 
         self.guestfs_enabled = False
         self.out.success('done')
