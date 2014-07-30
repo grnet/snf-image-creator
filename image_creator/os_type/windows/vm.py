@@ -34,11 +34,12 @@ RANDOM_TOKEN = "".join(random.choice(lowercase + uppercase) for _ in range(16))
 
 class VM(object):
     """Windows Virtual Machine"""
-    def __init__(self, disk, params):
+    def __init__(self, disk, params, admin):
         """Create VM instance"""
 
         self.disk = disk
         self.params = params
+        self.admin = admin
         self.interface = 'virtio'
 
         # expected number of token occurrences in serial port
@@ -222,9 +223,8 @@ class VM(object):
         debug = kwargs['debug'] if 'debug' in kwargs else False
         uninstall = kwargs['uninstall'] if 'uninstall' in kwargs else False
 
-        user = self.params['admin'].value
-        winexe = WinEXE(user, 'localhost', password=self.password)
-        winexe.runas(user, self.password).no_pass()
+        winexe = WinEXE(self.admin, 'localhost', password=self.password)
+        winexe.runas(self.admin, self.password).no_pass()
 
         if debug:
             winexe.debug(9)

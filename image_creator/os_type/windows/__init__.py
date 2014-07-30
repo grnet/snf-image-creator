@@ -97,6 +97,9 @@ VIRTIO = (      # id    Name
     "vioscsi",  # 1004	Virtio SCSI
     "viorng")   # 1005	Virtio RNG
 
+# The Administrator's Relative ID
+ADMIN_RID = 500
+
 
 def parse_inf(inf):
     """Parse the content of a Windows INF file and fetch all information found
@@ -218,7 +221,6 @@ DESCR = {
     "it has booted, before giving up.",
     "smp": "Number of CPUs to use for the Windows customization VM.",
     "mem": "Virtual RAM size in MiB for the Windows customization VM.",
-    "admin": "Name of the Administration user.",
     "virtio": "Directory hosting the Windows virtio drivers.",
     "virtio_timeout":
     "Time in seconds to wait for the installation of the VirtIO drivers."}
@@ -226,7 +228,6 @@ DESCR = {
 
 class Windows(OSBase):
     """OS class for Windows"""
-    @add_sysprep_param('admin', "string", 'Administrator', DESCR['admin'])
     @add_sysprep_param('mem', "posint", 1024, DESCR['mem'])
     @add_sysprep_param('smp', "posint", 1, DESCR['smp'])
     @add_sysprep_param(
@@ -265,14 +266,22 @@ class Windows(OSBase):
         self.systemroot = self.image.g.inspect_get_windows_systemroot(
             self.root)
 
-        self.vm = VM(self.image.device, self.sysprep_params)
         self.registry = Registry(self.image)
 
-        # If the image is already sysprepped we cannot further customize it
         with self.mount(readonly=True, silent=True):
             self.out.output("Checking media state ...", False)
+
+            # Enumerate the windows users
+            (self.usernames,
+             self.active_users,
+             self.admins) = self.registry.enum_users()
+            assert ADMIN_RID in self.usernames, "Administrator account missing"
+
+            # If the image is already sysprepped we cannot further customize it
             self.sysprepped = self.registry.get_setup_state() > 0
+
             self.virtio_state = self.compute_virtio_state()
+
             arch = self.image.g.inspect_get_arch(self.root)
             if arch == 'x86_64':
                 arch = 'amd64'
@@ -290,6 +299,9 @@ class Windows(OSBase):
         for drive, root in self.image.g.inspect_get_drive_mappings(self.root):
             if root == self.root:
                 self.systemdrive = drive
+
+        admin = self.usernames[ADMIN_RID]
+        self.vm = VM(self.image.device, self.sysprep_params, admin)
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -458,15 +470,14 @@ class Windows(OSBase):
                 "The media has no VirtIO Ethernet Adapter driver installed. "
                 "Further image customization is not possible.")
 
-        admin = self.sysprep_params['admin'].value
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
         self.out.output("Preparing media for boot ...", False)
 
         with self.mount(readonly=False, silent=True):
-            activated = self.registry.reset_account(admin)
-            v_val = self.registry.reset_passwd(admin)
+            activated = self.registry.reset_account(ADMIN_RID)
+            v_val = self.registry.reset_passwd(ADMIN_RID)
             disabled_uac = self.registry.update_uac_remote_setting(1)
             self._add_boot_scripts()
 
@@ -534,11 +545,11 @@ class Windows(OSBase):
                         self.registry.update_uac_remote_setting(0)
 
                     if not activated:
-                        self.registry.reset_account(admin, False)
+                        self.registry.reset_account(ADMIN_RID, False)
 
                     if not self.sysprepped:
                         # Reset the old password
-                        self.registry.reset_passwd(admin, v_val)
+                        self.registry.reset_passwd(ADMIN_RID, v_val)
 
                     self.registry.update_firewalls(*firewall_states)
                     self.out.success("done")
@@ -595,6 +606,7 @@ class Windows(OSBase):
         next boot.
         """
 
+        admin = self.usernames[ADMIN_RID]
         commands = {}
 
         # Disable hibernation. This is not needed for a VM
@@ -605,7 +617,7 @@ class Windows(OSBase):
 
         # This will update the password of the admin user to self.vm.password
         commands["UpdatePassword"] = "net user %s %s" % \
-            (self.sysprep_params['admin'].value, self.vm.password)
+            (admin, self.vm.password)
 
         # This is previously done with hivex when we executed
         # self.registry.update_uac_remote_setting(1).
@@ -636,16 +648,15 @@ class Windows(OSBase):
         # defined on the server either by a Group Policy object (GPO) or by a
         # local policy.
 
-        self.registry.enable_autologon(self.sysprep_params['admin'].value)
+        self.registry.enable_autologon(admin)
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Windows, self)._do_collect_metadata()
 
         # We only care for active users
-        users, active, _ = self.registry.enum_users()
-
-        self.meta["USERS"] = " ".join([users[a] for a in active])
+        self.meta["USERS"] = \
+            " ".join([self.usernames[a] for a in self.active_users])
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
@@ -793,18 +804,16 @@ class Windows(OSBase):
         """Upload the VirtIO drivers and installation scripts to the media.
         """
         with self.mount(readonly=False, silent=True):
-            admin = self.sysprep_params['admin'].value
-
-            v_val = self.registry.reset_passwd(admin)
+            v_val = self.registry.reset_passwd(ADMIN_RID)
             self._add_cleanup('virtio',
-                              self.registry.reset_passwd, admin, v_val)
+                              self.registry.reset_passwd, ADMIN_RID, v_val)
 
-            active = self.registry.reset_account(admin)
+            active = self.registry.reset_account(ADMIN_RID)
             self._add_cleanup('virtio',
-                              self.registry.reset_account, admin, active)
+                              self.registry.reset_account, ADMIN_RID, active)
 
             # We disable this with powershell scripts
-            self.registry.enable_autologon(admin)
+            self.registry.enable_autologon(self.usernames[ADMIN_RID])
 
             active = self.registry.reset_first_logon_animation(False)
             self._add_cleanup(

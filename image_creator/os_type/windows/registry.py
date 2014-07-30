@@ -24,6 +24,9 @@ import tempfile
 import os
 import struct
 
+# The Administrators group RID
+ADMINS = 0x00000220
+
 # http://technet.microsoft.com/en-us/library/hh824815.aspx
 WINDOWS_SETUP_STATES = (
     "IMAGE_STATE_COMPLETE",
@@ -181,15 +184,12 @@ class Registry(object):
                 runonce = hive.node_add_child(key, "RunOnce")
 
             for desc, cmd in commands.items():
-                assert type(desc) is str and type(cmd) is str
                 hive.node_set_value(runonce, REG_SZ(desc, cmd))
 
             hive.commit(None)
 
     def enable_autologon(self, username, password=""):
         """Enable automatic logon for a specific user"""
-
-        assert type(username) is str and type(password) is str
 
         with self.open_hive('SOFTWARE', write=True) as hive:
 
@@ -333,11 +333,11 @@ class Registry(object):
 
         self._foreach_account(
             userlist=[], useraction=collect_users,
-            grouplist=['Administrators'], groupaction=collect_group_members)
+            grouplist=[ADMINS], groupaction=collect_group_members)
 
         return (users, active, members)
 
-    def reset_passwd(self, user, v_field=None):
+    def reset_passwd(self, rid, v_field=None):
         r"""Reset the password for user 'user'. If v_field is not None, the
         value of key \HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%\V
         is replaced with this one, otherwise the LM and NT passwords of the
@@ -350,6 +350,7 @@ class Registry(object):
         parent = {}
 
         def update_v_field(hive, username, rid_node):
+            """Updates the user's V field to reset the password"""
             assert 'old' not in parent, "Multiple users with same username"
 
             field = hive.node_get_value(rid_node, 'V')
@@ -373,12 +374,12 @@ class Registry(object):
             hive.commit(None)
             parent['old'] = v_val
 
-        self._foreach_account(True, userlist=[user], useraction=update_v_field)
+        self._foreach_account(True, userlist=[rid], useraction=update_v_field)
 
-        assert 'old' in parent, "user: `%s' does not exist" % user
+        assert 'old' in parent, "user whith RID: `%s' does not exist" % rid
         return parent['old']
 
-    def reset_account(self, user, activate=True):
+    def reset_account(self, rid, activate=True):
 
         # This is a hack. I cannot assign a new value to nonlocal variable.
         # This is why I'm using a dict
@@ -398,7 +399,7 @@ class Registry(object):
         isactive = lambda f: (to_int(f[56]) & 0x01) == 0
 
         def update_f_field(hive, username, rid_node):
-
+            """Updates the user's F field to reset the account"""
             field = hive.node_get_value(rid_node, 'F')
             f_type, f_val = hive.value_value(field)
             assert f_type == 3L, "F field type (=%d) isn't REG_BINARY" % f_type
@@ -415,7 +416,7 @@ class Registry(object):
             hive.node_set_value(rid_node, REG_BINARY('F', new))
             hive.commit(None)
 
-        self._foreach_account(True, userlist=[user], useraction=update_f_field)
+        self._foreach_account(True, userlist=[rid], useraction=update_f_field)
 
         return state['old']
 
@@ -456,11 +457,8 @@ class Registry(object):
         writing.
         """
 
-        def parse_sam(namelist, action, path):
+        def parse_sam(ridlist, action, path):
             """Parse the registry users and groups nodes"""
-
-            # In Windows account names are case-insensitive
-            namelist = [name.lower() for name in namelist]
 
             accounts = traverse(hive, 'SAM/Domains/' + path)
             names = hive.node_get_child(accounts, 'Names')
@@ -471,11 +469,11 @@ class Registry(object):
 
             for node in hive.node_children(names):
                 name = hive.node_name(node)
+                rid = hive.value_type(hive.node_get_value(node, ""))[0]
 
-                if len(namelist) != 0 and name.lower() not in namelist:
+                if len(ridlist) != 0 and rid not in ridlist:
                     continue
 
-                rid = hive.value_type(hive.node_get_value(node, ""))[0]
                 # if RID is 500 (=0x1f4), the corresponding node name is
                 # '000001F4'
                 key = ("%8.x" % rid).replace(' ', '0').upper()
