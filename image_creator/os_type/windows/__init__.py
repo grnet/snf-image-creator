@@ -644,8 +644,9 @@ class Windows(OSBase):
         super(Windows, self)._do_collect_metadata()
 
         # We only care for active users
-        _, users = self.registry.enum_users()
-        self.meta["USERS"] = " ".join(users)
+        users, active, _ = self.registry.enum_users()
+
+        self.meta["USERS"] = " ".join([users[a] for a in active])
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""

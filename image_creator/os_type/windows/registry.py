@@ -284,15 +284,18 @@ class Registry(object):
         return True
 
     def enum_users(self):
-        """Returns a list of users found on the system and a second list of
-        active users.
+        """Returns:
+            a map of RID->username for all users found on the system
+            a list of RIDs of active users
+            a list of RIDs of members of the Administrators group
         """
 
-        users = []
+        users = {}
         active = []
+        members = []
 
         # Under HKLM\SAM\SAM\Domains\Account\Users\%RID% there is an F field
-        # that contains information about this user account.Bytes 56 & 57 are
+        # that contains information about this user account. Bytes 56 & 57 are
         # the account type and status flags and the first bit in this flag is
         # the 'account disabled' bit:
         #
@@ -301,18 +304,38 @@ class Registry(object):
         #
         disabled = lambda f: int(f[56].encode('hex'), 16) & 0x01
 
-        def collect_users(hive, username, rid_node):
+        def collect_group_members(hive, group, rid_node):
+            """Enumerate group members"""
+            c_val = hive.value_value(hive.node_get_value(rid_node, 'C'))[1]
 
+            # Check http://pogostick.net/~pnh/ntpasswd/ for more info
+            offset = struct.unpack('<I', c_val[0x28:0x2c])[0] + 0x34
+            #size = struct.unpack('<I', c_val[0x2c:0x30])[0]
+            count = struct.unpack('<I', c_val[0x30:0x34])[0]
+
+            # Parse the sid array and get all members
+            while len(members) < count:
+                sections = struct.unpack('<B', c_val[offset+1:offset+2])[0]
+                rid_offs = offset + 8 + (sections - 1) * 4
+                rid = struct.unpack('<I', c_val[rid_offs:rid_offs+4])[0]
+                members.append(rid)
+                offset += sections * 4 + 8
+
+        def collect_users(hive, username, rid_node):
+            """Enumerate active users"""
             f_val = hive.value_value(hive.node_get_value(rid_node, 'F'))[1]
+            rid = int(hive.node_name(rid_node), 16)
 
             if not disabled(f_val):
-                active.append(username)
+                active.append(rid)
 
-            users.append(username)
+            users[rid] = username
 
-        self._foreach_user([], collect_users)
+        self._foreach_account(
+            userlist=[], useraction=collect_users,
+            grouplist=['Administrators'], groupaction=collect_group_members)
 
-        return (users, active)
+        return (users, active, members)
 
     def reset_passwd(self, user, v_field=None):
         r"""Reset the password for user 'user'. If v_field is not None, the
@@ -350,7 +373,7 @@ class Registry(object):
             hive.commit(None)
             parent['old'] = v_val
 
-        self._foreach_user([user], update_v_field, write=True)
+        self._foreach_account(True, userlist=[user], useraction=update_v_field)
 
         assert 'old' in parent, "user: `%s' does not exist" % user
         return parent['old']
@@ -392,7 +415,7 @@ class Registry(object):
             hive.node_set_value(rid_node, REG_BINARY('F', new))
             hive.commit(None)
 
-        self._foreach_user([user], update_f_field, write=True)
+        self._foreach_account(True, userlist=[user], useraction=update_f_field)
 
         return state['old']
 
@@ -424,40 +447,61 @@ class Registry(object):
 
         return old
 
-    def _foreach_user(self, userlist, action, write=False):
-        """Performs an action on the RID node of a user in the registry, for
-        every user found in the userlist. If userlist is empty, it performs the
-        action on all users. The write flag determines if the registry is
-        opened for reading or writing.
+    def _foreach_account(self, write=False, **kargs):
+        """Performs an action on the RID node of a user or a group in the
+        registry, for every user/group found in the userlist/grouplist.
+        If userlist/grouplist is empty, it performs the action on all
+        users/groups.
+        The write flag determines if the registry is opened for reading or
+        writing.
         """
 
-        with self.open_hive('SAM', write) as hive:
+        def parse_sam(namelist, action, path):
+            """Parse the registry users and groups nodes"""
 
-            users = traverse(hive, 'SAM/Domains/Account/Users')
+            # In Windows account names are case-insensitive
+            namelist = [name.lower() for name in namelist]
 
-            # Navigate to /SAM/Domains/Account/Users/Names
-            names = hive.node_get_child(users, 'Names')
+            accounts = traverse(hive, 'SAM/Domains/' + path)
+            names = hive.node_get_child(accounts, 'Names')
 
-            # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID%
-            # HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\Names\%Username%
-            #
-            # The RID (relative identifier) of each user is stored as the
+            # The RID (relative identifier) of each user/group is stored as the
             # type!!!! (not the value) of the default key of the node under
-            # Names whose name is the user's username.
+            # Names whose name is the username/groupname.
+
             for node in hive.node_children(names):
+                name = hive.node_name(node)
 
-                username = hive.node_name(node)
-
-                if len(userlist) != 0 and username not in userlist:
+                if len(namelist) != 0 and name.lower() not in namelist:
                     continue
 
                 rid = hive.value_type(hive.node_get_value(node, ""))[0]
-                # if RID is 500 (=0x1f4), the corresponding node name under
-                # Users is '000001F4'
+                # if RID is 500 (=0x1f4), the corresponding node name is
+                # '000001F4'
                 key = ("%8.x" % rid).replace(' ', '0').upper()
-                rid_node = hive.node_get_child(users, key)
+                rid_node = hive.node_get_child(accounts, key)
 
-                action(hive, username, rid_node)
+                action(hive, name, rid_node)
+
+        userlist = kargs['userlist'] if 'userlist' in kargs else None
+        useraction = kargs['useraction'] if 'useraction' in kargs else None
+
+        grouplist = kargs['grouplist'] if 'grouplist' in kargs else None
+        groupaction = kargs['groupaction'] if 'groupaction' in kargs else None
+
+        if userlist is not None:
+            assert useraction is not None
+
+        if grouplist is not None:
+            assert groupaction is not None
+
+        with self.open_hive('SAM', write) as hive:
+            if userlist is not None:
+                parse_sam(userlist, useraction, 'Account/Users')
+
+            if grouplist is not None:
+                parse_sam(grouplist, groupaction, 'Builtin/Aliases')
+                parse_sam(grouplist, groupaction, 'Account/Aliases')
 
     def add_viostor(self):
         """Add the viostor driver to the critical device database and register
