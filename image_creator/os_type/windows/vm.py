@@ -46,7 +46,7 @@ class VM(object):
 
         kvm, needed_args = get_kvm_binary()
         if kvm is None:
-            FatalError("Can't find the kvm binary")
+            raise FatalError("Can't find the kvm binary")
 
         self.kvm = [kvm] + list(needed_args)
 
@@ -235,7 +235,7 @@ class VM(object):
         try:
             (stdout, stderr, rc) = winexe.run(command)
         except WinexeTimeout:
-            FatalError("Command: `%s' timeout out." % command)
+            raise FatalError("Command: `%s' timeout out." % command)
 
         if rc != 0 and fatal:
             log = tempfile.NamedTemporaryFile(delete=False)

@@ -391,13 +391,12 @@ class Windows(OSBase):
                 if m:
                     querymax = m.group(1)
                 else:
-                    FatalError(
-                        "Unexpected output for `shrink querymax' command: %s" %
-                        line)
+                    raise FatalError("Unexpected output for `shrink querymax' "
+                                     "command: %s" % line)
 
         if querymax is None:
-            FatalError("Error in shrinking! "
-                       "Couldn't find the max number of reclaimable bytes!")
+            raise FatalError("Error in shrinking! Couldn't find the max "
+                             "number of reclaimable bytes!")
 
         querymax = int(querymax)
         # From ntfsresize:
@@ -426,9 +425,9 @@ class Windows(OSBase):
         stdout, stderr, rc = self.vm.rexec(cmd, fatal=False)
 
         if rc != 0:
-            FatalError("Shrinking failed. Please make sure the media is "
-                       "defraged with a command like this: "
-                       "`Defrag.exe /U /X /W'")
+            raise FatalError("Shrinking failed. Please make sure the media is "
+                             "defraged with a command like this: "
+                             "`Defrag.exe /U /X /W'")
         for line in stdout.splitlines():
             if line.find('shrunk') >= 0:
                 self.out.output(" %s" % line)
