@@ -84,7 +84,7 @@ def sysprep(message, enabled=True, **kwargs):
 class SysprepParam(object):
     """This class represents a system preparation parameter"""
 
-    def __init__(self, type, default, description, check=lambda x: x):
+    def __init__(self, type, default, description, **kargs):
 
         assert hasattr(self, "_check_%s" % type), "Invalid type: %s" % type
 
@@ -93,7 +93,8 @@ class SysprepParam(object):
         self.description = description
         self.value = default
         self.error = None
-        self.check = check
+        self.check = kargs['check'] if 'check' in kargs else lambda x: x
+        self.hidden = kargs['hidden'] if 'hidden' in kargs else False
 
     def set_value(self, value):
         """Update the value of the parameter"""
@@ -156,10 +157,12 @@ class SysprepParam(object):
         raise ValueError("Invalid dirname")
 
 
-def add_sysprep_param(name, type, default, descr, check=lambda x: x):
+def add_sysprep_param(name, type, default, descr, **kargs):
     """Decorator for __init__ that adds the definition for a system preparation
     parameter in an instance of an os_type class
     """
+    extra = kargs
+
     def wrapper(init):
         @wraps(init)
         def inner(self, *args, **kwargs):
@@ -167,8 +170,8 @@ def add_sysprep_param(name, type, default, descr, check=lambda x: x):
             if not hasattr(self, 'sysprep_params'):
                 self.sysprep_params = {}
 
-            self.sysprep_params[name] = SysprepParam(type, default, descr,
-                                                     check)
+            self.sysprep_params[name] = \
+                SysprepParam(type, default, descr, **extra)
             init(self, *args, **kwargs)
         return inner
     return wrapper
@@ -202,16 +205,20 @@ class OSBase(object):
 
         if 'sysprep_params' in kargs:
             for key, val in kargs['sysprep_params'].items():
+                if key not in self.sysprep_params:
+                    self.out.warn("Ignoring invalid `%s' parameter." % key)
+                    continue
                 param = self.sysprep_params[key]
                 if not param.set_value(val):
                     raise FatalError("Invalid value for sysprep parameter: "
                                      "`%s'. Reason: %s" % (key, param.error))
 
         self.meta = {}
-        self.mounted = False
 
         # This will host the error if mount fails
         self._mount_error = ""
+        self._mount_warnings = []
+        self._mounted = False
 
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
@@ -220,6 +227,29 @@ class OSBase(object):
         except RuntimeError:
             self._scrub_support = False
 
+        self._cleanup_jobs = {}
+
+    def _add_cleanup(self, namespace, job, *args):
+        """Add a new job in a cleanup list"""
+
+        if namespace not in self._cleanup_jobs:
+            self._cleanup_jobs[namespace] = []
+
+        self._cleanup_jobs[namespace].append((job, args))
+
+    def _cleanup(self, namespace):
+        """Run the cleanup tasks that are defined under a specific namespace"""
+
+        if namespace not in self._cleanup_jobs:
+            self.out.warn("Cleanup namespace: `%s' is not defined", namespace)
+            return
+
+        while len(self._cleanup_jobs[namespace]):
+            job, args = self._cleanup_jobs[namespace].pop()
+            job(*args)
+
+        del self._cleanup_jobs[namespace]
+
     def inspect(self):
         """Inspect the media to check if it is supported"""
 
@@ -227,27 +257,19 @@ class OSBase(object):
             return
 
         self.out.output('Running OS inspection:')
-        try:
-            if not self.mount(readonly=True, silent=True):
-                raise FatalError("Unable to mount the media read-only")
+        with self.mount(readonly=True, silent=True):
             self._do_inspect()
-        finally:
-            self.umount(silent=True)
-
         self.out.output()
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
-        try:
-            if not self.mount(readonly=True, silent=True):
-                raise FatalError("Unable to mount the media read-only")
 
-            self.out.output('Collecting image metadata ...', False)
+        self.out.output('Collecting image metadata ...', False)
+
+        with self.mount(readonly=True, silent=True):
             self._do_collect_metadata()
-            self.out.success('done')
-        finally:
-            self.umount(silent=True)
 
+        self.out.success('done')
         self.out.output()
 
     def list_syspreps(self):
@@ -327,7 +349,9 @@ class OSBase(object):
         self.out.output("System preparation parameters:")
         self.out.output()
 
-        if len(self.sysprep_params) == 0:
+        public_params = [(n, p) for n, p in self.sysprep_params.items()
+                         if not p.hidden]
+        if len(public_params) == 0:
             self.out.output("(none)")
             return
 
@@ -335,7 +359,9 @@ class OSBase(object):
         wrapper.subsequent_indent = "             "
         wrapper.width = 72
 
-        for name, param in self.sysprep_params.items():
+        for name, param in public_params:
+            if param.hidden:
+                continue
             self.out.output("NAME:        %s" % name)
             self.out.output("VALUE:       %s" % param.value)
             self.out.output(
@@ -352,12 +378,7 @@ class OSBase(object):
                 "System preparation is disabled for unsupported media")
             return
 
-        try:
-            if not self.mount(readonly=False):
-                msg = "Unable to mount the media read-write. Reason: %s" % \
-                    self._mount_error
-                raise FatalError(msg)
-
+        with self.mount():
             enabled = [task for task in self.list_syspreps() if task.enabled]
 
             size = len(enabled)
@@ -367,39 +388,74 @@ class OSBase(object):
                 self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
                 task()
                 setattr(task.im_func, 'executed', True)
-        finally:
-            self.umount()
 
         self.out.output()
 
-    def mount(self, readonly=False, silent=False):
-        """Mount image."""
+    @property
+    def ismounted(self):
+        return self._mounted
 
-        if getattr(self, "mounted", False):
-            return True
+    def mount(self, readonly=False, silent=False, fatal=True):
+        """Returns a context manager for mounting an image"""
 
-        mount_type = 'read-only' if readonly else 'read-write'
-        if not silent:
-            self.out.output("Mounting the media %s ..." % mount_type, False)
+        parent = self
+        output = lambda msg='', nl=True: None if silent else self.out.output
+        success = lambda msg='', nl=True: None if silent else self.out.success
+        warn = lambda msg='', nl=True: None if silent else self.out.warn
 
-        self._mount_error = ""
-        if not self._do_mount(readonly):
-            return False
+        class Mount:
+            """The Mount context manager"""
+            def __enter__(self):
+                mount_type = 'read-only' if readonly else 'read-write'
+                output("Mounting the media %s ..." % mount_type, False)
 
-        self.mounted = True
-        if not silent:
-            self.out.success('done')
-        return True
+                parent._mount_error = ""
+                del parent._mount_warnings[:]
 
-    def umount(self, silent=False):
-        """Umount all mounted file systems."""
+                try:
+                    parent._mounted = parent._do_mount(readonly)
+                except:
+                    parent.image.g.umount_all()
+                    raise
 
-        if not silent:
-            self.out.output("Umounting the media ...", False)
-        self.image.g.umount_all()
-        self.mounted = False
-        if not silent:
-            self.out.success('done')
+                if not parent.ismounted:
+                    msg = "Unable to mount the media %s. Reason: %s" % \
+                        (mount_type, parent._mount_error)
+                    if fatal:
+                        raise FatalError(msg)
+                    else:
+                        warn(msg)
+
+                for warning in parent._mount_warnings:
+                    warn(warning)
+
+                if parent.ismounted:
+                    success('done')
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                output("Umounting the media ...", False)
+                parent.image.g.umount_all()
+                parent._mounted = False
+                success('done')
+
+        return Mount()
+
+    def check_version(self, major, minor):
+        """Checks the OS version against the one specified by the major, minor
+        tuple.
+
+        Returns:
+            < 0 if the OS version is smaller than the specified one
+            = 0 if they are equal
+            > 0 if it is greater
+        """
+        guestfs = self.image.g
+        for a, b in ((guestfs.inspect_get_major_version(self.root), major),
+                     (guestfs.inspect_get_minor_version(self.root), minor)):
+            if a != b:
+                return a - b
+
+        return 0
 
     def _is_sysprep(self, obj):
         """Checks if an object is a sysprep"""

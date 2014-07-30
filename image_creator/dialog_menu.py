@@ -24,6 +24,7 @@ import textwrap
 import StringIO
 import json
 import re
+import time
 
 from image_creator import __version__ as version
 from image_creator.util import MD5, FatalError
@@ -32,7 +33,7 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud, select_file
+    extract_image, add_cloud, edit_cloud, virtio_versions, update_sysprep_param
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -640,41 +641,6 @@ def exclude_tasks(session):
     return True
 
 
-def update_sysprep_param(session, name):
-    """Modify the value of a sysprep parameter"""
-    d = session['dialog']
-    image = session['image']
-
-    param = image.os.sysprep_params[name]
-
-    while 1:
-        if param.type in ("file", "dir"):
-
-            title = "Please select a %s to use for the `%s' parameter" % \
-                (name, 'file' if param.type == 'file' else 'directory')
-            ftype = "br" if param.type == 'file' else 'd'
-
-            value = select_file(d, ftype=ftype, title=title)
-            if value is None:
-                return False
-        else:
-            (code, answer) = d.inputbox(
-                "Please provide a new value for configuration parameter: `%s'"
-                % name, width=WIDTH, init=str(param.value))
-
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                return False
-
-            value = answer.strip()
-
-        if param.set_value(value) is False:
-            d.msgbox("Unable to update the value. Reason: %s" % param.error,
-                     width=WIDTH)
-            param.error = None
-            continue
-        break
-
-
 def sysprep_params(session):
     """Collect the needed sysprep parameters"""
     d = session['dialog']
@@ -684,9 +650,14 @@ def sysprep_params(session):
     while 1:
         choices = []
         for name, param in image.os.sysprep_params.items():
+
+            # Don't show the hidden parameters
+            if param.hidden:
+                continue
+
             value = str(param.value)
             if len(value) == 0:
-                value = "<empty>"
+                value = "<not_set>"
             choices.append((name, value))
 
         if len(choices) == 0:
@@ -714,6 +685,110 @@ def sysprep_params(session):
             d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
         else:  # Update button
             update_sysprep_param(session, choice)
+
+    return True
+
+
+def virtio(session):
+    """Display the state of the VirtIO drivers in the media"""
+
+    d = session['dialog']
+    image = session['image']
+
+    assert hasattr(image.os, 'virtio_state')
+    assert hasattr(image.os, 'install_virtio_drivers')
+
+    default_item = image.os.virtio_state.keys()[0]
+    while 1:
+        choices = []
+        for name, details in virtio_versions(image.os.virtio_state).items():
+            choices.append((name, details))
+
+        (code, choice) = d.menu(
+            "In this menu you can see details about the installed VirtIO "
+            "drivers on the input media. Press <OK> to see more information "
+            "about a specific installed driver or <Update> to install one or "
+            "more new drivers.", height=16, width=WIDTH, choices=choices,
+            menu_height=len(choices), cancel="Back", title="VirtIO Drivers",
+            extra_button=1, extra_label="Update", default_item=default_item)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return True
+        elif code == d.DIALOG_OK:
+            default_item = choice
+
+            # Create a string with the driver details and display it.
+            details = ""
+            for fname, driver in image.os.virtio_state[choice].items():
+                details += "%s\n%s\n" % (fname, "=" * len(fname))
+                name = ""
+                if 'DriverPackageDisplayName' in driver:
+                    name = driver['DriverPackageDisplayName']
+                provider = ""
+                if 'Provider' in driver:
+                    provider = driver['Provider']
+                date = ""
+                version = ""
+                if 'DriverVer' in driver:
+                    version = driver['DriverVer'].split(',', 1)
+                    date = version[0].strip()
+                    version = version[1] if len(version) > 1 else ""
+                    try:
+                        date = time.strptime(
+                            date, "%m/%d/%y").strftime('%d/%m/%Y', date)
+                    except ValueError:
+                        pass
+                dtype = ""
+                if 'DriverPackageType' in driver:
+                    dtype = driver['DriverPackageType']
+                dclass = ""
+                if 'Class' in driver:
+                    dclass = driver['Class']
+
+                details += "Name:      %s\n" % name.strip('\'"')
+                details += "Provider:  %s\n" % provider.strip('\'"')
+                details += "Date:      %s\n" % date
+                details += "Version:   %s\n" % version
+                details += "Type:      %s\n" % dtype
+                details += "Class:     %s\n\n" % dclass
+
+            if len(details):
+                d.scrollbox(details, width=WIDTH)
+        else:  # Update button
+            title = "Please select a directory that hosts VirtIO drivers."
+            if not update_sysprep_param(session, "virtio", title=title):
+                continue
+            install_virtio_drivers(session)
+
+    return True
+
+
+def install_virtio_drivers(session):
+    """Installs new VirtIO drivers in the image"""
+    d = session['dialog']
+    image = session['image']
+
+    assert hasattr(image.os, 'install_virtio_drivers')
+
+    if d.yesno("Continue with the installation of the VirtIO drivers?",
+               width=SMALL_WIDTH, defaultno=1):
+        return False
+
+    title = "VirtIO Drivers Installation"
+    infobox = InfoBoxOutput(d, title)
+    try:
+        image.out.add(infobox)
+        try:
+            image.os.install_virtio_drivers()
+            infobox.finalize()
+        except FatalError as e:
+            d.msgbox("VirtIO Drivers Installation failed: %s" % e, title=title,
+                     width=SMALL_WIDTH)
+            return False
+        finally:
+            image.out.remove(infobox)
+    finally:
+        infobox.cleanup()
 
     return True
 
@@ -760,13 +835,18 @@ def sysprep(session):
 
         (code, tags) = d.checklist(
             "Please choose which system preparation tasks you would like to "
-            "run on the image. Press <Help> to see details about the system "
-            "preparation tasks.", title="Run system preparation tasks",
-            choices=choices, width=70, ok_label="Run", help_button=1)
+            "run on the image. Press <Params> to view or modify the "
+            "customization parameters or <Help> to see details about the "
+            "system preparation tasks.", title="Run system preparation tasks",
+            choices=choices, width=70, ok_label="Run", help_button=1,
+            extra_button=1, extra_label="Params")
+
         tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
+        elif code == d.DIALOG_EXTRA:
+            sysprep_params(session)
         elif code == d.DIALOG_HELP:
             d.scrollbox(sysprep_help, width=WIDTH)
         elif code == d.DIALOG_OK:
@@ -847,16 +927,20 @@ def shrink(session):
 def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
+    image = session['image']
 
-    choices = [("Parameters", "View & Modify customization parameters"),
-               ("Sysprep", "Run various image preparation tasks"),
-               ("Shrink", "Shrink image"),
-               ("Properties", "View & Modify image properties"),
-               ("Exclude", "Exclude various deployment tasks from running")]
+    choices = []
+    if hasattr(image.os, "install_virtio_drivers"):
+        choices.append(("Virtio", "Install or update the VirtIO drivers"))
+    choices.extend(
+        [("Sysprep", "Run various image preparation tasks"),
+         ("Shrink", "Shrink image"),
+         ("Properties", "View & Modify image properties"),
+         ("Exclude", "Exclude various deployment tasks from running")])
 
     default_item = 0
 
-    actions = {"Parameters": sysprep_params,
+    actions = {"Virtio": virtio,
                "Sysprep": sysprep,
                "Shrink": shrink,
                "Properties": modify_properties,

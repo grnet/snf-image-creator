@@ -35,29 +35,42 @@ WINDOWS_SETUP_STATES = (
 
 REG_SZ = lambda k, v: {'key': k, 't': 1L,
                        'value': (v + '\x00').encode('utf-16le')}
+REG_EXPAND_SZ = lambda k, v: {'key': k, 't': 2L,
+                              'value': (v + '\x00').encode('utf-16le')}
 REG_BINARY = lambda k, v: {'key': k, 't': 3L, 'value': v}
 REG_DWORD = lambda k, v: {'key': k, 't': 4L, 'value': struct.pack('<I', v)}
+
+
+def safe_add_node(hive, parent, name):
+    """Add a registry node only if it is not present"""
+
+    node = hive.node_get_child(parent, name)
+    return hive.node_add_child(parent, name) if node is None else node
+
 
 class Registry(object):
     """Windows Registry manipulation methods"""
 
-    def __init__(self, guestfs_handler, root_partition):
-        self.g = guestfs_handler
-        self.root = root_partition
+    def __init__(self, image):
+        # Do not copy the guestfs handler. It may be overwritten by the image
+        # class in the future
+        self.image = image
+        self.root = image.root
 
     def open_hive(self, hive, write=False):
         """Returns a context manager for opening a hive file of the image for
         reading or writing.
         """
-        systemroot = self.g.inspect_get_windows_systemroot(self.root)
+        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
         path = "%s/system32/config/%s" % (systemroot, hive)
         try:
-            path = self.g.case_sensitive_path(path)
+            path = self.image.g.case_sensitive_path(path)
         except RuntimeError as err:
             raise FatalError("Unable to retrieve file: %s. Reason: %s" %
                              (hive, str(err)))
 
-        g = self.g  # OpenHive class needs this since 'self' gets overwritten
+        # OpenHive class needs this since 'self' gets overwritten
+        g = self.image.g
 
         class OpenHive:
             """The OpenHive context manager"""
@@ -317,7 +330,7 @@ class Registry(object):
                 # http://www.beginningtoseethelight.org/ntsecurity/index.htm
                 #        #D3BC3F5643A17823
                 fmt = '%ds4x8s4x%ds' % (0xa0, len(v_val) - 0xb0)
-                new = ("\x00" * 4).join(struct.unpack(fmt,  v_val))
+                new = ("\x00" * 4).join(struct.unpack(fmt, v_val))
 
             hive.node_set_value(rid_node, REG_BINARY('V', new))
             hive.commit(None)
@@ -327,6 +340,78 @@ class Registry(object):
 
         assert 'old' in parent, "user: `%s' does not exist" % user
         return parent['old']
+
+    def reset_account(self, user, activate=True):
+
+        # This is a hack. I cannot assign a new value to nonlocal variable.
+        # This is why I'm using a dict
+        state = {}
+
+        # Convert byte to int
+        to_int = lambda b: int(b.encode('hex'), 16)
+
+        # Under HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID% there is
+        # an F field that contains information about this user account. Bytes
+        # 56 & 57 are the account type and status flags. The first bit is the
+        # 'account disabled' bit:
+        #
+        # http://www.beginningtoseethelight.org/ntsecurity/index.htm
+        #        #8603CF0AFBB170DD
+        #
+        isactive = lambda f: (to_int(f[56]) & 0x01) == 0
+
+        def update_f_field(hive, username, rid_node):
+
+            field = hive.node_get_value(rid_node, 'F')
+            f_type, f_val = hive.value_value(field)
+            assert f_type == 3L, "F field type (=%d) isn't REG_BINARY" % f_type
+
+            state['old'] = isactive(f_val)
+            if activate is state['old']:
+                # nothing to do
+                return
+
+            mask = (lambda b: b & 0xfe) if activate else (lambda b: b | 0x01)
+            new = struct.pack("56sB23s", f_val[:56], mask(to_int(f_val[56])),
+                              f_val[57:])
+
+            hive.node_set_value(rid_node, REG_BINARY('F', new))
+            hive.commit(None)
+
+        self._foreach_user([user], update_f_field, write=True)
+
+        return state['old']
+
+    def reset_first_logon_animation(self, activate=True):
+        """Enable or disable the first-logon animation.
+
+        The method return the old value
+        """
+
+        with self.open_hive('SOFTWARE', write=True) as hive:
+            # Navigate to Microsoft/Windows/CurrentVersion/Policies/System
+            system = hive.root()
+            for child in ('Microsoft', 'Windows', 'CurrentVersion', 'Policies',
+                          'System'):
+                system = hive.node_get_child(system, child)
+            try:
+                val = hive.node_get_value(system, 'EnableFirstLogonAnimation')
+                old = bool(hive.value_dword(val))
+
+                # There is no need to reset the value
+                if old is activate:
+                    return old
+            except RuntimeError:
+                # The value is not present at all
+                if activate is False:
+                    return False
+                old = False
+
+            hive.node_set_value(system, REG_DWORD('EnableFirstLogonAnimation',
+                                                  int(activate)))
+            hive.commit(None)
+
+        return old
 
     def _foreach_user(self, userlist, action, write=False):
         """Performs an action on the RID node of a user in the registry, for
@@ -365,5 +450,107 @@ class Registry(object):
 
                 action(hive, username, rid_node)
 
+    def add_viostor(self):
+        """Add the viostor driver to the critical device database and register
+        the viostor service
+        """
+
+        path = r"system32\drivers\viostor.sys"
+        pci = r"PCI\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00\3&13c0b0c5&0&20"
+
+        with self.open_hive('SYSTEM', write=True) as hive:
+
+            # SYSTEM/CurrentControlSet/Control/CriticalDeviceDatabase
+            control = hive.root()
+            for child in (self.current_control_set, 'Control'):
+                control = hive.node_get_child(control, child)
+            cdd = safe_add_node(hive, control, 'CriticalDeviceDatabase')
+
+            guid = "{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+
+            for subsys in '00000000', '00020000', '00021af4':
+                name = "pci#ven_1af4&dev_1001&subsys_%s" % subsys
+
+                node = safe_add_node(hive, cdd, name)
+
+                hive.node_set_value(node, REG_SZ('ClassGUID', guid))
+                hive.node_set_value(node, REG_SZ('Service', 'viostor'))
+
+            # SYSTEM/CurrentContolSet/Services/viostor
+            services = hive.root()
+            for child in (self.current_control_set, 'Services'):
+                services = hive.node_get_child(services, child)
+
+            viostor = safe_add_node(hive, services, 'viostor')
+            hive.node_set_value(viostor, REG_SZ('Group', 'SCSI miniport'))
+            hive.node_set_value(viostor, REG_SZ('ImagePath', path))
+            hive.node_set_value(viostor, REG_DWORD('ErrorControl', 1))
+            hive.node_set_value(viostor, REG_DWORD('Start', 0))
+            hive.node_set_value(viostor, REG_DWORD('Type', 1))
+            hive.node_set_value(viostor, REG_DWORD('Tag', 0x21))
+
+            params = safe_add_node(hive, viostor, 'Parameters')
+            hive.node_set_value(params, REG_DWORD('BusType', 1))
+
+            mts = safe_add_node(hive, params, 'MaxTransferSize')
+            hive.node_set_value(mts,
+                                REG_SZ('ParamDesc', 'Maximum Transfer Size'))
+            hive.node_set_value(mts, REG_SZ('type', 'enum'))
+            hive.node_set_value(mts, REG_SZ('default', '0'))
+
+            enum = safe_add_node(hive, mts, 'enum')
+            hive.node_set_value(enum, REG_SZ('0', '64  KB'))
+            hive.node_set_value(enum, REG_SZ('1', '128 KB'))
+            hive.node_set_value(enum, REG_SZ('2', '256 KB'))
+
+            pnp_interface = safe_add_node(hive, params, 'PnpInterface')
+            hive.node_set_value(pnp_interface, REG_DWORD('5', 1))
+            enum = safe_add_node(hive, viostor, 'Enum')
+            hive.node_set_value(enum, REG_SZ('0', pci))
+            hive.node_set_value(enum, REG_DWORD('Count', 1))
+            hive.node_set_value(enum, REG_DWORD('NextInstance', 1))
+
+            hive.commit(None)
+
+    def check_viostor_service(self):
+        """Checks if the viostor service is installed"""
+        with self.open_hive('SYSTEM', write=False) as hive:
+
+            # SYSTEM/CurrentContolSet/Services/viostor
+            services = hive.root()
+            for child in (self.current_control_set, 'Services'):
+                services = hive.node_get_child(services, child)
+
+        return hive.node_get_child(services, 'viostor') is not None
+
+    def update_devices_dirs(self, dirname, append=True):
+        """Update the value of the DevicePath registry key. If the append flag
+        is True, the dirname is appended to the list of devices directories,
+        otherwise the value is overwritten.
+
+        This function returns the old value of the registry key
+        """
+
+        with self.open_hive('SOFTWARE', write=True) as hive:
+
+            current_version = hive.root()
+            for child in ('Microsoft', 'Windows', 'CurrentVersion'):
+                current_version = hive.node_get_child(current_version, child)
+
+            device_path = hive.node_get_value(current_version, 'DevicePath')
+            regtype, value = hive.value_value(device_path)
+
+            assert regtype == 2L, "Type (=%d) is not REG_EXPAND_SZ" % regtype
+
+            # Remove the trailing '\x00' character
+            old_value = value.decode('utf-16le')[:-1]
+
+            new_value = "%s;%s" % (old_value, dirname) if append else dirname
+
+            hive.node_set_value(current_version,
+                                REG_EXPAND_SZ('DevicePath', new_value))
+            hive.commit(None)
+
+        return old_value
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

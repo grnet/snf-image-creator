@@ -28,6 +28,9 @@ from string import lowercase, uppercase, digits
 from image_creator.util import FatalError, get_kvm_binary
 from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
 
+# Just a random 16 character long token
+RANDOM_TOKEN = "".join(random.choice(lowercase + uppercase) for _ in range(16))
+
 
 class VM(object):
     """Windows Virtual Machine"""
@@ -36,6 +39,10 @@ class VM(object):
 
         self.disk = disk
         self.params = params
+        self.interface = 'virtio'
+
+        # expected number of token occurrences in serial port
+        self._ntokens = 0
 
         kvm, needed_args = get_kvm_binary()
         if kvm is None:
@@ -93,8 +100,10 @@ class VM(object):
         """Check if the VM is alive"""
         return self.process is not None and self.process.poll() is None
 
-    def start(self):
+    def start(self, **kwargs):
         """Start the windows VM"""
+
+        self._ntokens = 0
 
         args = []
         args.extend(self.kvm)
@@ -105,12 +114,19 @@ class VM(object):
         if 'mem' in self.params:
             args.extend(['-m', str(self.params['mem'].value)])
 
-        args.extend([
-            '-drive', 'file=%s,format=raw,cache=unsafe,if=virtio' % self.disk])
+        args.extend(['-drive',
+                     'file=%s,format=raw,cache=unsafe,if=%s' %
+                     (self.disk, self.interface)])
 
         args.extend(
             ['-netdev', 'type=user,hostfwd=tcp::445-:445,id=netdev0',
-             '-device', 'virtio-net-pci,mac=%s,netdev=netdev0' % self.mac])
+             '-device', 'rtl8139,mac=%s,netdev=netdev0' % self.mac])
+
+        if 'extra_disk' in kwargs:
+            fname, iftype = kwargs['extra_disk']
+            args.extend(['-drive',
+                         'file=%s,format=raw,cache=unsafe,if=%s' %
+                         (fname, iftype)])
 
         args.extend(['-vnc', ":%d" % self.display])
 
@@ -122,7 +138,8 @@ class VM(object):
         args.extend(['-monitor', 'stdio'])
 
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)
 
     def stop(self, timeout=0, fatal=True):
         """Stop the VM"""
@@ -153,17 +170,24 @@ class VM(object):
                 except FileNotFoundError:
                     pass
 
-    def wait_on_serial(self, msg, timeout):
-        """Wait until a message appears on the VM's serial port"""
+    def wait_on_serial(self, timeout):
+        """Wait until the random token appears on the VM's serial port"""
+
+        self._ntokens += 1
 
         for _ in xrange(timeout):
             time.sleep(1)
             with open(self.serial) as f:
+                current = 0
                 for line in f:
-                    if line.startswith(msg):
-                        return True
+                    if line.startswith(RANDOM_TOKEN):
+                        current += 1
+                        if current == self._ntokens:
+                            return True
             if not self.isalive():
-                raise FatalError("Windows VM died unexpectedly!")
+                (stdout, stderr, rc) = self.wait()
+                raise FatalError("Windows VM died unexpectedly!\n\n"
+                                 "(rc=%d)\n%s" % (rc, stderr))
 
         return False
 
@@ -181,14 +205,32 @@ class VM(object):
 
         return (stdout, stderr, self.process.poll())
 
-    def rexec(self, command, fatal=True, debug=False):
-        """Remote execute a command on the windows VM"""
+    def rexec(self, command, **kwargs):
+        """Remote execute a command on the windows VM
+
+        The following optional flags are allowed:
+
+        * fatal: If True, a FatalError is thrown if the command fails
+
+        * debug: If True, WinEXE is executed in the highest debug level
+
+        * uninstall: If True, the winexesvc.exe service will be uninstalled
+          after the execution of the command.
+        """
+
+        fatal = kwargs['fatal'] if 'fatal' in kwargs else True
+        debug = kwargs['debug'] if 'debug' in kwargs else False
+        uninstall = kwargs['uninstall'] if 'uninstall' in kwargs else False
 
         user = self.params['admin'].value
         winexe = WinEXE(user, 'localhost', password=self.password)
-        winexe.runas(user, self.password).uninstall().no_pass()
+        winexe.runas(user, self.password).no_pass()
+
         if debug:
             winexe.debug(9)
+
+        if uninstall:
+            winexe.uninstall()
 
         try:
             (stdout, stderr, rc) = winexe.run(command)
@@ -196,11 +238,18 @@ class VM(object):
             FatalError("Command: `%s' timeout out." % command)
 
         if rc != 0 and fatal:
-            reason = stderr if len(stderr) else stdout
+            log = tempfile.NamedTemporaryFile(delete=False)
+            try:
+                log.file.write("STDOUT:\n%s\n" % stdout)
+                log.file.write("STDERR:\n%s\n" % stderr)
+            finally:
+                fname = log.name
+                log.close()
+
             # self.out.output("Command: `%s' failed (rc=%d). Reason: %s" %
             #                 (command, rc, reason))
-            raise FatalError("Command: `%s' failed (rc=%d). Reason: %s" %
-                             (command, rc, reason))
+            raise FatalError("Command: `%s' failed (rc=%d). See: %s" %
+                             (command, rc, fname))
 
         return (stdout, stderr, rc)
 

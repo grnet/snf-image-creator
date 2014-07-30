@@ -27,11 +27,10 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.util import MD5, FatalError
 from image_creator.output.cli import OutputWthProgress
 from image_creator.dialog_util import extract_image, update_background_title, \
-    add_cloud, edit_cloud
+    add_cloud, edit_cloud, virtio_versions, update_sysprep_param
 
 PAGE_WIDTH = 70
-PAGE_HEIGHT = 10
-SYSPREP_PARAM_MAXLEN = 20
+PAGE_HEIGHT = 12
 
 
 class WizardExit(Exception):
@@ -126,6 +125,37 @@ class WizardPage(object):
         This function is used by the wizard program when accessing a page.
         """
         raise NotImplementedError
+
+
+class WizardInfoPage(WizardPage):
+    """Represents a Wizard Page that just displays some user-defined
+    information.
+    """
+    def __init__(self, name, display_name, text, body, **kargs):
+        super(WizardInfoPage, self).__init__(name, display_name, text, **kargs)
+        self.body = body
+
+    def run(self, session, title):
+        d = session['dialog']
+        w = session['wizard']
+
+        extra_button = 1 if self.extra else 0
+        text = "%s\n\n%s" % (self.text, self.body())
+
+        ret = d.yesno(text, width=PAGE_WIDTH, ok_label="Next",
+                      cancel="Back", extra_button=extra_button, title=title,
+                      extra_label=self.extra_label, height=PAGE_HEIGHT)
+
+        if ret in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return self.PREV
+        elif ret == d.DIALOG_EXTRA:
+            self.extra()
+            raise WizardReloadPage
+
+        # DIALOG_OK
+        w[self.name] = self.validate(None)
+        self.info = "%s: %s" % (self.display_name, self.display(w[self.name]))
+        return self.NEXT
 
 
 class WizardPageWthChoices(WizardPage):
@@ -316,6 +346,53 @@ def start_wizard(session):
         title="Image Description", default=session['metadata']['DESCRIPTION']
         if 'DESCRIPTION' in session['metadata'] else '')
 
+    # Create VirtIO Installation Page
+    def display_installed_drivers():
+        """Returnes the installed virtio drivers"""
+        versions = virtio_versions(image.os.virtio_state)
+
+        ret = "Installed Block Device Driver:  %(netkvm)s\n" \
+              "Installed Network Device Driver: %(viostor)s\n" % versions
+
+        virtio = image.os.sysprep_params['virtio'].value
+        if virtio:
+            ret += "\nNew Block Device Driver:   %(netkvm)s\n" \
+                   "New Network Device Driver: %(viostor)s\n" % \
+                   virtio_versions(image.os.compute_virtio_state(virtio))
+        return ret
+
+    def validate_virtio(_):
+        netkvm = len(image.os.virtio_state['netkvm']) != 0
+        viostor = len(image.os.virtio_state['viostor']) != 0
+        drv_dir = image.os.sysprep_params['virtio'].value
+
+        if netkvm is False or viostor is False:
+            new = image.os.compute_virtio_state(drv_dir) if drv_dir else None
+            new_viostor = len(new['viostor']) != 0 if new else False
+            new_netkvm = len(new['netkvm']) != 0 if new else False
+
+            d = session['dialog']
+            title = "VirtIO driver missing"
+            msg = "Image creation cannot proceed unless a VirtIO %s driver " \
+                  "is installed on the media!"
+            if not (viostor or new_viostor):
+                d.msgbox(msg % "Block Device", width=PAGE_WIDTH,
+                         height=PAGE_HEIGHT, title=title)
+                raise WizardReloadPage
+            if not(netkvm or new_netkvm):
+                d.msgbox(msg % "Network Device", width=PAGE_WIDTH,
+                         height=PAGE_HEIGHT, title=title)
+                raise WizardReloadPage
+
+        return drv_dir
+
+    virtio = WizardInfoPage(
+        "virtio", "VirtIO Drivers Path",
+        "Press <New> to install new VirtIO drivers.",
+        display_installed_drivers, title="VirtIO Drivers", extra_label='New',
+        extra=lambda: update_sysprep_param(session, 'virtio'),
+        validate=validate_virtio)
+
     # Create Image Registration Wizard Page
     def registration_choices():
         return [("Private", "Image is accessible only by this user"),
@@ -326,14 +403,16 @@ def start_wizard(session):
         "Please provide a registration type:", registration_choices,
         title="Registration Type", default="Private")
 
-    w = Wizard(session)
+    wizard = Wizard(session)
 
-    w.add_page(cloud)
-    w.add_page(name)
-    w.add_page(descr)
-    w.add_page(registration)
+    wizard.add_page(cloud)
+    wizard.add_page(name)
+    wizard.add_page(descr)
+    if hasattr(image.os, 'install_virtio_drivers'):
+        wizard.add_page(virtio)
+    wizard.add_page(registration)
 
-    if w.run():
+    if wizard.run():
         create_image(session)
     else:
         return False
@@ -352,6 +431,9 @@ def create_image(session):
     out.add(with_progress)
     try:
         out.clear()
+
+        if 'virtio' in wizard and image.os.sysprep_params['virtio'].value:
+            image.os.install_virtio_drivers()
 
         # Sysprep
         image.os.do_sysprep()

@@ -20,14 +20,18 @@ Windows OSs."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError
-from image_creator.os_type.windows.vm import VM
+from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
 from image_creator.os_type.windows.registry import Registry
 from image_creator.os_type.windows.winexe import WinEXE
+from image_creator.os_type.windows.powershell import DRVINST_HEAD, SAFEBOOT, \
+    DRVINST_TAIL, ADD_CERTIFICATE, ADD_DRIVER, INSTALL_DRIVER, REMOVE_DRIVER, \
+    DISABLE_AUTOLOGON
 
 import tempfile
-import random
-import string
 import re
+import os
+import uuid
+import time
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -75,8 +79,7 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 Standard": "TM24T-X9RMF-VWXK6-X8JC9-BFGM2",
     "Windows Server 2008 Standard without Hyper-V":
     "W7VD6-7JFBR-RX26B-YKQ3Y-6FFFJ",
-    "Windows Server 2008 Enterprise":
-    "YQGMW-MPWTJ-34KDK-48M3W-X4Q6V",
+    "Windows Server 2008 Enterprise": "YQGMW-MPWTJ-34KDK-48M3W-X4Q6V",
     "Windows Server 2008 Enterprise without Hyper-V":
     "39BXF-X8Q23-P2WWT-38T2F-G3FPG",
     "Windows Server 2008 HPC": "RCTX3-KWVHP-BR6TB-RB6DM-6X7HP",
@@ -86,7 +89,127 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 for Itanium-Based Systems":
     "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
 
-DESCRIPTION = {
+# The PCI Device ID for VirtIO devices. 1af4 is the Vendor ID for Red Hat, Inc
+VIRTIO_DEVICE_ID = re.compile(r'pci\\ven_1af4&dev_100[0-5]')
+VIRTIO = (      # id    Name
+    "netkvm",   # 1000	Virtio network device
+    "viostor",  # 1001	Virtio block device
+    "balloon",  # 1002	Virtio memory balloon
+    "vioser",   # 1003	Virtio console
+    "vioscsi",  # 1004	Virtio SCSI
+    "viorng")   # 1005	Virtio RNG
+
+
+def parse_inf(inf):
+    """Parse the content of a Windows INF file and fetch all information found
+    in the Version section, the target OS as well as the VirtIO drivers it
+    defines.
+
+    For more info check here:
+        http://msdn.microsoft.com/en-us/library/windows/hardware/ff549520
+    """
+
+    driver = None
+    target_os = set()
+
+    sections = {}
+    current = {}
+
+    prev_line = ""
+    for line in iter(inf):
+        # Strip comments
+        line = prev_line + line.split(';')[0].strip()
+        prev_line = ""
+
+        if not len(line):
+            continue
+
+        # Does the directive span more lines?
+        if line[-1] == "\\":
+            prev_line = line
+            continue
+
+        # Does the line denote a section?
+        if line.startswith('[') and line.endswith(']'):
+            section = line[1:-1].strip().lower()
+            if section not in sections:
+                current = {}
+                sections[section] = current
+            else:
+                current = sections[section]
+            continue
+
+        # We only care about param = value lines
+        if line.find('=') > 0:
+            param, value = line.split('=', 1)
+            current[param.strip()] = value.strip()
+
+    models = []
+    if 'manufacturer' in sections:
+        for value in sections['manufacturer'].values():
+            value = value.split(',')
+            if len(value) == 0:
+                continue
+
+            # %strkey%=models-section-name [,TargetOSVersion] ...
+            models.append(value[0].strip().lower())
+            for i in range(len(value) - 1):
+                target_os.add(value[i+1].strip().lower())
+
+    if len(models):
+        # [models-section-name] | [models-section-name.TargetOSVersion]
+        models_section_name = \
+            re.compile('^(' + "|".join(models) + ')(\\..+)?$')
+        for model in [s for s in sections if models_section_name.match(s)]:
+            for value in sections[model].values():
+                value = value.split(',')
+                if len(value) == 1:
+                    continue
+                # The second value in a device-description entry is always the
+                # hardware ID:
+                #   install-section-name[,hw-id][,compatible-id...]
+                hw_id = value[1].strip().lower()
+                # If this matches a VirtIO device, then this is a VirtIO driver
+                id_match = VIRTIO_DEVICE_ID.match(hw_id)
+                if id_match:
+                    driver = VIRTIO[int(id_match.group(0)[-1])]
+
+    if 'version' in sections and 'strings' in sections:
+        # Replace all strkey tokens with their actual value
+        for key, val in sections['version'].items():
+            if val.startswith('%') and val.endswith('%'):
+                strkey = val[1:-1]
+                if strkey in sections['strings']:
+                    sections['version'][key] = sections['strings'][strkey]
+
+    if len(target_os) == 0:
+        target_os.add('ntx86')
+
+    version = sections['version'] if 'version' in sections else {}
+
+    return driver, target_os, version
+
+
+def virtio_dir_check(dirname):
+    """Check if the needed virtio driver files are present in the dirname
+    directory
+    """
+    if not dirname:
+        return ""  # value not set
+
+    # Check files in a case insensitive manner
+    files = set(os.listdir(dirname))
+
+    for inf in [f for f in files if f.lower().endswith('.inf')]:
+        with open(os.path.join(dirname, inf)) as content:
+            driver, _, _ = parse_inf(content)
+            if driver:
+                return dirname
+
+    raise ValueError("Invalid VirtIO directory. No VirtIO driver found")
+
+
+DESCR = {
     "boot_timeout":
     "Time in seconds to wait for the Windows customization VM to boot.",
     "shutdown_timeout":
@@ -95,23 +218,28 @@ DESCRIPTION = {
     "connection_retries":
     "Number of times to try to connect to the Windows customization VM after "
     "it has booted, before giving up.",
-    "smp": "Number of CPUs to use for the Windows customization VM",
-    "mem": "Virtual RAM size in MiB for the Windows customization VM",
-    "admin": "Name of the Administration user"}
+    "smp": "Number of CPUs to use for the Windows customization VM.",
+    "mem": "Virtual RAM size in MiB for the Windows customization VM.",
+    "admin": "Name of the Administration user.",
+    "virtio": "Directory hosting the Windows virtio drivers.",
+    "virtio_timeout":
+    "Time in seconds to wait for the installation of the VirtIO drivers."}
 
 
 class Windows(OSBase):
     """OS class for Windows"""
+    @add_sysprep_param('admin', "string", 'Administrator', DESCR['admin'])
+    @add_sysprep_param('mem', "posint", 1024, DESCR['mem'])
+    @add_sysprep_param('smp', "posint", 1, DESCR['smp'])
     @add_sysprep_param(
-        'admin', "string", 'Administrator', DESCRIPTION['admin'])
-    @add_sysprep_param('mem', "posint", 1024, DESCRIPTION['mem'])
-    @add_sysprep_param('smp', "posint", 1, DESCRIPTION['smp'])
+        'connection_retries', "posint", 5, DESCR['connection_retries'])
     @add_sysprep_param(
-        'connection_retries', "posint", 5, DESCRIPTION['connection_retries'])
+        'shutdown_timeout', "posint", 120, DESCR['shutdown_timeout'])
+    @add_sysprep_param('boot_timeout', "posint", 300, DESCR['boot_timeout'])
+    @add_sysprep_param('virtio', 'dir', "", DESCR['virtio'],
+                       check=virtio_dir_check, hidden=True)
     @add_sysprep_param(
-        'shutdown_timeout', "posint", 120, DESCRIPTION['shutdown_timeout'])
-    @add_sysprep_param(
-        'boot_timeout', "posint", 300, DESCRIPTION['boot_timeout'])
+        'virtio_timeout', 'posint', 300, DESCR['virtio_timeout'])
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
@@ -136,18 +264,34 @@ class Windows(OSBase):
         self.last_part_num = self.image.g.part_list(device)[-1]['part_num']
 
         self.product_name = self.image.g.inspect_get_product_name(self.root)
+        self.systemroot = self.image.g.inspect_get_windows_systemroot(
+            self.root)
 
         self.vm = VM(self.image.device, self.sysprep_params)
-        self.registry = Registry(self.image.g, self.root)
+        self.registry = Registry(self.image)
 
         # If the image is already sysprepped we cannot further customize it
-        self.mount(readonly=True, silent=True)
-        try:
-            self.out.output("Checking if media is sysprepped ...", False)
-            self.syspreped = self.registry.get_setup_state() > 0
+        with self.mount(readonly=True, silent=True):
+            self.out.output("Checking media state ...", False)
+            self.sysprepped = self.registry.get_setup_state() > 0
+            self.virtio_state = self.compute_virtio_state()
+            arch = self.image.g.inspect_get_arch(self.root)
+            if arch == 'x86_64':
+                arch = 'amd64'
+            elif arch == 'i386':
+                arch = 'x86'
+            major = self.image.g.inspect_get_major_version(self.root)
+            minor = self.image.g.inspect_get_minor_version(self.root)
+            # This is the OS version as defined in INF files to check if a
+            # driver is valid for this OS.
+            self.windows_version = "nt%s.%s.%s" % (arch, major, minor)
             self.out.success("done")
-        finally:
-            self.umount(silent=True)
+
+        # If the image is sysprepped no driver mappings will be present.
+        self.systemdrive = None
+        for drive, root in self.image.g.inspect_get_drive_mappings(self.root):
+            if root == self.root:
+                self.systemdrive = drive
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -174,12 +318,6 @@ class Windows(OSBase):
 
         self.vm.rexec('netsh firewall set icmpsetting 8')
 
-    @sysprep('Disabling hibernation support')
-    def disable_hibernation(self):
-        """Disable hibernation support and remove the hibernation file"""
-
-        self.vm.rexec(r'powercfg.exe /hibernate off')
-
     @sysprep('Setting the system clock to UTC')
     def utc(self):
         """Set the hardware clock to UTC"""
@@ -204,8 +342,8 @@ class Windows(OSBase):
         """
 
         self.vm.rexec(r'C:\Windows\system32\sysprep\sysprep '
-                      r'/quiet /generalize /oobe /shutdown')
-        self.syspreped = True
+                      r'/quiet /generalize /oobe /shutdown', uninstall=True)
+        self.sysprepped = True
 
     @sysprep('Converting the image into a KMS client', enabled=False)
     def kms_client_setup(self):
@@ -251,7 +389,7 @@ class Windows(OSBase):
             #
             if line.find('reclaimable') >= 0:
                 answer = line.split(':')[1].strip()
-                m = re.search('(\d+) MB', answer)
+                m = re.search(r'(\d+) MB', answer)
                 if m:
                     querymax = m.group(1)
                 else:
@@ -287,7 +425,7 @@ class Windows(OSBase):
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
-        stdout, stderr, rc = self.vm.rexec(cmd, False)
+        stdout, stderr, rc = self.vm.rexec(cmd, fatal=False)
 
         if rc != 0:
             FatalError("Shrinking failed. Please make sure the media is "
@@ -295,7 +433,7 @@ class Windows(OSBase):
                        "`Defrag.exe /U /X /W'")
         for line in stdout.splitlines():
             if line.find('shrunk') >= 0:
-                self.out.output(line)
+                self.out.output(" %s" % line)
 
     def do_sysprep(self):
         """Prepare system for image creation."""
@@ -308,9 +446,19 @@ class Windows(OSBase):
                 "Winexe not found! In order to be able to customize a Windows "
                 "image you need to have Winexe installed.")
 
-        if self.syspreped:
+        if self.sysprepped:
             raise FatalError(
-                "Microsoft's System Preparation Tool has ran on the Image. "
+                "Microsoft's System Preparation Tool has ran on the media. "
+                "Further image customization is not possible.")
+
+        if len(self.virtio_state['viostor']) == 0:
+            raise FatalError(
+                "The media has no VirtIO SCSI controller driver installed. "
+                "Further image customization is not possible.")
+
+        if len(self.virtio_state['netkvm']) == 0:
+            raise FatalError(
+                "The media has no VirtIO Ethernet Adapter driver installed. "
                 "Further image customization is not possible.")
 
         admin = self.sysprep_params['admin'].value
@@ -318,43 +466,27 @@ class Windows(OSBase):
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
         self.out.output("Preparing media for boot ...", False)
-        try:
-            if not self.mount(readonly=False, silent=True):
-                msg = "Unable to mount the media read-write. Reason: %s" % \
-                    self._mount_error
-                raise FatalError(msg)
 
-            virtio_state = self._virtio_state()
-            if len(virtio_state['viostor']) == 0:
-                raise FatalError(
-                    "The media has no VirtIO SCSI controller driver installed."
-                    " Further image customization is not possible.")
-
-            if len(virtio_state['netkvm']) == 0:
-                raise FatalError(
-                    "The media has no VirtIO Ethernet Adapter driver "
-                    "installed. Further image customization is not possible.")
-
+        with self.mount(readonly=False, silent=True):
+            activated = self.registry.reset_account(admin)
             v_val = self.registry.reset_passwd(admin)
             disabled_uac = self.registry.update_uac_remote_setting(1)
-            token = self._add_boot_scripts()
+            self._add_boot_scripts()
 
             # disable the firewalls
             firewall_states = self.registry.update_firewalls(0, 0, 0)
 
             # Delete the pagefile. It will be recreated when the system boots
-            systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
             try:
-                pagefile = "%s/pagefile.sys" % systemroot
+                pagefile = "%s/pagefile.sys" % self.systemroot
                 self.image.g.rm_rf(self.image.g.case_sensitive_path(pagefile))
             except RuntimeError:
                 pass
 
-        finally:
-            self.umount(silent=True)
         self.out.success('done')
 
         self.image.disable_guestfs()
+        booted = False
         try:
             self.out.output("Starting windows VM ...", False)
             self.vm.start()
@@ -363,9 +495,15 @@ class Windows(OSBase):
                                  self.vm.display)
 
                 self.out.output("Waiting for OS to boot ...", False)
-                if not self.vm.wait_on_serial(token, timeout):
+                if not self.vm.wait_on_serial(timeout):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
+                booted = True
+
+                # Since the password is reset when logging in, sleep a little
+                # bit before checking the connectivity, to avoid race
+                # conditions
+                time.sleep(2)
 
                 self.out.output("Checking connectivity to the VM ...", False)
                 self._check_connectivity()
@@ -384,25 +522,29 @@ class Windows(OSBase):
                 # if the VM is not already dead here, a Fatal Error will have
                 # already been raised. There is no reason to make the command
                 # fatal.
-                self.vm.stop(1, fatal=False)
+                self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
         finally:
             self.image.enable_guestfs()
 
             self.out.output("Reverting media boot preparations ...", False)
-            self.mount(readonly=False, silent=True)
-            try:
-                if disabled_uac:
-                    self.registry.update_uac_remote_setting(0)
+            with self.mount(readonly=False, silent=True, fatal=False):
 
-                if not self.syspreped:
-                    # Reset the old password
-                    admin = self.sysprep_params['admin'].value
-                    self.registry.reset_passwd(admin, v_val)
+                if not self.ismounted:
+                    self.out.warn("The boot changes cannot be reverted. "
+                                  "The snapshot may be in a corrupted state.")
+                else:
+                    if disabled_uac:
+                        self.registry.update_uac_remote_setting(0)
 
-                self.registry.update_firewalls(*firewall_states)
-            finally:
-                self.umount(silent=True)
-            self.out.success("done")
+                    if not activated:
+                        self.registry.reset_account(admin, False)
+
+                    if not self.sysprepped:
+                        # Reset the old password
+                        self.registry.reset_passwd(admin, v_val)
+
+                    self.registry.update_firewalls(*firewall_states)
+                    self.out.success("done")
 
     def _exec_sysprep_tasks(self):
         """This function hosts the actual code for executing the enabled
@@ -433,13 +575,13 @@ class Windows(OSBase):
             setattr(task.im_func, 'executed', True)
 
         self.out.output("Sending shut down command ...", False)
-        if not self.syspreped:
+        if not self.sysprepped:
             self._shutdown()
         self.out.success("done")
 
     def _shutdown(self):
         """Shuts down the windows VM"""
-        self.vm.rexec(r'shutdown /s /t 5')
+        self.vm.rexec(r'shutdown /s /t 5', uninstall=True)
 
     def _disable_autologon(self):
         """Disable automatic logon on the windows image"""
@@ -453,16 +595,16 @@ class Windows(OSBase):
 
     def _add_boot_scripts(self):
         """Add various scripts in the registry that will be executed during the
-        next boot. It returns a random string that will be send to the serial
-        port of the VM when the OS boots.
+        next boot.
         """
 
         commands = {}
 
+        # Disable hibernation. This is not needed for a VM
+        commands['hibernate'] = r'powercfg.exe /hibernate off'
         # This script will send a random string to the first serial port. This
         # can be used to determine when the OS has booted.
-        token = "".join(random.choice(string.ascii_letters) for x in range(16))
-        commands['BootMonitor'] = "cmd /q /a /c echo " + token + " > COM1"
+        commands['BootMonitor'] = "cmd /q /a /c echo " + TOKEN + " > COM1"
 
         # This will update the password of the admin user to self.vm.password
         commands["UpdatePassword"] = "net user %s %s" % \
@@ -499,8 +641,6 @@ class Windows(OSBase):
 
         self.registry.enable_autologon(self.sysprep_params['admin'].value)
 
-        return token
-
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Windows, self)._do_collect_metadata()
@@ -526,7 +666,8 @@ class Windows(OSBase):
 
             log = tempfile.NamedTemporaryFile(delete=False)
             try:
-                log.file.write(stdout)
+                log.file.write("STDOUT:\n%s\n" % stdout)
+                log.file.write("STDERR:\n%s\n" % stderr)
             finally:
                 log.close()
             self.out.output("failed! See: `%s' for the full output" % log.name)
@@ -536,42 +677,274 @@ class Windows(OSBase):
         raise FatalError("Connection to the Windows VM failed after %d retries"
                          % retries)
 
-    def _virtio_state(self):
-        """Check if the virtio drivers are install and return the version of
-        the installed driver
+    def compute_virtio_state(self, directory=None):
+        """Returns information about the VirtIO drivers found either in a
+        directory or the media itself if the directory is None.
+        """
+        state = {}
+        for driver in VIRTIO:
+            state[driver] = {}
+
+        def oem_files():
+            """Parse oem*.inf files under the %SystemRoot%/Inf directory"""
+            path = self.image.g.case_sensitive_path("%s/inf" % self.systemroot)
+            oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
+            for name in [f['name'] for f in self.image.g.readdir(path)]:
+                if not oem.match(name):
+                    continue
+                yield name, \
+                    self.image.g.cat("%s/%s" % (path, name)).splitlines()
+
+        def local_files():
+            """Parse *.inf files under a local directory"""
+            assert os.path.isdir(directory)
+            inf = re.compile(r'^.+\.inf', flags=re.IGNORECASE)
+            for name in os.listdir(directory):
+                fullpath = os.path.join(directory, name)
+                if inf.match(name) and os.path.isfile(fullpath):
+                    with open(fullpath, 'r') as content:
+                        yield name, content
+
+        for name, txt in oem_files() if directory is None else local_files():
+            driver, target, content = parse_inf(txt)
+
+            if driver:
+                content['TargetOSVersions'] = target
+                state[driver][name] = content
+
+        return state
+
+    def _fetch_virtio_drivers(self, dirname):
+        """Examines a directory for VirtIO drivers and returns only the drivers
+        that are suitable for this media.
+        """
+        collection = self.compute_virtio_state(dirname)
+
+        files = set([f.lower() for f in os.listdir(dirname)
+                     if os.path.isfile(dirname + os.sep + f)])
+
+        num = 0
+        for drv_type, drvs in collection.items():
+            for inf, content in drvs.items():
+                valid = True
+                found_match = False
+                # Check if the driver is suitable for the input media
+                for target in content['TargetOSVersions']:
+                    if len(target) > len(self.windows_version):
+                        match = target.startswith(self.windows_version)
+                    else:
+                        match = self.windows_version.startswith(target)
+                    if match:
+                        found_match = True
+
+                if not found_match:  # Wrong Target
+                    self.out.warn(
+                        'Ignoring %s. Driver not targeted for this OS.' % inf)
+                    valid = False
+                elif 'CatalogFile' not in content:
+                    self.out.warn(
+                        'Ignoring %s. CatalogFile entry missing.' % inf)
+                    valid = False
+                elif content['CatalogFile'].lower() not in files:
+                    self.out.warn('Ignoring %s. Catalog File not found.' % inf)
+                    valid = False
+
+                if not valid:
+                    del collection[drv_type][inf]
+                    continue
+
+                num += 1
+            if len(drvs) == 0:
+                del collection[drv_type]
+
+        self.out.output('Found %d valid driver%s' %
+                        (num, "s" if num != 1 else ""))
+        return collection
+
+    def install_virtio_drivers(self, upgrade=True):
+        """Install new VirtIO drivers in the input media. If upgrade is True,
+        then the old drivers found in the media will be removed.
         """
 
-        virtio = {
-            'viostor': [],  # VirtIO SCSI controller
-            'vioscsi': [],  # VirtIO SCSI pass-through controller
-            'vioser': [],   # VirtIO-Serial Driver
-            'netkvm': [],   # VirtIO Ethernet Adapter
-            'balloon': []}  # VirtIO Balloon Driver
+        dirname = self.sysprep_params['virtio'].value
+        if not dirname:
+            raise FatalError('No directory hosting the VirtIO drivers defined')
 
-        catalogfile_entry = re.compile(r'^\s*CatalogFile\s*=')
-        driverver_entry = re.compile(r'^\s*DriverVer\s*=')
-        systemroot = self.image.g.inspect_get_windows_systemroot(self.root)
-        inf_path = self.image.g.case_sensitive_path("%s/inf" % systemroot)
+        self.out.output('Installing VirtIO drivers:')
 
-        def examine_inf(filename):
-            catalogFile = None
-            driverVer = None
-            fullpath = "%s/%s" % (inf_path, filename)
-            for line in self.image.g.cat(fullpath).splitlines():
-                if catalogfile_entry.match(line):
-                    catalogFile = line.split("=")[1].strip().lower()
-                elif driverver_entry.match(line):
-                    driverVer = line.split("=")[1].strip()
+        valid_drvs = self._fetch_virtio_drivers(dirname)
+        if not len(valid_drvs):
+            self.out.warn('No suitable driver found to install!')
+            return
 
-            for driver in virtio.keys():
-                if catalogFile == "%s.cat" % driver:
-                    virtio[driver].append((filename, driverVer))
+        try:
+            self._upload_virtio_drivers(dirname, valid_drvs, upgrade)
+            self._boot_virtio_vm()
+        finally:
+            with self.mount(readonly=False, silent=True, fatal=False):
+                if not self.ismounted:
+                    self.out.warn("The boot changes cannot be reverted. "
+                                  "The image may be in a corrupted state.")
+                else:
+                    self._cleanup('virtio')
 
-        oem = re.compile(r'^oem\d+\.inf', flags=re.IGNORECASE)
-        for f in self.image.g.readdir(inf_path):
-            if oem.match(f['name']):
-                examine_inf(f['name'])
+        self.out.output("VirtIO drivers were successfully installed")
+        self.out.output()
 
-        return virtio
+    def _upload_virtio_drivers(self, dirname, drvs, delete_old=True):
+        """Upload the VirtIO drivers and installation scripts to the media.
+        """
+        with self.mount(readonly=False, silent=True):
+            admin = self.sysprep_params['admin'].value
+
+            v_val = self.registry.reset_passwd(admin)
+            self._add_cleanup('virtio',
+                              self.registry.reset_passwd, admin, v_val)
+
+            active = self.registry.reset_account(admin)
+            self._add_cleanup('virtio',
+                              self.registry.reset_account, admin, active)
+
+            # We disable this with powershell scripts
+            self.registry.enable_autologon(admin)
+
+            active = self.registry.reset_first_logon_animation(False)
+            self._add_cleanup(
+                'virtio', self.registry.reset_first_logon_animation, active)
+
+            tmp = uuid.uuid4().hex
+            self.image.g.mkdir_p("%s/%s" % (self.systemroot, tmp))
+            self._add_cleanup('virtio', self.image.g.rm_rf,
+                              "%s/%s" % (self.systemroot, tmp))
+
+            for fname in os.listdir(dirname):
+                full_path = os.path.join(dirname, fname)
+                if os.path.isfile(full_path):
+                    self.image.g.upload(
+                        full_path, "%s/%s/%s" % (self.systemroot, tmp, fname))
+
+            drvs_install = DRVINST_HEAD
+
+            for dtype in drvs:
+                drvs_install += "".join([ADD_CERTIFICATE % d['CatalogFile']
+                                         for d in drvs[dtype].values()])
+                cmd = ADD_DRIVER if dtype != 'viostor' else INSTALL_DRIVER
+                drvs_install += "".join([cmd % i for i in drvs[dtype]])
+
+            if delete_old:
+                # Add code to remove the old drivers
+                for dtype in drvs:
+                    for oem in self.virtio_state[dtype]:
+                        drvs_install += REMOVE_DRIVER % oem
+
+            if self.check_version(6, 1) <= 0:
+                self._install_viostor_driver(dirname)
+                old = self.registry.update_devices_dirs("%SystemRoot%\\" + tmp)
+                self._add_cleanup(
+                    'virtio', self.registry.update_devices_dirs, old, False)
+                drvs_install += DISABLE_AUTOLOGON
+            else:
+                # In newer windows, in order to reduce the boot process the
+                # boot drivers are cached. To be able to boot with viostor, we
+                # need to reboot in safe mode.
+                drvs_install += SAFEBOOT
+
+            drvs_install += DRVINST_TAIL
+
+            target = "%s/%s/InstallDrivers.ps1" % (self.systemroot, tmp)
+            self.image.g.write(target, drvs_install.replace('\n', '\r\n'))
+
+            # The -windowstyle option was introduced in PowerShell V2. We need
+            # to have at least Windows NT 6.1 (Windows 7 or Windows 2008R2) to
+            # make this work.
+            hidden_support = self.check_version(6, 1) >= 0
+            cmd = (
+                '%(drive)s:%(root)s\\System32\\WindowsPowerShell\\v1.0\\'
+                'powershell.exe -ExecutionPolicy RemoteSigned %(hidden)s '
+                '-File %(drive)s:%(root)s\\%(tmp)s\\InstallDrivers.ps1 '
+                '%(drive)s:%(root)s\\%(tmp)s' %
+                {'root': self.systemroot.replace('/', '\\'),
+                 'drive': self.systemdrive,
+                 'tmp': tmp,
+                 'hidden': '-windowstyle hidden' if hidden_support else ""})
+
+            # The value name of RunOnce keys can be prefixed with an asterisk
+            # (*) to force the program to run even in Safe mode.
+            self.registry.runonce({'*InstallDrivers': cmd})
+
+    def _boot_virtio_vm(self):
+        """Boot the media and install the VirtIO drivers"""
+
+        timeout = self.sysprep_params['boot_timeout'].value
+        shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
+        virtio_timeout = self.sysprep_params['virtio_timeout'].value
+        self.out.output("Starting Windows VM ...", False)
+        booted = False
+        try:
+            if self.check_version(6, 1) <= 0:
+                self.vm.start()
+            else:
+                self.vm.interface = 'ide'
+                self.vm.start(extra_disk=('/dev/null', 'virtio'))
+                self.vm.interface = 'virtio'
+
+            self.out.success("started (console on VNC display: %d)" %
+                             self.vm.display)
+            self.out.output("Waiting for Windows to boot ...", False)
+            if not self.vm.wait_on_serial(timeout):
+                raise FatalError("Windows VM booting timed out!")
+            self.out.success('done')
+            booted = True
+            self.out.output("Installing new drivers ...", False)
+            if not self.vm.wait_on_serial(virtio_timeout):
+                raise FatalError("Windows VirtIO installation timed out!")
+            self.out.success('done')
+            self.out.output('Shutting down ...', False)
+            self.vm.wait(shutdown_timeout)
+            self.out.success('done')
+        finally:
+            self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
+
+        with self.mount(readonly=True, silent=True):
+            self.virtio_state = self.compute_virtio_state()
+            viostor_service_found = self.registry.check_viostor_service()
+
+        if not (len(self.virtio_state['viostor']) and viostor_service_found):
+            raise FatalError("viostor was not successfully installed")
+
+        if self.check_version(6, 1) > 0:
+            # Hopefully restart in safe mode. Newer windows will not boot from
+            # a viostor device unless we initially start them in safe mode
+            try:
+                self.out.output('Rebooting Windows VM in safe mode ...', False)
+                self.vm.start()
+                self.vm.wait(timeout + shutdown_timeout)
+                self.out.success('done')
+            finally:
+                self.vm.stop(1, fatal=True)
+
+    def _install_viostor_driver(self, dirname):
+        """Quick and dirty installation of the VirtIO SCSI controller driver.
+        It is done to make the image boot from the VirtIO disk.
+
+        http://rwmj.wordpress.com/2010/04/30/
+            tip-install-a-device-driver-in-a-windows-vm/
+        """
+
+        drivers_path = "%s/system32/drivers" % self.systemroot
+
+        try:
+            drivers_path = self.image.g.case_sensitive_path(drivers_path)
+        except RuntimeError as err:
+            raise FatalError("Unable to browse to directory: %s. Reason: %s" %
+                             (drivers_path, str(err)))
+        viostor = dirname + os.sep + 'viostor.sys'
+        try:
+            self.image.g.upload(viostor, drivers_path + '/viostor.sys')
+        except RuntimeError as err:
+            raise FatalError("Unable to upload file %s to %s. Reason: %s" %
+                             (viostor, drivers_path, str(err)))
+
+        self.registry.add_viostor()
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

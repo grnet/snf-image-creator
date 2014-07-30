@@ -174,6 +174,7 @@ class Image(object):
         # process was introduced in version 1.19.16
         if self.check_guestfs_version(1, 19, 16) >= 0:
             self.g.shutdown()
+            self.g.close()
         else:
             self.g.kill_subprocess()
 
