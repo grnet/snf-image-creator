@@ -283,6 +283,41 @@ class Registry(object):
 
         return True
 
+    def update_uac(self, value):
+        """Enable or disable the User Account Control by changing the value of
+        the EnableLUA registry key
+
+        value = 1 will enable the UAC
+        value = 0 will disable the UAC
+
+        Returns:
+            True if the key is changed
+            False if the key is unchanged
+        """
+
+        if value not in (0, 1):
+            raise ValueError("Valid values for value parameter are 0 and 1")
+
+        with self.open_hive('SOFTWARE', write=True) as hive:
+            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
+            system = traverse(hive, path)
+
+            enablelua = None
+            for val in hive.node_values(system):
+                if hive.value_key(val) == 'EnableLUA':
+                    enablelua = val
+
+            if enablelua is not None:
+                if value == hive.value_dword(enablelua):
+                    return False
+            elif value == 1:
+                return False
+
+            hive.node_set_value(system, REG_DWORD('EnableLUA', value))
+            hive.commit(None)
+
+        return True
+
     def enum_users(self):
         """Returns:
             a map of RID->username for all users found on the system

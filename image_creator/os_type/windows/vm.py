@@ -223,8 +223,8 @@ class VM(object):
         debug = kwargs['debug'] if 'debug' in kwargs else False
         uninstall = kwargs['uninstall'] if 'uninstall' in kwargs else False
 
-        winexe = WinEXE(self.admin, 'localhost', password=self.password)
-        winexe.runas(self.admin, self.password).no_pass()
+        winexe = WinEXE(self.admin.name, 'localhost', password=self.password)
+        winexe.no_pass()
 
         if debug:
             winexe.debug(9)

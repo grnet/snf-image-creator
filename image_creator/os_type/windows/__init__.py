@@ -30,6 +30,7 @@ import re
 import os
 import uuid
 import time
+from collections import namedtuple
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -300,8 +301,16 @@ class Windows(OSBase):
             if root == self.root:
                 self.systemdrive = drive
 
-        admin = self.usernames[ADMIN_RID]
-        self.vm = VM(self.image.device, self.sysprep_params, admin)
+        active_admins = [u for u in self.admins if u in self.active_users]
+        if ADMIN_RID in self.active_users or len(active_admins) == 0:
+            admin = ADMIN_RID
+        else:
+            active_admins.sort()
+            admin = active_admins[0]
+
+        self.vm = VM(
+            self.image.device, self.sysprep_params,
+            namedtuple('User', 'rid name')(admin, self.usernames[admin]))
 
     @sysprep('Disabling IPv6 privacy extensions')
     def disable_ipv6_privacy_extensions(self):
@@ -493,9 +502,11 @@ class Windows(OSBase):
         self.out.output("Preparing media for boot ...", False)
 
         with self.mount(readonly=False, silent=True):
-            activated = self.registry.reset_account(ADMIN_RID)
-            v_val = self.registry.reset_passwd(ADMIN_RID)
-            disabled_uac = self.registry.update_uac_remote_setting(1)
+            activated = self.registry.reset_account(self.vm.admin.rid)
+            v_val = self.registry.reset_passwd(self.vm.admin.rid)
+            disabled_remote_uac = self.registry.update_uac_remote_setting(1)
+            disabled_uac = self.registry.update_uac(0)
+
             self._add_boot_scripts()
 
             # disable the firewalls
@@ -558,15 +569,18 @@ class Windows(OSBase):
                     self.out.warn("The boot changes cannot be reverted. "
                                   "The snapshot may be in a corrupted state.")
                 else:
-                    if disabled_uac:
+                    if disabled_remote_uac:
                         self.registry.update_uac_remote_setting(0)
 
+                    if disabled_uac:
+                        self.registry.update_uac(1)
+
                     if not activated:
-                        self.registry.reset_account(ADMIN_RID, False)
+                        self.registry.reset_account(self.vm.admin.rid, False)
 
                     if not self.sysprepped:
                         # Reset the old password
-                        self.registry.reset_passwd(ADMIN_RID, v_val)
+                        self.registry.reset_passwd(self.vm.admin.rid, v_val)
 
                     self.registry.update_firewalls(*firewall_states)
                     self.out.success("done")
@@ -623,7 +637,6 @@ class Windows(OSBase):
         next boot.
         """
 
-        admin = self.usernames[ADMIN_RID]
         commands = {}
 
         # Disable hibernation. This is not needed for a VM
@@ -634,7 +647,7 @@ class Windows(OSBase):
 
         # This will update the password of the admin user to self.vm.password
         commands["UpdatePassword"] = "net user %s %s" % \
-            (admin, self.vm.password)
+            (self.vm.admin.name, self.vm.password)
 
         # This is previously done with hivex when we executed
         # self.registry.update_uac_remote_setting(1).
@@ -665,7 +678,7 @@ class Windows(OSBase):
         # defined on the server either by a Group Policy object (GPO) or by a
         # local policy.
 
-        self.registry.enable_autologon(admin)
+        self.registry.enable_autologon(self.vm.admin.name)
 
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
@@ -821,16 +834,19 @@ class Windows(OSBase):
         """Upload the VirtIO drivers and installation scripts to the media.
         """
         with self.mount(readonly=False, silent=True):
-            v_val = self.registry.reset_passwd(ADMIN_RID)
-            self._add_cleanup('virtio',
-                              self.registry.reset_passwd, ADMIN_RID, v_val)
+            v_val = self.registry.reset_passwd(self.vm.admin.rid)
+            self._add_cleanup('virtio', self.registry.reset_passwd,
+                              self.vm.admin.rid, v_val)
 
-            active = self.registry.reset_account(ADMIN_RID)
-            self._add_cleanup('virtio',
-                              self.registry.reset_account, ADMIN_RID, active)
+            active = self.registry.reset_account(self.vm.admin.rid)
+            self._add_cleanup('virtio', self.registry.reset_account,
+                              self.vm.admin.rid, active)
+
+            if self.registry.update_uac(0):
+                self._add_cleanup('virtio', self.registry.update_uac, 1)
 
             # We disable this with powershell scripts
-            self.registry.enable_autologon(self.usernames[ADMIN_RID])
+            self.registry.enable_autologon(self.vm.admin.name)
 
             active = self.registry.reset_first_logon_animation(False)
             self._add_cleanup(
