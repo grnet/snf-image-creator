@@ -399,18 +399,35 @@ class Windows(OSBase):
             #
             if line.find('reclaimable') >= 0:
                 answer = line.split(':')[1].strip()
-                m = re.search(r'(\d+) MB', answer)
+                m = re.search(r'(\d+)\s*([KMGT]?)B', answer, re.IGNORECASE)
                 if m:
                     querymax = m.group(1)
+                    unit = m.group(2)
                 else:
                     raise FatalError("Unexpected output for `shrink querymax' "
                                      "command: %s" % line)
 
         if querymax is None:
             raise FatalError("Error in shrinking! Couldn't find the max "
-                             "number of reclaimable bytes!")
+                             "number of reclaimable bytes!\n"
+                             "Command output: %s" % stdout)
 
         querymax = int(querymax)
+        if querymax == 0:
+            self.out.warn("Unable to reclaim any space. "
+                          "Make sure the media is defragged")
+            return
+
+        # Not sure if we should use 1000 or 1024 here
+        if len(unit) == 0:  # Bytes
+            querymax /= 1000 * 1000
+        elif unit == 'K':
+            querymax /= 1000
+        elif unit == 'G':
+            querymax *= 1000
+        elif unit == 'T':
+            querymax *= 1000*1000
+
         # From ntfsresize:
         # Practically the smallest shrunken size generally is at around
         # "used space" + (20-200 MB). Please also take into account that
@@ -437,9 +454,9 @@ class Windows(OSBase):
         stdout, stderr, rc = self.vm.rexec(cmd, fatal=False)
 
         if rc != 0:
-            raise FatalError("Shrinking failed. Please make sure the media is "
-                             "defraged with a command like this: "
-                             "`Defrag.exe /U /X /W'")
+            raise FatalError(
+                "Shrinking failed. Please make sure the media is defragged.")
+
         for line in stdout.splitlines():
             if line.find('shrunk') >= 0:
                 self.out.output(" %s" % line)
