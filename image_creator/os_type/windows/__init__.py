@@ -502,15 +502,25 @@ class Windows(OSBase):
         self.out.output("Preparing media for boot ...", False)
 
         with self.mount(readonly=False, silent=True):
-            activated = self.registry.reset_account(self.vm.admin.rid)
-            v_val = self.registry.reset_passwd(self.vm.admin.rid)
-            disabled_remote_uac = self.registry.update_uac_remote_setting(1)
-            disabled_uac = self.registry.update_uac(0)
 
-            self._add_boot_scripts()
+            if not self.registry.reset_account(self.vm.admin.rid):
+                self._add_cleanup('sysprep', self.registry.reset_account,
+                                  self.vm.admin.rid, False)
+
+            if self.registry.update_uac(0):
+                self._add_cleanup('sysprep', self.registry.update_uac, 1)
+
+            if self.registry.update_uac_remote_setting(1):
+                self._add_cleanup('sysprep',
+                                  self.registry.update_uac_remote_setting, 0)
 
             # disable the firewalls
-            firewall_states = self.registry.update_firewalls(0, 0, 0)
+            self._add_cleanup('sysprep', self.registry.update_firewalls,
+                              *self.registry.update_firewalls(0, 0, 0))
+
+            v_val = self.registry.reset_passwd(self.vm.admin.rid)
+
+            self._add_boot_scripts()
 
             # Delete the pagefile. It will be recreated when the system boots
             try:
@@ -569,20 +579,11 @@ class Windows(OSBase):
                     self.out.warn("The boot changes cannot be reverted. "
                                   "The snapshot may be in a corrupted state.")
                 else:
-                    if disabled_remote_uac:
-                        self.registry.update_uac_remote_setting(0)
-
-                    if disabled_uac:
-                        self.registry.update_uac(1)
-
-                    if not activated:
-                        self.registry.reset_account(self.vm.admin.rid, False)
-
                     if not self.sysprepped:
                         # Reset the old password
                         self.registry.reset_passwd(self.vm.admin.rid, v_val)
 
-                    self.registry.update_firewalls(*firewall_states)
+                    self._cleanup('sysprep')
                     self.out.success("done")
 
     def _exec_sysprep_tasks(self):
@@ -834,13 +835,15 @@ class Windows(OSBase):
         """Upload the VirtIO drivers and installation scripts to the media.
         """
         with self.mount(readonly=False, silent=True):
-            v_val = self.registry.reset_passwd(self.vm.admin.rid)
-            self._add_cleanup('virtio', self.registry.reset_passwd,
-                              self.vm.admin.rid, v_val)
+            # Reset Password
+            self._add_cleanup('virtio',self.registry.reset_passwd,
+                              self.vm.admin.rid,
+                              self.registry.reset_passwd(self.vm.admin.rid))
 
-            active = self.registry.reset_account(self.vm.admin.rid)
+            # Enable admin account (if needed)
             self._add_cleanup('virtio', self.registry.reset_account,
-                              self.vm.admin.rid, active)
+                              self.vm.admin.rid,
+                              self.registry.reset_account(self.vm.admin.rid))
 
             if self.registry.update_uac(0):
                 self._add_cleanup('virtio', self.registry.update_uac, 1)
@@ -848,9 +851,10 @@ class Windows(OSBase):
             # We disable this with powershell scripts
             self.registry.enable_autologon(self.vm.admin.name)
 
-            active = self.registry.reset_first_logon_animation(False)
-            self._add_cleanup(
-                'virtio', self.registry.reset_first_logon_animation, active)
+            # Disable first logon animation (if needed)
+            self._add_cleanup('virtio',
+                              self.registry.reset_first_logon_animation,
+                              self.registry.reset_first_logon_animation(False))
 
             tmp = uuid.uuid4().hex
             self.image.g.mkdir_p("%s/%s" % (self.systemroot, tmp))
