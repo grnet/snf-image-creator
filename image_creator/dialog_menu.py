@@ -826,7 +826,7 @@ def sysprep(session):
             sysprep_help += "%s\n" % display_name
             sysprep_help += "%s\n" % ('-' * len(display_name))
             sysprep_help += "%s\n\n" % wrapper.fill(" ".join(descr.split()))
-            enabled = 1 if task.enabled else 0
+            enabled = 1 if image.os.sysprep_enabled(task) else 0
             choices.append((str(index + 1), display_name, enabled))
             index += 1
 
@@ -854,7 +854,8 @@ def sysprep(session):
                 else:
                     image.os.disable_sysprep(syspreps[i])
 
-            if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
+            if len([s for s in image.os.list_syspreps()
+                    if image.os.sysprep_enabled(s)]) == 0:
                 d.msgbox("No system preparation task is selected!",
                          title="System Preparation", width=SMALL_WIDTH)
                 continue

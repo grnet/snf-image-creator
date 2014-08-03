@@ -23,7 +23,7 @@ from image_creator.os_type.linux import Linux, sysprep
 class Slackware(Linux):
     """OS class for Slackware Linux"""
     @sysprep("Emptying all files under /var/log")
-    def cleanup_log(self):
+    def _cleanup_log(self):
         """Empty all files under /var/log"""
 
         # In Slackware the metadata about installed packages are

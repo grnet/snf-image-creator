@@ -313,32 +313,32 @@ class Windows(OSBase):
             namedtuple('User', 'rid name')(admin, self.usernames[admin]))
 
     @sysprep('Disabling IPv6 privacy extensions')
-    def disable_ipv6_privacy_extensions(self):
+    def _disable_ipv6_privacy_extensions(self):
         """Disable IPv6 privacy extensions"""
 
         self.vm.rexec('netsh interface ipv6 set global '
                       'randomizeidentifiers=disabled store=persistent')
 
     @sysprep('Disabling Teredo interface')
-    def disable_teredo(self):
+    def _disable_teredo(self):
         """Disable Teredo interface"""
 
         self.vm.rexec('netsh interface teredo set state disabled')
 
     @sysprep('Disabling ISATAP Adapters')
-    def disable_isatap(self):
+    def _disable_isatap(self):
         """Disable ISATAP Adapters"""
 
         self.vm.rexec('netsh interface isa set state disabled')
 
     @sysprep('Enabling ping responses')
-    def enable_pings(self):
+    def _enable_pings(self):
         """Enable ping responses"""
 
         self.vm.rexec('netsh firewall set icmpsetting 8')
 
     @sysprep('Setting the system clock to UTC')
-    def utc(self):
+    def _utc(self):
         """Set the hardware clock to UTC"""
 
         path = r'HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation'
@@ -346,7 +346,7 @@ class Windows(OSBase):
             r'REG ADD %s /v RealTimeIsUniversal /t REG_DWORD /d 1 /f' % path)
 
     @sysprep('Clearing the event logs')
-    def clear_logs(self):
+    def _clear_logs(self):
         """Clear all the event logs"""
 
         self.vm.rexec(
@@ -354,7 +354,7 @@ class Windows(OSBase):
             "wevtutil cl \"%l\"")
 
     @sysprep('Executing Sysprep on the image (may take more that 10 min)')
-    def microsoft_sysprep(self):
+    def _microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool. This will remove
         system-specific data and will make the image ready to be deployed.
         After this no other task may run.
@@ -365,7 +365,7 @@ class Windows(OSBase):
         self.sysprepped = True
 
     @sysprep('Converting the image into a KMS client', enabled=False)
-    def kms_client_setup(self):
+    def _kms_client_setup(self):
         """Install the appropriate KMS client setup key to the image to convert
         it to a KMS client. Computers that are running volume licensing
         editions of Windows 8, Windows Server 2012, Windows 7, Windows Server
@@ -384,7 +384,7 @@ class Windows(OSBase):
             r"cscript \Windows\system32\slmgr.vbs /ipk %s" % setup_key)
 
     @sysprep('Shrinking the last filesystem')
-    def shrink(self):
+    def _shrink(self):
         """Shrink the last filesystem. Make sure the filesystem is defragged"""
 
         # Query for the maximum number of reclaimable bytes
@@ -591,28 +591,27 @@ class Windows(OSBase):
         sysprep tasks. At the end of this method the VM is shut down if needed.
         """
         tasks = self.list_syspreps()
-        enabled = [task for task in tasks if task.enabled]
+        enabled = [t for t in tasks if self.sysprep_enabled(t)]
         size = len(enabled)
 
         # Make sure shrink runs in the end, before ms sysprep
-        enabled = [task for task in enabled
-                   if self.sysprep_info(task).name != 'shrink']
+        enabled = [t for t in enabled if self.sysprep_info(t).name != 'shrink']
         if len(enabled) != size:
-            enabled.append(self.shrink)
+            enabled.append(self._shrink)
 
         # Make sure the ms sysprep is the last task to run if it is enabled
-        enabled = [task for task in enabled
-                   if self.sysprep_info(task).name != 'microsoft-sysprep']
+        enabled = [t for t in enabled
+                   if self.sysprep_info(t).name != 'microsoft-sysprep']
 
         if len(enabled) != size:
-            enabled.append(self.microsoft_sysprep)
+            enabled.append(self._microsoft_sysprep)
 
         cnt = 0
         for task in enabled:
             cnt += 1
             self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
-            setattr(task.im_func, 'executed', True)
+            del self._sysprep_tasks[task.__name__]
 
         self.out.output("Sending shut down command ...", False)
         if not self.sysprepped:

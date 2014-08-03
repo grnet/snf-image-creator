@@ -26,7 +26,7 @@ class Freebsd(Unix):
     """OS class for FreeBSD Unix-like operating system"""
 
     @sysprep("Cleaning up passwords & locking all user accounts")
-    def cleanup_password(self):
+    def _cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
 
         master_passwd = []

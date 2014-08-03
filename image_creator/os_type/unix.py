@@ -71,26 +71,26 @@ class Unix(OSBase):
         return True
 
     @sysprep('Removing files under /var/cache')
-    def cleanup_cache(self):
+    def _cleanup_cache(self):
         """Remove all regular files under /var/cache"""
 
         self._foreach_file('/var/cache', self.image.g.rm, ftype='r')
 
     @sysprep('Removing files under /tmp and /var/tmp')
-    def cleanup_tmp(self):
+    def _cleanup_tmp(self):
         """Remove all files under /tmp and /var/tmp"""
 
         self._foreach_file('/tmp', self.image.g.rm_rf, maxdepth=1)
         self._foreach_file('/var/tmp', self.image.g.rm_rf, maxdepth=1)
 
     @sysprep('Emptying all files under /var/log')
-    def cleanup_log(self):
+    def _cleanup_log(self):
         """Empty all files under /var/log"""
 
         self._foreach_file('/var/log', self.image.g.truncate, ftype='r')
 
     @sysprep('Removing files under /var/mail & /var/spool/mail', enabled=False)
-    def cleanup_mail(self):
+    def _cleanup_mail(self):
         """Remove all files under /var/mail and /var/spool/mail"""
 
         self._foreach_file('/var/spool/mail', self.image.g.rm_rf, maxdepth=1)
@@ -98,7 +98,7 @@ class Unix(OSBase):
         self._foreach_file('/var/mail', self.image.g.rm_rf, maxdepth=1)
 
     @sysprep('Removing sensitive user data')
-    def cleanup_userdata(self):
+    def _cleanup_userdata(self):
         """Delete sensitive user data"""
 
         homedirs = ['/root']

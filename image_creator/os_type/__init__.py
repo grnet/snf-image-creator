@@ -64,12 +64,14 @@ def add_prefix(target):
 def sysprep(message, enabled=True, **kwargs):
     """Decorator for system preparation tasks"""
     def wrapper(method):
-        method.sysprep = True
-        method.enabled = enabled
-        method.executed = False
+        assert method.__name__.startswith('_'), \
+            "Invalid sysprep name:` %s'. Should start with _" % method.__name__
+
+        method._sysprep = True
+        method._sysprep_enabled = enabled
 
         for key, val in kwargs.items():
-            setattr(method, key, val)
+            setattr(method, "_sysprep_%s" % key, val)
 
         @wraps(method)
         def inner(self, print_message=True):
@@ -227,6 +229,14 @@ class OSBase(object):
         except RuntimeError:
             self._scrub_support = False
 
+        # Create a list of available syspreps
+        self._sysprep_tasks = {}
+        for name in dir(self):
+            obj = getattr(self, name)
+            if not hasattr(obj, '_sysprep'):
+                continue
+            self._sysprep_tasks[name] = obj._sysprep_enabled
+
         self._cleanup_jobs = {}
 
     def _add_cleanup(self, namespace, job, *args):
@@ -274,51 +284,61 @@ class OSBase(object):
 
     def list_syspreps(self):
         """Returns a list of sysprep objects"""
-        objs = [getattr(self, name) for name in dir(self)
-                if not name.startswith('_')]
-
-        return [x for x in objs if self._is_sysprep(x) and x.executed is False]
+        return [getattr(self, name) for name in self._sysprep_tasks]
 
     def sysprep_info(self, obj):
         """Returns information about a sysprep object"""
-        assert self._is_sysprep(obj), "Object is not a sysprep"
+        assert hasattr(obj, '_sysprep'), "Object is not a sysprep"
 
         SysprepInfo = namedtuple("SysprepInfo", "name description")
 
-        return SysprepInfo(obj.__name__.replace('_', '-'),
-                           textwrap.dedent(obj.__doc__))
+        name = obj.__name__.replace('_', '-')[1:]
+        description = textwrap.dedent(obj.__doc__)
+
+        return SysprepInfo(name, description)
 
     def get_sysprep_by_name(self, name):
         """Returns the sysprep object with the given name"""
         error_msg = "Syprep operation %s does not exist for %s" % \
                     (name, self.__class__.__name__)
 
-        method_name = name.replace('-', '_')
-        method = None
-        try:
+        method_name = '_' + name.replace('-', '_')
+
+        if hasattr(self, method_name):
             method = getattr(self, method_name)
-        except AttributeError:
-            raise FatalError(error_msg)
 
-        if not self._is_sysprep(method):
-            raise FatalError(error_msg)
+            if hasattr(method, '_sysprep'):
+                return method
 
-        return method
+        raise FatalError(error_msg)
 
     def enable_sysprep(self, obj):
         """Enable a system preparation operation"""
-        setattr(obj.im_func, 'enabled', True)
+        assert hasattr(obj, '_sysprep'), "Object is not a sysprep"
+        assert obj.__name__ in self._sysprep_tasks, "Sysprep already executed"
+
+        self._sysprep_tasks[obj.__name__] = True
 
     def disable_sysprep(self, obj):
         """Disable a system preparation operation"""
-        setattr(obj.im_func, 'enabled', False)
+        assert hasattr(obj, '_sysprep'), "Object is not a sysprep"
+        assert obj.__name__ in self._sysprep_tasks, "Sysprep already executed"
+
+        self._sysprep_tasks[obj.__name__] = False
+
+    def sysprep_enabled(self, obj):
+        """Returns True if this system praparation operation is enabled"""
+        assert hasattr(obj, '_sysprep'), "Object is not a sysprep"
+        assert obj.__name__ in self._sysprep_tasks, "Sysprep already executed"
+
+        return self._sysprep_tasks[obj.__name__]
 
     def print_syspreps(self):
         """Print enabled and disabled system preparation operations."""
 
         syspreps = self.list_syspreps()
-        enabled = [sysprep for sysprep in syspreps if sysprep.enabled]
-        disabled = [sysprep for sysprep in syspreps if not sysprep.enabled]
+        enabled = [s for s in syspreps if self.sysprep_enabled(s)]
+        disabled = [s for s in syspreps if not self.sysprep_enabled(s)]
 
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = '\t'
@@ -330,7 +350,7 @@ class OSBase(object):
             self.out.output("(none)")
         else:
             for sysprep in enabled:
-                name = sysprep.__name__.replace('_', '-')
+                name = sysprep.__name__.replace('_', '-')[1:]
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 self.out.output('    %s:\n%s\n' % (name, descr))
 
@@ -339,7 +359,7 @@ class OSBase(object):
             self.out.output("(none)")
         else:
             for sysprep in disabled:
-                name = sysprep.__name__.replace('_', '-')
+                name = sysprep.__name__.replace('_', '-')[1:]
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
                 self.out.output('    %s:\n%s\n' % (name, descr))
 
@@ -378,16 +398,15 @@ class OSBase(object):
                 "System preparation is disabled for unsupported media")
             return
 
+        enabled = [s for s in self.list_syspreps() if self.sysprep_enabled(s)]
+        size = len(enabled)
         with self.mount():
-            enabled = [task for task in self.list_syspreps() if task.enabled]
-
-            size = len(enabled)
             cnt = 0
             for task in enabled:
                 cnt += 1
                 self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
                 task()
-                setattr(task.im_func, 'executed', True)
+                del self._sysprep_tasks[task.__name__]
 
         self.out.output()
 
@@ -456,10 +475,6 @@ class OSBase(object):
                 return a - b
 
         return 0
-
-    def _is_sysprep(self, obj):
-        """Checks if an object is a sysprep"""
-        return getattr(obj, 'sysprep', False) and callable(obj)
 
     @add_prefix
     def _ls(self, directory):
