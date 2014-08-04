@@ -549,7 +549,7 @@ class Windows(OSBase):
                 # Since the password is reset when logging in, sleep a little
                 # bit before checking the connectivity, to avoid race
                 # conditions
-                time.sleep(2)
+                time.sleep(5)
 
                 self.out.output("Checking connectivity to the VM ...", False)
                 self._check_connectivity()
@@ -835,7 +835,7 @@ class Windows(OSBase):
         """
         with self.mount(readonly=False, silent=True):
             # Reset Password
-            self._add_cleanup('virtio',self.registry.reset_passwd,
+            self._add_cleanup('virtio', self.registry.reset_passwd,
                               self.vm.admin.rid,
                               self.registry.reset_passwd(self.vm.admin.rid))
 

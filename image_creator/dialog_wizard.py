@@ -489,7 +489,7 @@ def create_image(session, answers):
     text = "The %s image was successfully uploaded to the storage service " \
            "and registered with the compute service of %s. Would you like " \
            "to keep a local copy?" % \
-           (answers['Cloud'], answers['RegistrationType'].lower())
+           (answers['RegistrationType'].lower(), answers['Cloud'])
 
     if not session['dialog'].yesno(text, width=PAGE_WIDTH):
         extract_image(session)

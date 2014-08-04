@@ -152,8 +152,8 @@ class Disk(object):
         """Creates a snapshot of the original source media of the Disk
         instance.
         """
-        self.out.output("Snapshotting media source ...", False)
         size = blockdev('--getsz', self.device)
+        self.out.output("Snapshotting media source ...", False)
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
@@ -165,8 +165,9 @@ class Disk(object):
         tablefd, table = tempfile.mkstemp()
         try:
             try:
-                os.write(tablefd, "0 %d snapshot %s %s n 8" %
-                                  (int(size), self.device, cowdev))
+                os.write(tablefd,
+                         "0 %d snapshot %s %s n 8" %
+                         (int(size), self.device, cowdev))
             finally:
                 os.close(tablefd)
 
