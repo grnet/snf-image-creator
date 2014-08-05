@@ -22,7 +22,7 @@ Those operations will:
  * Shrink the image
  * Clear out sensitive user data (passwords, ssh keys, history files, etc.)
  * Prepare the guest OS for being deployed on a virtual environment (change
-   device names, remove persistent net rules, etc.)
+   device names, remove persistent net rules, install VirtIO drivers, etc.)
 
 Creation
 ========

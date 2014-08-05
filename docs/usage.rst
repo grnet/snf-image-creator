@@ -49,14 +49,16 @@ snf-mkimage receives the following options:
     --disable-sysprep=SYSPREP
                           prevent SYSPREP operation from running on the input
                           media
+    --install-virtio=DIR  install VirtIO drivers hosted under DIR (Windows only)
     --print-sysprep-params
-                          print the needed sysprep parameters for this input
-                          media
+                          print the defined system preparation parameters for
+                          this input media
     --sysprep-param=SYSPREP_PARAMS
-                          Add KEY=VALUE system preparation parameter
+                          add KEY=VALUE system preparation parameter
     --no-sysprep          don't perform any system preparation operation
-    --no-shrink           don't shrink any partition
     --public              register image with the cloud as public
+    --allow-unsupported   proceed with the image creation even if the media is
+                          not supported
     --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
@@ -65,10 +67,9 @@ image to the storage service of a cloud, provide valid cloud API access info
 (by either using a token and a URL with *-t* and *-a* respectively, or a cloud
 name with *-c*) and a remote filename using *-u*. If you also want to register
 the image with the compute service of the cloud, in addition to *-u* provide a
-registration name using *-r*. All images are
-registered as *private*. Only the user that registers the image can create
-VM's out of it. If you want the image to be visible by other user too, use the
-*--public* option.
+registration name using *-r*. All images are registered as *private*. Only the
+user that registers the image can create VM's out of it. If you want the image
+to be visible by other user too, use the *--public* option.
 
 By default, before extracting the image, snf-mkimage will perform a
 number of system preparation operations on the snapshot of the media and will
@@ -81,69 +82,74 @@ input media. The user can enable or disable specific *syspreps*, using
 *-{enable,disable}-sysprep* options. The user may specify those options
 multiple times.
 
-Running *snf-mkimage* with *--print-sysprep* on a raw file that hosts a
-Debian system, we print the following output:
+Running *snf-mkimage* with *--print-sysprep* on a raw file that hosts an
+Ubuntu system, will print the following output:
 
 .. _sysprep:
 
 .. code-block:: console
 
-   $ snf-mkimage --print-syspreps ubuntu.raw
-   snf-image-creator 0.6
-   =====================
-   Examining source media `ubuntu_hd.raw' ... looks like an image file
-   Snapshotting media source ... done
-   Enabling recovery proc
-   Launching helper VM (may take a while) ... done
-   Inspecting Operating System ... ubuntu
-   Mounting the media read-only ... done
-   Collecting image metadata ... done
-   Umounting the media ... done
-   
-   Enabled system preparation operations:
-       cleanup-cache:
-           Remove all regular files under /var/cache
-   
-       cleanup-log:
-           Empty all files under /var/log
-   
-       cleanup-passwords:
-           Remove all passwords and lock all user accounts
-   
-       cleanup-tmp:
-           Remove all files under /tmp and /var/tmp
-   
-       cleanup-userdata:
-           Delete sensitive userdata
-   
-       fix-acpid:
-           Replace acpid powerdown action scripts to immediately shutdown the
-           system without checking if a GUI is running.
-   
-       remove-persistent-net-rules:
-           Remove udev rules that will keep network interface names persistent
-           after hardware changes and reboots. Those rules will be created again
-           the next time the image runs.
-   
-       remove-swap-entry:
-           Remove swap entry from /etc/fstab. If swap is the last partition
-           then the partition will be removed when shrinking is performed. If the
-           swap partition is not the last partition in the disk or if you are not
-           going to shrink the image you should probably disable this.
-   
-       use-persistent-block-device-names:
-           Scan fstab & grub configuration files and replace all non-persistent
-           device references with UUIDs.
-   
-   Disabled system preparation operations:
-       cleanup-mail:
-           Remove all files under /var/mail and /var/spool/mail
-   
-       remove-user-accounts:
-           Remove all user accounts with id greater than 1000
-   
-   
-   cleaning up ...
+  $ snf-mkimage --print-syspreps ubuntu.raw
+
+  snf-image-creator 0.7
+  ===========================
+  Examining source media `ubuntu.raw' ... looks like an image file
+  Snapshotting media source ... done
+  Enabling recovery proc
+  Launching helper VM (may take a while) ... done
+  Inspecting Operating System ... ubuntu
+  Collecting image metadata ... done
+
+  Running OS inspection:
+  Checking if the media contains logical volumes (LVM)... no
+
+  Enabled system preparation operations:
+      cleanup-tmp:
+          Remove all files under /tmp and /var/tmp
+
+      remove-swap-entry:
+          Remove swap entry from /etc/fstab. If swap is the last partition
+          then the partition will be removed when shrinking is performed. If the
+          swap partition is not the last partition in the disk or if you are not
+          going to shrink the image you should probably disable this.
+
+      cleanup-cache:
+          Remove all regular files under /var/cache
+
+      cleanup-userdata:
+          Delete sensitive user data
+
+      cleanup-passwords:
+          Remove all passwords and lock all user accounts
+
+      cleanup-log:
+          Empty all files under /var/log
+
+      remove-persistent-net-rules:
+          Remove udev rules that will keep network interface names persistent
+          after hardware changes and reboots. Those rules will be created again
+          the next time the image runs.
+
+      use-persistent-block-device-names:
+          Scan fstab & grub configuration files and replace all non-persistent
+          device references with UUIDs.
+
+      fix-acpid:
+          Replace acpid powerdown action scripts to immediately shutdown the
+          system without checking if a GUI is running.
+
+      shrink:
+          Shrink the last file system and update the partition table
+
+  Disabled system preparation operations:
+      remove-user-accounts:
+          Remove all user accounts with id greater than 1000
+
+      cleanup-mail:
+          Remove all files under /var/mail and /var/spool/mail
+
+
+  cleaning up ...
 
 If you want the image to have all normal user accounts and all mail files
 removed, you should use *--enable-sysprep* option like this:
@@ -151,6 +157,15 @@ removed, you should use *--enable-sysprep* option like this:
 .. code-block:: console
 
    $ snf-mkimage --enable-sysprep cleanup-mail --enable-sysprep remove-user-accounts ...
+
+Sysprep parameters are parameters used by some sysprep tasks. In most cases you
+don't need to change their value. You can see the available sysprep parameters
+and the default values they have by using the *--print-sysprep-params* option.
+You can update their values by using the *--sysprep-param* option.
+
+If the media is a Windows image, you can install or update its VirtIO drivers
+by using the *--install-virtio* option. With this option you can point to a
+directory that hosts a set of extracted Windows VirtIO drivers.
 
 Dialog-based version
 ====================
@@ -191,6 +206,7 @@ provide the following basic information:
  * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image
    (ex. "Slackware Linux 14.0 with KDE")
+ * VirtIO: A directory that hosts VirtIO drivers (for Windows images only)
  * Registration Type: Private or Public
 
 After confirming, the image will be extracted, uploaded to the storage service
@@ -209,8 +225,8 @@ process. The main menu can be seen in the picture below:
 
 In the *Customize* sub-menu the user can control:
 
+ * The installation of VirtIO drivers (only for Windows images)
  * The system preparation operations that will be applied on the media
- * Whether the image will be shrunk or not
  * The properties associated with the image
  * The configuration tasks that will run during image deployment
 
@@ -338,11 +354,8 @@ if a system can boot with para-virtualized disk controller by launching it with
 kvm using the *if=virtio* option (see the kvm command in the
 `Creating a new image`_ section).
 
-For Windows and older FreeBSD systems (prior to 9.2), the needed drivers need
-to be manually downloaded and installed on the media before the image creation
-process takes place. For *FreeBSD* the virtio drivers can be found
-`here <http://people.freebsd.org/~kuriyama/virtio/>`_. For Windows the drivers
-are hosted by the
+For Windows the program supports installing VirtIO drivers. You may download
+the latest drivers from the
 `Fedora Project <http://alt.fedoraproject.org/pub/alt/virtio-win/latest/images/>`_.
 
 Some caveats on image creation
