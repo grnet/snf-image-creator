@@ -69,6 +69,7 @@ def sysprep(message, enabled=True, **kwargs):
 
         method._sysprep = True
         method._sysprep_enabled = enabled
+        method._sysprep_nomount = False
 
         for key, val in kwargs.items():
             setattr(method, "_sysprep_%s" % key, val)
@@ -216,6 +217,7 @@ class OSBase(object):
                                      "`%s'. Reason: %s" % (key, param.error))
 
         self.meta = {}
+        self.shrinked = False
 
         # This will host the error if mount fails
         self._mount_error = ""
@@ -400,15 +402,29 @@ class OSBase(object):
 
         enabled = [s for s in self.list_syspreps() if self.sysprep_enabled(s)]
         size = len(enabled)
+        cnt = 0
+
+        def exec_sysprep(cnt, size, task):
+            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            task()
+            del self._sysprep_tasks[task.__name__]
+
         with self.mount():
-            cnt = 0
-            for task in enabled:
+            for task in [t for t in enabled if t._sysprep_nomount is False]:
                 cnt += 1
-                self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
-                task()
-                del self._sysprep_tasks[task.__name__]
+                exec_sysprep(cnt, size, task)
+
+        for task in [t for t in enabled if t._sysprep_nomount]:
+            cnt += 1
+            exec_sysprep(cnt, size, task)
 
         self.out.output()
+
+    @sysprep('Shrinking image', nomount=True)
+    def _shrink(self):
+        """Shrink the last file system and update the partition table"""
+        self.image.shrink()
+        self.shrinked = True
 
     @property
     def ismounted(self):

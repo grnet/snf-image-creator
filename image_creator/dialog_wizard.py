@@ -427,16 +427,13 @@ def create_image(session, answers):
         image.os.do_sysprep()
         metadata = image.os.meta
 
-        # Shrink
-        size = image.shrink()
-        session['shrinked'] = True
         update_background_title(session)
 
         metadata.update(image.meta)
         metadata['DESCRIPTION'] = answers['ImageDescription']
 
         # MD5
-        session['checksum'] = MD5(image.out).compute(image.device, size)
+        session['checksum'] = MD5(image.out).compute(image.device, image.size)
 
         image.out.output()
         try:
@@ -448,7 +445,7 @@ def create_image(session, answers):
             name = "%s-%s.diskdump" % (answers['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))
             with open(image.device, 'rb') as device:
-                remote = kamaki.upload(device, size, name,
+                remote = kamaki.upload(device, image.size, name,
                                        "(1/3)  Calculating block hashes",
                                        "(2/3)  Uploading image blocks")
 

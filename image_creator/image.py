@@ -245,7 +245,7 @@ class Image(object):
 
         return last_partition
 
-    def shrink(self):
+    def shrink(self, silent=False):
         """Shrink the image.
 
         This is accomplished by shrinking the last file system of the
@@ -276,10 +276,9 @@ class Image(object):
 
         MB = 2 ** 20
 
-        self.out.output("Shrinking image (this may take a while) ...", False)
-
         if self.is_unsupported():
-            self.out.warn("Shrinking is disabled for unsupported images")
+            if not silent:
+                self.out.warn("Shrinking is disabled for unsupported images")
             return self.size
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
@@ -307,7 +306,9 @@ class Image(object):
             break
 
         if not re.match("ext[234]", fstype):
-            self.out.warn("Don't know how to shrink %s partitions." % fstype)
+            if not silent:
+                self.out.warn(
+                    "Don't know how to shrink %s partitions." % fstype)
             return self.size
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
@@ -376,7 +377,9 @@ class Image(object):
         else:
             self.size = min(new_size + 2048 * sector_size, self.size)
 
-        self.out.success("new size is %dMB" % ((self.size + MB - 1) // MB))
+        if not silent:
+            self.out.success("Image size is %dMB" %
+                             ((self.size + MB - 1) // MB))
 
         return self.size
 

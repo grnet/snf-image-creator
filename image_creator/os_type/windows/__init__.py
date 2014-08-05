@@ -423,8 +423,7 @@ class Windows(OSBase):
 
         querymax = int(querymax)
         if querymax == 0:
-            self.out.warn("Unable to reclaim any space. "
-                          "Make sure the media is defragged")
+            self.out.warn("Unable to reclaim any space. The media is full.")
             return
 
         # Not sure if we should use 1000 or 1024 here
@@ -469,6 +468,8 @@ class Windows(OSBase):
         for line in stdout.splitlines():
             if line.find('shrunk') >= 0:
                 self.out.output(" %s" % line)
+
+        self.shrinked = True
 
     def do_sysprep(self):
         """Prepare system for image creation."""
@@ -585,6 +586,8 @@ class Windows(OSBase):
 
                     self._cleanup('sysprep')
                     self.out.success("done")
+
+        self.image.shrink(silent=True)
 
     def _exec_sysprep_tasks(self):
         """This function hosts the actual code for executing the enabled

@@ -796,7 +796,7 @@ def sysprep(session):
     image = session['image']
 
     # Is the image already shrinked?
-    if 'shrinked' in session and session['shrinked']:
+    if image.os.shrinked:
         msg = "It seems you have shrinked the image. Running system " \
               "preparation tasks on a shrinked image is dangerous."
 
@@ -872,6 +872,7 @@ def sysprep(session):
                     with MetadataMonitor(session, image.os.meta):
                         try:
                             image.os.do_sysprep()
+                            update_background_title(session)
                             infobox.finalize()
                         except FatalError as error:
                             d.msgbox("System Preparation failed: %s" % error,
@@ -885,43 +886,6 @@ def sysprep(session):
     return True
 
 
-def shrink(session):
-    """Shrink the image"""
-    d = session['dialog']
-    image = session['image']
-
-    shrinked = 'shrinked' in session and session['shrinked']
-
-    if shrinked:
-        d.msgbox("The image is already shrinked!", title="Image Shrinking",
-                 width=SMALL_WIDTH)
-        return True
-
-    msg = "This operation will shrink the last partition of the image to " \
-          "reduce the total image size. If the last partition is a swap " \
-          "partition, then this partition is removed and the partition " \
-          "before that is shrinked. The removed swap partition will be " \
-          "recreated during image deployment."
-
-    if not d.yesno("%s\n\nDo you want to continue?" % msg, width=WIDTH,
-                   height=12, title="Image Shrinking"):
-        with MetadataMonitor(session, image.meta):
-            infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
-            image.out.add(infobox)
-            try:
-                image.shrink()
-                infobox.finalize()
-            finally:
-                image.out.remove(infobox)
-
-        session['shrinked'] = True
-        update_background_title(session)
-    else:
-        return False
-
-    return True
-
-
 def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
@@ -932,7 +896,6 @@ def customization_menu(session):
         choices.append(("Virtio", "Install or update the VirtIO drivers"))
     choices.extend(
         [("Sysprep", "Run various image preparation tasks"),
-         ("Shrink", "Shrink image"),
          ("Properties", "View & Modify image properties"),
          ("Exclude", "Exclude various deployment tasks from running")])
 
@@ -940,7 +903,6 @@ def customization_menu(session):
 
     actions = {"Virtio": virtio,
                "Sysprep": sysprep,
-               "Shrink": shrink,
                "Properties": modify_properties,
                "Exclude": exclude_tasks}
     while 1:

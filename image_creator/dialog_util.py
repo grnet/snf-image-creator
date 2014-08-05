@@ -108,8 +108,7 @@ def update_background_title(session):
     MB = 2 ** 20
 
     size = (image.size + MB - 1) // MB
-    shrinked = 'shrinked' in session and session['shrinked']
-    postfix = " (shrinked)" if shrinked else ''
+    postfix = " (shrinked)" if image.os.shrinked else ''
 
     title = "OS: %s, Distro: %s, Size: %dMB%s, Source: %s" % \
             (image.ostype, image.distro, size, postfix,

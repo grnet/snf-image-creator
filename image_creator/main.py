@@ -120,9 +120,6 @@ def parse_options(input_args):
                       help="don't perform any system preparation operation",
                       action="store_false")
 
-    parser.add_option("--no-shrink", dest="shrink", default=True,
-                      help="don't shrink any partition", action="store_false")
-
     parser.add_option("--public", dest="public", default=False,
                       help="register image with the cloud as public",
                       action="store_true")
@@ -304,8 +301,6 @@ def image_creator():
             image.os.do_sysprep()
 
         metadata = image.os.meta
-
-        size = options.shrink and image.shrink() or image.size
         metadata.update(image.meta)
 
         if image.is_unsupported():
@@ -315,7 +310,7 @@ def image_creator():
         metadata.update(options.metadata)
 
         md5 = MD5(out)
-        checksum = md5.compute(image.device, size)
+        checksum = md5.compute(image.device, image.size)
 
         metastring = unicode(json.dumps(
             {'properties': metadata,
@@ -345,7 +340,7 @@ def image_creator():
                 out.output("Uploading image to the storage service:")
                 with open(device, 'rb') as f:
                     uploaded_obj = kamaki.upload(
-                        f, size, options.upload,
+                        f, image.size, options.upload,
                         "(1/3)  Calculating block hashes",
                         "(2/3)  Uploading missing blocks")
                 out.output("(3/3)  Uploading md5sum file ...", False)
