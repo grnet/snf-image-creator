@@ -336,19 +336,6 @@ def edit_cloud(session, name):
     return True
 
 
-def virtio_versions(virtio_state):
-    """Returns the versions of the drivers defined by the virtio state"""
-
-    ret = {}
-    for name, infs in virtio_state.items():
-        driver_ver = [drv['DriverVer'].split(',', 1) if 'DriverVer' in drv
-                      else [] for drv in infs.values()]
-        vers = [v[1] if len(v) > 1 else " " for v in driver_ver]
-        ret[name] = "<not found>" if len(infs) == 0 else ", ".join(vers)
-
-    return ret
-
-
 def update_sysprep_param(session, name, title=None):
     """Modify the value of a sysprep parameter"""
     d = session['dialog']

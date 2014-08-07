@@ -27,13 +27,13 @@ import re
 import time
 
 from image_creator import __version__ as version
-from image_creator.util import MD5, FatalError
+from image_creator.util import MD5, FatalError, virtio_versions
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud, virtio_versions, update_sysprep_param
+    extract_image, add_cloud, edit_cloud, update_sysprep_param
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -768,8 +768,18 @@ def install_virtio_drivers(session):
 
     assert hasattr(image.os, 'install_virtio_drivers')
 
-    if d.yesno("Continue with the installation of the VirtIO drivers?",
-               width=SMALL_WIDTH, defaultno=1):
+    virtio = image.os.sysprep_params['virtio'].value
+    new_drivers = virtio_versions(image.os.compute_virtio_state(virtio))
+
+    msg = \
+        "The following VirtIO drivers were discovered in the directory you "\
+        "specified:\n\n"
+    for drv, drv_ver in new_drivers.items():
+        msg += "%s: %s\n" % (drv, drv_ver)
+    msg += "\nPress <Install> to continue with the installation of the " \
+        "aforementioned drivers or <Cancel> to return to the previous menu."
+    if d.yesno(msg, width=WIDTH, defaultno=1, height=11+len(new_drivers),
+               yes_label="Install", no_label="Cancel"):
         return False
 
     title = "VirtIO Drivers Installation"

@@ -25,10 +25,10 @@ import json
 import re
 
 from image_creator.kamaki_wrapper import Kamaki, ClientError
-from image_creator.util import MD5, FatalError
+from image_creator.util import MD5, FatalError, virtio_versions
 from image_creator.output.cli import OutputWthProgress
 from image_creator.dialog_util import extract_image, update_background_title, \
-    add_cloud, edit_cloud, virtio_versions, update_sysprep_param
+    add_cloud, edit_cloud, update_sysprep_param
 
 PAGE_WIDTH = 70
 PAGE_HEIGHT = 12
