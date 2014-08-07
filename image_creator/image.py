@@ -132,8 +132,9 @@ class Image(object):
         # process has opened pipes. Since the recovery process is an optional
         # feature of libguestfs, it's better to disable it.
         if self.check_guestfs_version(1, 17, 14) >= 0:
-            self.out.output("Enabling recovery proc")
+            self.out.output("Enabling recovery process ...", False)
             self.g.set_recovery_proc(1)
+            self.out.success('done')
         else:
             self.g.set_recovery_proc(0)
 

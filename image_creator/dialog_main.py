@@ -111,11 +111,11 @@ def create_image(d, media, out, tmp):
         msg = "snf-image-creator detected a %s system on the input media. " \
               "Would you like to run a wizard to assist you through the " \
               "image creation process?\n\nChoose <Wizard> to run the wizard," \
-              " <Expert> to run the snf-image-creator in expert mode or " \
-              "press ESC to quit the program." \
-              % (image.ostype if image.ostype == image.distro or
+              " <Expert> to run snf-image-creator in expert mode or press " \
+              "ESC to quit the program." \
+              % (image.ostype.capitalize() if image.ostype == image.distro or
                  image.distro == "unknown" else "%s (%s)" %
-                 (image.ostype, image.distro))
+                 (image.ostype.capitalize(), image.distro.capitalize()))
 
         update_background_title(session)
 

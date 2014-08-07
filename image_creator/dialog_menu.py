@@ -369,13 +369,14 @@ def kamaki_menu(session):
         if 'account' not in session and 'cloud' in session:
             cloud += " <invalid>"
 
-        upload = session["upload"] if "upload" in session else "<none>"
-
         choices = [("Add/Edit", "Add/Edit cloud accounts"),
                    ("Delete", "Delete existing cloud accounts"),
                    ("Cloud", "Select cloud account to use: %s" % cloud),
-                   ("Upload", "Upload image to the cloud"),
-                   ("Register", "Register image with the cloud: %s" % upload)]
+                   ("Upload", "Upload image to the cloud")]
+
+        if 'upload' in session:
+            choices.append(("Register", "Register image with the cloud: %s"
+                            % session['upload']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -893,7 +894,7 @@ def customization_menu(session):
 
     choices = []
     if hasattr(image.os, "install_virtio_drivers"):
-        choices.append(("Virtio", "Install or update the VirtIO drivers"))
+        choices.append(("VirtIO", "Install or update the VirtIO drivers"))
     choices.extend(
         [("Sysprep", "Run various image preparation tasks"),
          ("Properties", "View & Modify image properties"),
@@ -901,7 +902,7 @@ def customization_menu(session):
 
     default_item = 0
 
-    actions = {"Virtio": virtio,
+    actions = {"VirtIO": virtio,
                "Sysprep": sysprep,
                "Properties": modify_properties,
                "Exclude": exclude_tasks}

@@ -337,7 +337,7 @@ def start_wizard(session):
 
     # Create VirtIO Installation Page
     def display_installed_drivers():
-        """Returnes the installed virtio drivers"""
+        """Returns the installed VirtIO drivers"""
         image = session['image']
         versions = virtio_versions(image.os.virtio_state)
 
@@ -378,10 +378,11 @@ def start_wizard(session):
 
         return drv_dir
 
+    title = "Please select a directory that hosts VirtIO drivers."
     virtio = WizardInfoPage(
         "virtio", "Press <New> to install new VirtIO drivers.",
         display_installed_drivers, title="VirtIO Drivers", extra_label='New',
-        extra=lambda: update_sysprep_param(session, 'virtio'),
+        extra=lambda: update_sysprep_param(session, 'virtio',title=title),
         validate=validate_virtio, print_name="VirtIO Drivers Path")
 
     # Create Image Registration Wizard Page

@@ -208,7 +208,8 @@ def virtio_dir_check(dirname):
             if driver:
                 return dirname
 
-    raise ValueError("Invalid VirtIO directory. No VirtIO driver found")
+    raise ValueError("Could not find any VirtIO driver in this directory. "
+                     "Please select another one.")
 
 
 DESCR = {
@@ -383,9 +384,11 @@ class Windows(OSBase):
         self.vm.rexec(
             r"cscript \Windows\system32\slmgr.vbs /ipk %s" % setup_key)
 
-    @sysprep('Shrinking the last filesystem')
+    @sysprep('Shrinking file system on the last partition')
     def _shrink(self):
-        """Shrink the last filesystem. Make sure the filesystem is defragged"""
+        """Shrink the last file system. Please make sure the file system is
+        defragged.
+        """
 
         # Query for the maximum number of reclaimable bytes
         cmd = (

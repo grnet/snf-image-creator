@@ -395,8 +395,8 @@ class BundleVolume(object):
             # Create the file systems
             for i, dev in mapped.iteritems():
                 fs = filesystem[i].fs
-                self.out.output('Creating %s filesystem on partition %d ... ' %
-                                (fs, i), False)
+                self.out.output('Creating %s file system on partition %d ... '
+                                % (fs, i), False)
                 get_command('mkfs.%s' % fs)(*(MKFS_OPTS[fs] + [dev]))
 
                 # For ext[234] enable the default mount options

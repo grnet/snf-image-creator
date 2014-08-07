@@ -111,8 +111,8 @@ def update_background_title(session):
     postfix = " (shrinked)" if image.os.shrinked else ''
 
     title = "OS: %s, Distro: %s, Size: %dMB%s, Source: %s" % \
-            (image.ostype, image.distro, size, postfix,
-             os.path.abspath(disk.source))
+            (image.ostype.capitalize(), image.distro.capitalize(), size,
+             postfix, os.path.abspath(disk.source))
 
     d.setBackgroundTitle(title)
 
@@ -379,8 +379,7 @@ def update_sysprep_param(session, name, title=None):
             value = answer.strip()
 
         if param.set_value(value) is False:
-            d.msgbox("Unable to update the value. Reason: %s" % param.error,
-                     width=WIDTH)
+            d.msgbox("Error: %s" % param.error, width=WIDTH)
             param.error = None
             continue
         break
