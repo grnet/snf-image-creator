@@ -127,8 +127,8 @@ class WizardPage(object):
         if 'extra' in kargs:
             self.dargs['extra_button'] = 1
 
-        if 'extra_label' in kargs:
-            self.dargs['extra_label'] = kargs['extra_label']
+        self.extra_label = kargs['extra_label'] if 'extra_label' in kargs \
+            else lambda: "extra"
 
     def __str__(self):
         """Prints the answer"""
@@ -147,8 +147,10 @@ class WizardInputPage(WizardPage):
 
     def show(self, dialog, title):
         """Display this wizard page"""
-        (code, answer) = dialog.inputbox(self.text, init=self.default,
-                                         title=title, **self.dargs)
+        (code, answer) = dialog.inputbox(self.text(), init=self.default,
+                                         title=title,
+                                         extra_label=self.extra_label(),
+                                         **self.dargs)
 
         if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
             return self.PREV
@@ -173,9 +175,10 @@ class WizardInfoPage(WizardPage):
     def show(self, dialog, title):
         """Display this wizard page"""
 
-        text = "%s\n\n%s" % (self.text, self.info())
+        text = "%s\n\n%s" % (self.text(), self.info())
 
-        ret = dialog.yesno(text, title=title, **self.dargs)
+        ret = dialog.yesno(text, title=title, extra_label=self.extra_label(),
+                           **self.dargs)
 
         if ret in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
             return self.PREV
@@ -202,8 +205,9 @@ class WizardFormPage(WizardPage):
         form_height = field_lenght if field_lenght < PAGE_HEIGHT - 4 \
             else PAGE_HEIGHT - 4
 
-        (code, output) = dialog.form(self.text, form_height=form_height,
+        (code, output) = dialog.form(self.text(), form_height=form_height,
                                      fields=self.fields(), title=title,
+                                     extra_label=self.extra_label(),
                                      default_item=self.default, **self.dargs)
 
         if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
@@ -240,7 +244,8 @@ class WizardRadioListPage(WizardPageWthChoices):
             default = 1 if choice[0] == self.default else 0
             choices.append((choice[0], choice[1], default))
 
-        (code, answer) = dialog.radiolist(self.text, choices=choices,
+        (code, answer) = dialog.radiolist(self.text(), choices=choices,
+                                          extra_label=self.extra_label(),
                                           title=title, **self.dargs)
 
         if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
@@ -269,7 +274,8 @@ class WizardMenuPage(WizardPageWthChoices):
 
         default_item = self.default if self.default else choices[0][0]
 
-        (code, choice) = dialog.menu(self.text, title=title, choices=choices,
+        (code, choice) = dialog.menu(self.text(), title=title, choices=choices,
+                                     extra_label=self.extra_label(),
                                      default_item=default_item, **self.dargs)
 
         if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
@@ -321,18 +327,21 @@ def start_wizard(session):
         return cloud
 
     cloud = WizardMenuPage(
-        "Cloud",
+        "Cloud", lambda:
         "Please select a cloud account or press <Add> to add a new one:",
-        cloud_choices, extra_label="Add", extra=lambda: add_cloud(session),
-        title="Clouds", validate=cloud_validate, fallback=no_clouds)
+        cloud_choices, extra_label=lambda: "Add",
+        extra=lambda: add_cloud(session), title="Clouds",
+        validate=cloud_validate, fallback=no_clouds)
 
     # Create Image Name Wizard Page
-    name = WizardInputPage("ImageName", "Please provide a name for the image:",
+    name = WizardInputPage("ImageName", lambda:
+                           "Please provide a name for the image:",
                            default=ostype if distro == "unknown" else distro)
 
     # Create Image Description Wizard Page
     descr = WizardInputPage(
-        "ImageDescription", "Please provide a description for the image:",
+        "ImageDescription", lambda:
+        "Please provide a description for the image:",
         default=metadata['DESCRIPTION'] if 'DESCRIPTION' in metadata else '')
 
     # Create VirtIO Installation Page
@@ -346,8 +355,8 @@ def start_wizard(session):
 
         virtio = image.os.sysprep_params['virtio'].value
         if virtio:
-            ret += "\nNew Block Device Driver:   %(netkvm)s\n" \
-                   "New Network Device Driver: %(viostor)s\n" % \
+            ret += "\nBlock Device Driver to be installed:   %(netkvm)s\n" \
+                   "Network Device Driver to be installed: %(viostor)s\n" % \
                    virtio_versions(image.os.compute_virtio_state(virtio))
         return ret
 
@@ -378,12 +387,30 @@ def start_wizard(session):
 
         return drv_dir
 
-    title = "Please select a directory that hosts VirtIO drivers."
+    def virtio_text():
+        if not session['image'].os.sysprep_params['virtio'].value:
+            return "Press <New> to update the image's VirtIO drivers."
+        else:
+            return "Press <Revert> to revert to the old state."
+
+    def virtio_extra():
+        if not session['image'].os.sysprep_params['virtio'].value:
+            title = "Please select a directory that hosts VirtIO drivers."
+            update_sysprep_param(session, 'virtio', title=title)
+        else:
+            session['image'].os.sysprep_params['virtio'].value = ""
+
+    def virtio_extra_label():
+        if not session['image'].os.sysprep_params['virtio'].value:
+            return "New"
+        else:
+            return "Revert"
+
     virtio = WizardInfoPage(
-        "virtio", "Press <New> to install new VirtIO drivers.",
-        display_installed_drivers, title="VirtIO Drivers", extra_label='New',
-        extra=lambda: update_sysprep_param(session, 'virtio',title=title),
-        validate=validate_virtio, print_name="VirtIO Drivers Path")
+        "virtio", virtio_text, display_installed_drivers,
+        title="VirtIO Drivers", extra_label=virtio_extra_label,
+        extra=virtio_extra, validate=validate_virtio,
+        print_name="VirtIO Drivers Path")
 
     # Create Image Registration Wizard Page
     def registration_choices():
@@ -391,7 +418,7 @@ def start_wizard(session):
         return [("Private", "Image is accessible only by this user"),
                 ("Public", "Everyone can create VMs from this image")]
 
-    registration = WizardRadioListPage("RegistrationType",
+    registration = WizardRadioListPage("RegistrationType", lambda:
                                        "Please provide a registration type:",
                                        registration_choices, default="Private")
 
