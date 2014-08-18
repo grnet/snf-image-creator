@@ -566,7 +566,10 @@ class Windows(OSBase):
                 self._exec_sysprep_tasks()
 
                 self.out.output("Waiting for windows to shut down ...", False)
-                self.vm.wait(shutdown_timeout)
+                (_, stderr, rc) = self.vm.wait(shutdown_timeout)
+                if rc != 0 or "terminating on signal" in stderr:
+                    raise FatalError("Windows VM died unexpectedly!\n\n"
+                                     "(rc=%d)\n%s" % (rc, stderr))
                 self.out.success("done")
             finally:
                 # if the VM is not already dead here, a Fatal Error will have
@@ -951,7 +954,10 @@ class Windows(OSBase):
                 raise FatalError("Windows VirtIO installation timed out!")
             self.out.success('done')
             self.out.output('Shutting down ...', False)
-            self.vm.wait(shutdown_timeout)
+            (_, stderr, rc) = self.vm.wait(shutdown_timeout)
+            if rc != 0 or "terminating on signal" in stderr:
+                raise FatalError("Windows VM died unexpectedly!\n\n"
+                                 "(rc=%d)\n%s" % (rc, stderr))
             self.out.success('done')
         finally:
             self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
@@ -969,7 +975,10 @@ class Windows(OSBase):
             try:
                 self.out.output('Rebooting Windows VM in safe mode ...', False)
                 self.vm.start()
-                self.vm.wait(timeout + shutdown_timeout)
+                (_, stderr, rc) = self.vm.wait(timeout + shutdown_timeout)
+                if rc != 0 or "terminating on signal" in stderr:
+                    raise FatalError("Windows VM died unexpectedly!\n\n"
+                                     "(rc=%d)\n%s" % (rc, stderr))
                 self.out.success('done')
             finally:
                 self.vm.stop(1, fatal=True)
