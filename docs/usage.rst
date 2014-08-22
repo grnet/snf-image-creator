@@ -315,6 +315,106 @@ confirm the provided data.
 
 Choosing *YES* will create and upload the image to your cloud account.
 
+Working with different image formats
+====================================
+
+*snf-image-creator* works on raw image files. If you have an image file with a
+different image format you can either convert it to raw using
+*qemu-img convert* command or use the *blktap* toolkit that provides a
+user-level disk I/O interface and use the exposed *tapdev* block device as
+input on *snf-image-creator*.
+
+Converting images to raw
+------------------------
+
+Converting between images with *qemu-img convert* is generally straightforward.
+All you need to provide is the output format (*-O raw*) and an output filename.
+You may use the *-f* option to define the input format, but in most cases this
+is guessed automatically. The table below shows a list of supported image
+formats and the equivalent argument you may pass to the *-f* flag.
+
++--------------------------+-----------+
+|Image Format              |-f argument|
++==========================+===========+
+|qcow2 (QEMU Copy On Write)|qcow2      |
++--------------------------+-----------+
+|VHD (Mircosoft Hyper-V)   |vpc        |
++--------------------------+-----------+
+|VMDK (VMware)             |vmdk       |
++--------------------------+-----------+
+
+With the following commands we demonstrate how to download and convert an
+official Ubuntu 14.04 *qcow2* image to raw:
+
+.. code-block:: console
+
+   $ wget http://uec-images.ubuntu.com/trusty/current/trusty-server-cloudimg-amd64-disk1.img
+   $ qemu-img convert -f qcow2 -O raw trusty-server-cloudimg-amd64-disk1.img ubuntu.raw
+
+Working on .vhd disk images using blktap/tapdisk
+------------------------------------------------
+
+If the source image format is *Microsoft VHD* [#f1]_, we can use blktap/tapdisk
+to connect it to a block device and use this block device as input in
+*snf-image-creator* without having to convert the image to raw format.
+
+Assuming that you work on a recent Debian GNU/Linux, you can install the
+needed tools by giving the following command:
+
+.. code-block:: console
+
+   # apt-get install blktap-utils
+   # modprobe blktap
+
+Please refer to your distribution's documentation on how to install the blktap
+user-space tools and the corresponding kernel module.
+
+After you have successfully installed blktap, do the following to attack the
+source image (*/tmp/Centos-6.2-x86_64-minimal-dist.vhd*) to a block device:
+
+Allocate a minor number in the kernel:
+
+.. code-block:: console
+
+   # tap-ctl allocate
+   /dev/xen/blktap-2/tapdev0
+
+Then, spawn a tapdisk process:
+
+.. code-block:: console
+
+   # tap-ctl spawn
+   tapdisk spawned with pid 14879
+
+Now, attach them together:
+
+.. code-block:: console
+
+   # tap-ctl attach -m 0 -p 14879
+
+And finally, open the VHD image:
+
+.. code-block:: console
+
+   # tap-clt open -m 0 -p 14879 -a vhd:/tmp/Centos-6.2-x86_64-minimal-dist.vhd
+
+Now you can open the associated block device with *snf-image-creator* like
+this:
+
+.. code-block:: console
+
+   # snf-image-creator /dev/xen/blktap-2/tapdev
+
+When done, you may release the allocated resources by giving the following
+commands:
+
+.. code-block:: console
+
+   # tap-ctl close -m 0 -p 14879
+   # tap-ctl detach -m 0 -p 14879
+   # tap-ctl free -m 0
+
+
 Limitations
 ===========
 
@@ -331,7 +431,7 @@ Logical Volumes
 ---------------
 
 The program cannot work on input media that contain LVM partitions inside
-[#f1]_. The input media may only contain primary or logical partitions.
+[#f2]_. The input media may only contain primary or logical partitions.
 
 Para-virtualized drivers
 ------------------------
@@ -347,7 +447,7 @@ ramdisk, otherwise the VM won't be able to boot.
 Many popular Linux distributions, like Ubuntu and Debian, will automatically
 create a generic initial ramdisk file that contains many different modules,
 including the VirtIO drivers. Others that target more experienced users, like
-Slackware, won't do that [#f2]_. *snf-image-creator* cannot resolve this kind
+Slackware, won't do that [#f3]_. *snf-image-creator* cannot resolve this kind
 of problems and it's left to the user to do so. Please refer to your
 distribution's documentation for more information on this. You can always check
 if a system can boot with para-virtualized disk controller by launching it with
@@ -399,5 +499,6 @@ supported by both *snf-image-creator* and *snf-mkimage*.
 
 .. rubric:: Footnotes
 
-.. [#f1] http://sourceware.org/lvm2/
-.. [#f2] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd
+.. [#f1] http://technet.microsoft.com/en-us/library/bb676673.aspx
+.. [#f2] http://sourceware.org/lvm2/
+.. [#f3] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd
