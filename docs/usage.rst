@@ -17,7 +17,7 @@ snf-mkimage receives the following options:
 
 .. code-block:: console
 
-  $ snf-mkimage --help
+  # snf-mkimage --help
   Usage: snf-mkimage [options] <input_media>
 
   Options:
@@ -89,7 +89,7 @@ Ubuntu system, will print the following output:
 
 .. code-block:: console
 
-  $ snf-mkimage --print-syspreps ubuntu.raw
+  # snf-mkimage --print-syspreps ubuntu.raw
 
   snf-image-creator 0.7
   ===========================
@@ -174,7 +174,7 @@ Dialog-based version
 
 .. code-block:: console
 
- $ snf-image-creator --help
+ # snf-image-creator --help
  Usage: snf-image-creator [options] [<input_media>]
 
  Options:
@@ -300,7 +300,7 @@ the image:
 .. code-block:: console
 
    $ sudo -s
-   $ snf-image-creator ubuntu.raw
+   # snf-image-creator ubuntu.raw
 
 In the first screen you will be asked to choose if you want to run the program
 in *Wizard* or *Expert* mode. Choose *Wizard*.
