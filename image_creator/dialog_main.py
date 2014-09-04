@@ -63,7 +63,7 @@ def create_image(d, media, out, tmp):
     try:
         # There is no need to snapshot the media if it was created by the Disk
         # instance as a temporary object.
-        device = disk.device if disk.source == '/' else disk.snapshot()
+        device = disk.file if disk.source == '/' else disk.snapshot()
 
         image = disk.get_image(device)
 

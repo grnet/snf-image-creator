@@ -263,7 +263,7 @@ def image_creator():
     try:
         # There is no need to snapshot the media if it was created by the Disk
         # instance as a temporary object.
-        device = disk.device if disk.source == '/' else disk.snapshot()
+        device = disk.file if disk.source == '/' else disk.snapshot()
         image = disk.get_image(device, sysprep_params=options.sysprep_params)
 
         if image.is_unsupported() and not options.allow_unsupported:
