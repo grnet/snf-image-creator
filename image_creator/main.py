@@ -120,6 +120,11 @@ def parse_options(input_args):
                       help="don't perform any system preparation operation",
                       action="store_false")
 
+    parser.add_option("--no-snapshot", dest="snapshot", default=True,
+                      help="don't snapshot the input media. (THIS IS "
+                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
+                      action="store_false")
+
     parser.add_option("--public", dest="public", default=False,
                       help="register image with the cloud as public",
                       action="store_true")
@@ -263,7 +268,7 @@ def image_creator():
     try:
         # There is no need to snapshot the media if it was created by the Disk
         # instance as a temporary object.
-        device = disk.file if disk.source == '/' else disk.snapshot()
+        device = disk.file if not options.snapshot else disk.snapshot()
         image = disk.get_image(device, sysprep_params=options.sysprep_params)
 
         if image.is_unsupported() and not options.allow_unsupported:

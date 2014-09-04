@@ -153,6 +153,11 @@ class Disk(object):
         """Creates a snapshot of the original source media of the Disk
         instance.
         """
+
+        if self.source == '/':
+            self.out.warn("Snapshotting ignored for host bundling mode.")
+            return self.file
+
         mode = os.stat(self.file).st_mode
         device = self.file if stat.S_ISBLK(mode) else self._losetup(self.file)
         size = blockdev('--getsz', device)
