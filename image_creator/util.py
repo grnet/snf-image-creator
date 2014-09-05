@@ -24,11 +24,18 @@ import hashlib
 import time
 import os
 import re
+import json
+from sh import qemu_img
 
 
 class FatalError(Exception):
     """Fatal Error exception of snf-image-creator"""
     pass
+
+
+def image_info(image):
+    info = qemu_img('info', '--output', 'json', image)
+    return json.loads(str(info))
 
 
 def get_command(command):

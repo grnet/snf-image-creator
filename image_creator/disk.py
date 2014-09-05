@@ -17,10 +17,8 @@
 
 """Module hosting the Disk class."""
 
-from image_creator.util import get_command
-from image_creator.util import try_fail_repeat
-from image_creator.util import free_space
-from image_creator.util import FatalError
+from image_creator.util import get_command, try_fail_repeat, free_space, \
+    FatalError, image_info
 from image_creator.bundle_volume import BundleVolume
 from image_creator.image import Image
 
@@ -160,22 +158,43 @@ class Disk(object):
 
         mode = os.stat(self.file).st_mode
         device = self.file if stat.S_ISBLK(mode) else self._losetup(self.file)
-        size = blockdev('--getsz', device)
+        size = int(blockdev('--getsz', device))
+        virtual_size = (image_info(device)['virtual-size'] + 511) // 512
+
+        # If the virtual_size is bigger than the block device size, we need to
+        # create a bigger block device padded with zeros, otherwise QEMU will
+        # freeze if it tries to enlarge the underlying file.
+        if virtual_size > size:
+            zeros = virtual_size - size
+            tablefd, table = tempfile.mkstemp()
+            try:
+                try:
+                    os.write(tablefd, '0 %d linear %s 0\n' % (size, device))
+                    os.write(tablefd, '%d %d zero\n' % (size, zeros))
+                finally:
+                    os.close(tablefd)
+                padded = 'snf-image-creator-padded-%s' % uuid.uuid4().hex
+                dmsetup('create', padded, table)
+                self._add_cleanup(try_fail_repeat, dmsetup, 'remove', padded)
+            finally:
+                os.unlink(table)
+            device = "/dev/mapper/%s" % padded
+            size = virtual_size
+
         self.out.output("Snapshotting media source ...", False)
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
         # Create cow sparse file
-        dd('if=/dev/null', 'of=%s' % cow, 'bs=512', 'seek=%d' % int(size))
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=512', 'seek=%d' % size)
         cowdev = self._losetup(cow)
 
-        snapshot = uuid.uuid4().hex
+        snapshot = 'snf-image-creator-snapshot-%s' % uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
             try:
                 os.write(tablefd,
-                         "0 %d snapshot %s %s n 8" %
-                         (int(size), device, cowdev))
+                         "0 %d snapshot %s %s n 8\n" % (size, device, cowdev))
             finally:
                 os.close(tablefd)
 
