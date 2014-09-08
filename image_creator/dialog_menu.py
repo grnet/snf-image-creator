@@ -153,11 +153,12 @@ def upload_image(session):
 
             try:
                 # Upload image file
-                with open(image.device, 'rb') as f:
-                    session["pithos_uri"] = \
-                        kamaki.upload(f, image.size, filename,
-                                      "Calculating block hashes",
-                                      "Uploading missing blocks")
+                with image.raw_device() as raw:
+                    with open(raw, 'rb') as f:
+                        session["pithos_uri"] = \
+                            kamaki.upload(f, image.size, filename,
+                                          "Calculating block hashes",
+                                          "Uploading missing blocks")
                 # Upload md5sum file
                 out.output("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)

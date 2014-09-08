@@ -25,6 +25,8 @@ import os
 import re
 import json
 from sh import qemu_img
+from sh import qemu_nbd
+from sh import modprobe
 
 
 class FatalError(Exception):
@@ -33,6 +35,7 @@ class FatalError(Exception):
 
 
 def image_info(image):
+    """Returns information about an image file"""
     info = qemu_img('info', '--output', 'json', image)
     return json.loads(str(info))
 
@@ -107,5 +110,60 @@ def virtio_versions(virtio_state):
         ret[name] = "<not found>" if len(infs) == 0 else ", ".join(vers)
 
     return ret
+
+
+class QemuNBD(object):
+    """Wrapper class for the qemu-nbd tool"""
+
+    def __init__(self, image):
+        """Initialize an instance"""
+        self.image = image
+        self.device = None
+        self.pattern = re.compile('^nbd\d+$')
+
+    def _list_devices(self):
+        """Returns all the NBD block devices"""
+        return set([d for d in os.listdir('/dev/') if self.pattern.match(d)])
+
+    def connect(self, ro=True):
+        """Connect the image to a free NBD device"""
+        devs = self._list_devices()
+
+        if len(devs) == 0:  # Is nbd module loaded?
+            modprobe('nbd', 'max_part=16')
+            # Wait a second for /dev to be populated
+            time.sleep(1)
+            devs = self._list_devices()
+            if len(devs) == 0:
+                raise FatalError("/dev/nbd* devices not present!")
+
+        # Ignore the nbd block devices that are in use
+        with open('/proc/partitions') as partitions:
+            for line in iter(partitions):
+                entry = line.split()
+                if len(entry) != 4:
+                    continue
+                if entry[3] in devs:
+                    devs.remove(entry[3])
+
+        if len(devs) == 0:
+            raise FatalError("All NBD block devices are busy!")
+
+        device = '/dev/%s' % devs.pop()
+        args = ['-c', device]
+        if ro:
+            args.append('-r')
+        args.append(self.image)
+
+        qemu_nbd(*args)
+        self.device = device
+        return device
+
+    def disconnect(self):
+        """Disconnect the image from the connected device"""
+        assert self.device is not None, "No device connected"
+
+        qemu_nbd('-d', self.device)
+        self.device = None
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -472,10 +472,11 @@ def create_image(session, answers):
 
             name = "%s-%s.diskdump" % (answers['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))
-            with open(image.device, 'rb') as device:
-                remote = kamaki.upload(device, image.size, name,
-                                       "(1/3)  Calculating block hashes",
-                                       "(2/3)  Uploading image blocks")
+            with image.raw_device() as raw:
+                with open(raw, 'rb') as device:
+                    remote = kamaki.upload(device, image.size, name,
+                                           "(1/3)  Calculating block hashes",
+                                           "(2/3)  Uploading image blocks")
 
             image.out.output("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)

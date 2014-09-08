@@ -420,7 +420,7 @@ class OSBase(object):
 
         self.out.output()
 
-    @sysprep('Shrinking image', nomount=True)
+    @sysprep('Shrinking image (may take a while)', nomount=True)
     def _shrink(self):
         """Shrink the last file system and update the partition table"""
         self.image.shrink()

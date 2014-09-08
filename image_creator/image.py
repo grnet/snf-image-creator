@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from image_creator.util import FatalError
+from image_creator.util import FatalError, QemuNBD, image_info
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
@@ -33,6 +33,7 @@ class Image(object):
 
         self.device = device
         self.out = output
+        self.info = image_info(device)
 
         self.meta = kargs['meta'] if 'meta' in kargs else {}
         self.sysprep_params = \
@@ -45,6 +46,9 @@ class Image(object):
         self.g = guestfs.GuestFS()
         self.guestfs_enabled = False
         self.guestfs_version = self.g.version()
+
+        # This is needed if the image format is not raw
+        self.nbd = QemuNBD(device)
 
     def check_guestfs_version(self, major, minor, release):
         """Checks if the version of the used libguestfs is smaller, equal or
@@ -125,7 +129,7 @@ class Image(object):
         if self.check_guestfs_version(1, 18, 4) < 0:
             self.g = guestfs.GuestFS()
 
-        self.g.add_drive_opts(self.device, readonly=0, format="raw")
+        self.g.add_drive_opts(self.device, readonly=0)
 
         # Before version 1.17.14 the recovery process, which is a fork of the
         # original process that called libguestfs, did not close its inherited
@@ -201,6 +205,30 @@ class Image(object):
         self._os.collect_metadata()
 
         return self._os
+
+    def raw_device(self, readonly=True):
+        """Returns a context manager that exports the raw image device. If
+        readonly is true, the block device that is returned is read only.
+        """
+
+        if self.guestfs_enabled:
+            self.g.umount_all()
+            self.g.sync()
+            self.g.drop_caches(3)  # drop everything
+
+        # Self gets overwritten
+        img = self
+
+        class RawImage:
+            """The RawImage context manager"""
+            def __enter__(self):
+                return img.device if img.info['format'] == 'raw' else \
+                    img.nbd.connect(readonly)
+            def __exit__(self, exc_type, exc_value, traceback):
+                if img.info['format'] != 'raw':
+                    img.nbd.disconnect()
+
+        return RawImage()
 
     def destroy(self):
         """Destroy this Image instance."""
@@ -374,8 +402,9 @@ class Image(object):
         assert (new_size <= self.size)
 
         if self.meta['PARTITION_TABLE'] == 'gpt':
-            ptable = GPTPartitionTable(self.device)
-            self.size = ptable.shrink(new_size, self.size)
+            with self.raw_device(readonly=False) as raw:
+                ptable = GPTPartitionTable(raw)
+                self.size = ptable.shrink(new_size, self.size)
         else:
             self.size = min(new_size + 2048 * sector_size, self.size)
 
@@ -396,25 +425,28 @@ class Image(object):
         progr_size = (self.size + MB - 1) // MB  # in MB
         progressbar = self.out.Progress(progr_size, "Dumping image file", 'mb')
 
-        with open(self.device, 'rb') as src:
-            with open(outfile, "wb") as dst:
-                left = self.size
-                offset = 0
-                progressbar.next()
-                while left > 0:
-                    length = min(left, blocksize)
-                    sent = sendfile(dst.fileno(), src.fileno(), offset, length)
+        with self.raw_device() as raw:
+            with open(raw, 'rb') as src:
+                with open(outfile, "wb") as dst:
+                    left = self.size
+                    offset = 0
+                    progressbar.next()
+                    while left > 0:
+                        length = min(left, blocksize)
+                        sent = sendfile(dst.fileno(), src.fileno(), offset,
+                                        length)
 
-                    # Workaround for python-sendfile API change. In
-                    # python-sendfile 1.2.x (py-sendfile) the returning value
-                    # of sendfile is a tuple, where in version 2.x (pysendfile)
-                    # it is just a single integer.
-                    if isinstance(sent, tuple):
-                        sent = sent[1]
+                        # Workaround for python-sendfile API change. In
+                        # python-sendfile 1.2.x (py-sendfile) the returning
+                        # value of sendfile is a tuple, where in version 2.x
+                        # (pysendfile) it is just a single integer.
+                        if isinstance(sent, tuple):
+                            sent = sent[1]
 
-                    offset += sent
-                    left -= sent
-                    progressbar.goto((self.size - left) // MB)
+                        offset += sent
+                        left -= sent
+                        progressbar.goto((self.size - left) // MB)
+
         progressbar.success('image file %s was successfully created' % outfile)
 
     def md5(self):
@@ -426,14 +458,15 @@ class Image(object):
         progressbar = self.out.Progress(progr_size, "Calculating md5sum", 'mb')
         md5 = hashlib.md5()
 
-        with open(self.device, "rb") as src:
-            left = self.size
-            while left > 0:
-                length = min(left, blocksize)
-                data = src.read(length)
-                md5.update(data)
-                left -= length
-                progressbar.goto((self.size - left) // MB)
+        with self.raw_device() as raw:
+            with open(raw, "rb") as src:
+                left = self.size
+                while left > 0:
+                    length = min(left, blocksize)
+                    data = src.read(length)
+                    md5.update(data)
+                    left -= length
+                    progressbar.goto((self.size - left) // MB)
 
         checksum = md5.hexdigest()
         progressbar.success(checksum)

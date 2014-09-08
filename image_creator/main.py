@@ -334,19 +334,17 @@ def image_creator():
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        # Destroy the image instance. We only need the disk device from now on
-        disk.destroy_image(image)
-
         out.output()
         try:
-            uploaded_obj = ""
             if options.upload:
                 out.output("Uploading image to the storage service:")
-                with open(device, 'rb') as f:
-                    uploaded_obj = kamaki.upload(
-                        f, image.size, options.upload,
-                        "(1/3)  Calculating block hashes",
-                        "(2/3)  Uploading missing blocks")
+                with image.raw_device() as raw:
+                    with open(raw, 'rb') as f:
+                        remote = kamaki.upload(
+                            f, image.size, options.upload,
+                            "(1/3)  Calculating block hashes",
+                            "(2/3)  Uploading missing blocks")
+
                 out.output("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
@@ -360,7 +358,7 @@ def image_creator():
                 img_type = 'public' if options.public else 'private'
                 out.output('Registering %s image with the compute service ...'
                            % img_type, False)
-                result = kamaki.register(options.register, uploaded_obj,
+                result = kamaki.register(options.register, remote,
                                          metadata, options.public)
                 out.success('done')
                 out.output("Uploading metadata file ...", False)
