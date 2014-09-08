@@ -21,6 +21,7 @@ from image_creator.os_type import os_cls
 
 import re
 import guestfs
+import hashlib
 from sendfile import sendfile
 
 
@@ -391,14 +392,13 @@ class Image(object):
         partition table. Empty space in the end of the device will be ignored.
         """
         MB = 2 ** 20
-        blocksize = 4 * MB  # 4MB
-        size = self.size
-        progr_size = (size + MB - 1) // MB  # in MB
+        blocksize = 2 ** 22  # 4MB
+        progr_size = (self.size + MB - 1) // MB  # in MB
         progressbar = self.out.Progress(progr_size, "Dumping image file", 'mb')
 
-        with open(self.device, 'r') as src:
-            with open(outfile, "w") as dst:
-                left = size
+        with open(self.device, 'rb') as src:
+            with open(outfile, "wb") as dst:
+                left = self.size
                 offset = 0
                 progressbar.next()
                 while left > 0:
@@ -414,7 +414,31 @@ class Image(object):
 
                     offset += sent
                     left -= sent
-                    progressbar.goto((size - left) // MB)
+                    progressbar.goto((self.size - left) // MB)
         progressbar.success('image file %s was successfully created' % outfile)
+
+    def md5(self):
+        """Computes the MD5 checksum of the image"""
+
+        MB = 2 ** 20
+        blocksize = 2 ** 22  # 4MB
+        progr_size = ((self.size + MB - 1) // MB)  # in MB
+        progressbar = self.out.Progress(progr_size, "Calculating md5sum", 'mb')
+        md5 = hashlib.md5()
+
+        with open(self.device, "rb") as src:
+            left = self.size
+            while left > 0:
+                length = min(left, blocksize)
+                data = src.read(length)
+                md5.update(data)
+                left -= length
+                progressbar.goto((self.size - left) // MB)
+
+        checksum = md5.hexdigest()
+        progressbar.success(checksum)
+
+        return checksum
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

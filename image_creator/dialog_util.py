@@ -24,7 +24,6 @@ import stat
 import re
 import json
 from image_creator.output.dialog import GaugeOutput
-from image_creator.util import MD5
 from image_creator.kamaki_wrapper import Kamaki
 
 SMALL_WIDTH = 60
@@ -198,8 +197,7 @@ def extract_image(session):
             out.add(gauge)
             try:
                 if "checksum" not in session:
-                    md5 = MD5(out)
-                    session['checksum'] = md5.compute(image.device, image.size)
+                    session['checksum'] = image.md5()
 
                 # Extract image file
                 image.dump(path)

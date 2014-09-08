@@ -22,7 +22,7 @@ snf-image-creator program.
 
 from image_creator import __version__ as version
 from image_creator.disk import Disk
-from image_creator.util import FatalError, MD5
+from image_creator.util import FatalError
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.kamaki_wrapper import Kamaki, ClientError
@@ -314,8 +314,7 @@ def image_creator():
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)
 
-        md5 = MD5(out)
-        checksum = md5.compute(image.device, image.size)
+        checksum = image.md5()
 
         metastring = unicode(json.dumps(
             {'properties': metadata,

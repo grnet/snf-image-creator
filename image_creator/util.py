@@ -20,7 +20,6 @@ the package.
 """
 
 import sh
-import hashlib
 import time
 import os
 import re
@@ -95,35 +94,6 @@ def free_space(dirname):
     """Compute the free space in a directory"""
     stat = os.statvfs(dirname)
     return stat.f_bavail * stat.f_frsize
-
-
-class MD5:
-    """Represents MD5 computations"""
-    def __init__(self, output):
-        """Create an MD5 instance"""
-        self.out = output
-
-    def compute(self, filename, size):
-        """Compute the MD5 checksum of a file"""
-        MB = 2 ** 20
-        BLOCKSIZE = 4 * MB  # 4MB
-
-        prog_size = ((size + MB - 1) // MB)  # in MB
-        progressbar = self.out.Progress(prog_size, "Calculating md5sum", 'mb')
-        md5 = hashlib.md5()
-        with open(filename, "r") as src:
-            left = size
-            while left > 0:
-                length = min(left, BLOCKSIZE)
-                data = src.read(length)
-                md5.update(data)
-                left -= length
-                progressbar.goto((size - left) // MB)
-
-        checksum = md5.hexdigest()
-        progressbar.success(checksum)
-
-        return checksum
 
 
 def virtio_versions(virtio_state):
