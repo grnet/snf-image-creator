@@ -224,6 +224,7 @@ class Image(object):
             def __enter__(self):
                 return img.device if img.info['format'] == 'raw' else \
                     img.nbd.connect(readonly)
+
             def __exit__(self, exc_type, exc_value, traceback):
                 if img.info['format'] != 'raw':
                     img.nbd.disconnect()

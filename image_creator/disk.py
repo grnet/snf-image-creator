@@ -18,7 +18,7 @@
 """Module hosting the Disk class."""
 
 from image_creator.util import get_command, try_fail_repeat, free_space, \
-    FatalError, image_info
+    FatalError, create_snapshot
 from image_creator.bundle_volume import BundleVolume
 from image_creator.image import Image
 
@@ -156,32 +156,18 @@ class Disk(object):
             self.out.warn("Snapshotting ignored for host bundling mode.")
             return self.file
 
-        mode = os.stat(self.file).st_mode
-        device = self.file if stat.S_ISBLK(mode) else self._losetup(self.file)
-        size = int(blockdev('--getsz', device))
-        virtual_size = (image_info(device)['virtual-size'] + 511) // 512
-
-        # If the virtual_size is bigger than the block device size, we need to
-        # create a bigger block device padded with zeros, otherwise QEMU will
-        # freeze if it tries to enlarge the underlying file.
-        if virtual_size > size:
-            zeros = virtual_size - size
-            tablefd, table = tempfile.mkstemp()
-            try:
-                try:
-                    os.write(tablefd, '0 %d linear %s 0\n' % (size, device))
-                    os.write(tablefd, '%d %d zero\n' % (size, zeros))
-                finally:
-                    os.close(tablefd)
-                padded = 'snf-image-creator-padded-%s' % uuid.uuid4().hex
-                dmsetup('create', padded, table)
-                self._add_cleanup(try_fail_repeat, dmsetup, 'remove', padded)
-            finally:
-                os.unlink(table)
-            device = "/dev/mapper/%s" % padded
-            size = virtual_size
-
         self.out.output("Snapshotting media source ...", False)
+
+        # Create a qcow2 snapshot for image files
+        if not stat.S_ISBLK(os.stat(self.file).st_mode):
+            snapshot = create_snapshot(self.file, self.tmp)
+            self._add_cleanup(os.unlink, snapshot)
+            self.out.success('done')
+            return snapshot
+
+        # Create a device-mapper snapshot for block devices
+        size = int(blockdev('--getsz', self.file))
+
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
@@ -193,8 +179,8 @@ class Disk(object):
         tablefd, table = tempfile.mkstemp()
         try:
             try:
-                os.write(tablefd,
-                         "0 %d snapshot %s %s n 8\n" % (size, device, cowdev))
+                os.write(tablefd, "0 %d snapshot %s %s n 8\n" %
+                         (size, self.file, cowdev))
             finally:
                 os.close(tablefd)
 

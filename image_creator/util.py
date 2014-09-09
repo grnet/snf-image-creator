@@ -24,6 +24,7 @@ import time
 import os
 import re
 import json
+import tempfile
 from sh import qemu_img
 from sh import qemu_nbd
 from sh import modprobe
@@ -38,6 +39,16 @@ def image_info(image):
     """Returns information about an image file"""
     info = qemu_img('info', '--output', 'json', image)
     return json.loads(str(info))
+
+
+def create_snapshot(source, target_dir):
+    """Returns a qcow2 snapshot of an image file"""
+
+    snapfd, snap = tempfile.mkstemp(prefix='snapshot-', dir=target_dir)
+    os.close(snapfd)
+    qemu_img('create', '-f', 'qcow2', '-o',
+             'backing_file=%s' % os.path.abspath(source), snap)
+    return snap
 
 
 def get_command(command):
