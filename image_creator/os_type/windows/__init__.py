@@ -701,12 +701,16 @@ class Windows(OSBase):
         """Check if winexe works on the Windows VM"""
 
         retries = self.sysprep_params['connection_retries'].value
+        timeout = [2]
+        for i in xrange(1, retries - 1):
+            timeout.insert(0, timeout[0] * 2)
+
         # If the connection_retries parameter is set to 0 disable the
         # connectivity check
         if retries == 0:
             return True
 
-        for i in range(retries):
+        for i in xrange(retries):
             (stdout, stderr, rc) = self.vm.rexec('cmd /C', fatal=False,
                                                  debug=True)
             if rc == 0:
@@ -721,6 +725,7 @@ class Windows(OSBase):
             self.out.output("failed! See: `%s' for the full output" % log.name)
             if i < retries - 1:
                 self.out.output("retrying ...", False)
+                time.sleep(timeout.pop())
 
         raise FatalError("Connection to the Windows VM failed after %d retries"
                          % retries)
@@ -866,8 +871,17 @@ class Windows(OSBase):
 
             tmp = uuid.uuid4().hex
             self.image.g.mkdir_p("%s/%s" % (self.systemroot, tmp))
-            self._add_cleanup('virtio', self.image.g.rm_rf,
-                              "%s/%s" % (self.systemroot, tmp))
+
+            # This is a hack. We create a function here and pass it to
+            # _add_cleanup because self.image.g may change and the _add_cleanup
+            # will cache it which is wrong. For older versions of the guestfs
+            # library we recreate the g handler in enable_guestfs() and the
+            # program will crash if cleanup retains an older value for the
+            # guestfs handler.
+            def remove_tmp():
+                self.image.g.rm_rf("%s/%s" % (self.systemroot, tmp))
+
+            self._add_cleanup('virtio', remove_tmp)
 
             for fname in os.listdir(dirname):
                 full_path = os.path.join(dirname, fname)
@@ -929,38 +943,43 @@ class Windows(OSBase):
     def _boot_virtio_vm(self):
         """Boot the media and install the VirtIO drivers"""
 
-        timeout = self.sysprep_params['boot_timeout'].value
-        shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
-        virtio_timeout = self.sysprep_params['virtio_timeout'].value
-        self.out.output("Starting Windows VM ...", False)
-        booted = False
+        old_windows = self.check_version(6, 1) <= 0
+        self.image.disable_guestfs()
         try:
-            if self.check_version(6, 1) <= 0:
-                self.vm.start()
-            else:
-                self.vm.interface = 'ide'
-                self.vm.start(extra_disk=('/dev/null', 'virtio'))
-                self.vm.interface = 'virtio'
+            timeout = self.sysprep_params['boot_timeout'].value
+            shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
+            virtio_timeout = self.sysprep_params['virtio_timeout'].value
+            self.out.output("Starting Windows VM ...", False)
+            booted = False
+            try:
+                if old_windows:
+                    self.vm.start()
+                else:
+                    self.vm.interface = 'ide'
+                    self.vm.start(extra_disk=('/dev/null', 'virtio'))
+                    self.vm.interface = 'virtio'
 
-            self.out.success("started (console on VNC display: %d)" %
-                             self.vm.display)
-            self.out.output("Waiting for Windows to boot ...", False)
-            if not self.vm.wait_on_serial(timeout):
-                raise FatalError("Windows VM booting timed out!")
-            self.out.success('done')
-            booted = True
-            self.out.output("Installing new drivers ...", False)
-            if not self.vm.wait_on_serial(virtio_timeout):
-                raise FatalError("Windows VirtIO installation timed out!")
-            self.out.success('done')
-            self.out.output('Shutting down ...', False)
-            (_, stderr, rc) = self.vm.wait(shutdown_timeout)
-            if rc != 0 or "terminating on signal" in stderr:
-                raise FatalError("Windows VM died unexpectedly!\n\n"
-                                 "(rc=%d)\n%s" % (rc, stderr))
-            self.out.success('done')
+                self.out.success("started (console on VNC display: %d)" %
+                                 self.vm.display)
+                self.out.output("Waiting for Windows to boot ...", False)
+                if not self.vm.wait_on_serial(timeout):
+                    raise FatalError("Windows VM booting timed out!")
+                self.out.success('done')
+                booted = True
+                self.out.output("Installing new drivers ...", False)
+                if not self.vm.wait_on_serial(virtio_timeout):
+                    raise FatalError("Windows VirtIO installation timed out!")
+                self.out.success('done')
+                self.out.output('Shutting down ...', False)
+                (_, stderr, rc) = self.vm.wait(shutdown_timeout)
+                if rc != 0 or "terminating on signal" in stderr:
+                    raise FatalError("Windows VM died unexpectedly!\n\n"
+                                     "(rc=%d)\n%s" % (rc, stderr))
+                self.out.success('done')
+            finally:
+                self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
         finally:
-            self.vm.stop(shutdown_timeout if booted else 1, fatal=False)
+            self.image.enable_guestfs()
 
         with self.mount(readonly=True, silent=True):
             self.virtio_state = self.compute_virtio_state()

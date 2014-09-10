@@ -46,7 +46,7 @@ from image_creator.dialog_util import WIDTH, confirm_exit, Reset, \
 PROGNAME = os.path.basename(sys.argv[0])
 
 
-def create_image(d, media, out, tmp):
+def create_image(d, media, out, tmp, snapshot):
     """Create an image out of `media'"""
     d.setBackgroundTitle('snf-image-creator')
 
@@ -61,9 +61,8 @@ def create_image(d, media, out, tmp):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     try:
-        # There is no need to snapshot the media if it was created by the Disk
-        # instance as a temporary object.
-        device = disk.device if disk.source == '/' else disk.snapshot()
+
+        device = disk.file if not snapshot else disk.snapshot()
 
         image = disk.get_image(device)
 
@@ -172,7 +171,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
     return (code, output.splitlines())
 
 
-def dialog_main(media, logfile, tmpdir):
+def dialog_main(media, logfile, tmpdir, snapshot):
 
     # In openSUSE dialog is buggy under xterm
     if os.environ['TERM'] == 'xterm':
@@ -214,7 +213,7 @@ def dialog_main(media, logfile, tmpdir):
             try:
                 out = CompositeOutput([log])
                 out.output("Starting %s v%s ..." % (PROGNAME, version))
-                return create_image(d, media, out, tmpdir)
+                return create_image(d, media, out, tmpdir, snapshot)
             except Reset:
                 log.output("Resetting everything ...")
                 continue
@@ -235,6 +234,10 @@ def main():
     parser.add_option("-l", "--logfile", type="string", dest="logfile",
                       default=None, help="log all messages to FILE",
                       metavar="FILE")
+    parser.add_option("--no-snapshot", dest="snapshot", default=True,
+                      help="don't snapshot the input media. (THIS IS "
+                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
+                      action="store_false")
     parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
                       help="create large temporary image files under DIR",
                       metavar="DIR")
@@ -260,7 +263,7 @@ def main():
         # Save the terminal attributes
         attr = termios.tcgetattr(sys.stdin.fileno())
         try:
-            ret = dialog_main(media, logfile, opts.tmp)
+            ret = dialog_main(media, logfile, opts.tmp, opts.snapshot)
         finally:
             # Restore the terminal attributes. If an error occurs make sure
             # that the terminal turns back to normal.

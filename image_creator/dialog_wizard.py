@@ -25,7 +25,7 @@ import json
 import re
 
 from image_creator.kamaki_wrapper import Kamaki, ClientError
-from image_creator.util import MD5, FatalError, virtio_versions
+from image_creator.util import FatalError, virtio_versions
 from image_creator.output.cli import OutputWthProgress
 from image_creator.dialog_util import extract_image, update_background_title, \
     add_cloud, edit_cloud, update_sysprep_param
@@ -461,7 +461,7 @@ def create_image(session, answers):
         metadata['DESCRIPTION'] = answers['ImageDescription']
 
         # MD5
-        session['checksum'] = MD5(image.out).compute(image.device, image.size)
+        session['checksum'] = image.md5()
 
         image.out.output()
         try:
@@ -472,10 +472,11 @@ def create_image(session, answers):
 
             name = "%s-%s.diskdump" % (answers['ImageName'],
                                        time.strftime("%Y%m%d%H%M"))
-            with open(image.device, 'rb') as device:
-                remote = kamaki.upload(device, image.size, name,
-                                       "(1/3)  Calculating block hashes",
-                                       "(2/3)  Uploading image blocks")
+            with image.raw_device() as raw:
+                with open(raw, 'rb') as device:
+                    remote = kamaki.upload(device, image.size, name,
+                                           "(1/3)  Calculating block hashes",
+                                           "(2/3)  Uploading image blocks")
 
             image.out.output("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)

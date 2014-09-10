@@ -27,7 +27,7 @@ import re
 import time
 
 from image_creator import __version__ as version
-from image_creator.util import MD5, FatalError, virtio_versions
+from image_creator.util import FatalError, virtio_versions
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
@@ -149,16 +149,16 @@ def upload_image(session):
         kamaki.out = out
         try:
             if 'checksum' not in session:
-                md5 = MD5(out)
-                session['checksum'] = md5.compute(image.device, image.size)
+                session['checksum'] = image.md5()
 
             try:
                 # Upload image file
-                with open(image.device, 'rb') as f:
-                    session["pithos_uri"] = \
-                        kamaki.upload(f, image.size, filename,
-                                      "Calculating block hashes",
-                                      "Uploading missing blocks")
+                with image.raw_device() as raw:
+                    with open(raw, 'rb') as f:
+                        session["pithos_uri"] = \
+                            kamaki.upload(f, image.size, filename,
+                                          "Calculating block hashes",
+                                          "Uploading missing blocks")
                 # Upload md5sum file
                 out.output("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)

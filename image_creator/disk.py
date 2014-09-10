@@ -17,10 +17,8 @@
 
 """Module hosting the Disk class."""
 
-from image_creator.util import get_command
-from image_creator.util import try_fail_repeat
-from image_creator.util import free_space
-from image_creator.util import FatalError
+from image_creator.util import get_command, try_fail_repeat, free_space, \
+    FatalError, create_snapshot
 from image_creator.bundle_volume import BundleVolume
 from image_creator.image import Image
 
@@ -72,7 +70,7 @@ class Disk(object):
         """
         self._cleanup_jobs = []
         self._images = []
-        self._device = None
+        self._file = None
         self.source = source
         self.out = output
         self.meta = {}
@@ -98,15 +96,16 @@ class Disk(object):
         """Create a disk out of a directory"""
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
-            image = '%s/%s.diskdump' % (self.tmp, uuid.uuid4().hex)
+            image = '%s/%s.raw' % (self.tmp, uuid.uuid4().hex)
 
             def check_unlink(path):
+                """Unlinks file if exists"""
                 if os.path.exists(path):
                     os.unlink(path)
 
             self._add_cleanup(check_unlink, image)
             bundle.create_image(image)
-            return self._losetup(image)
+            return image
         raise FatalError("Using a directory as media source is supported")
 
     def cleanup(self):
@@ -125,49 +124,63 @@ class Disk(object):
                 job(*args)
 
     @property
-    def device(self):
-        """Convert the source media into a block device"""
+    def file(self):
+        """Convert the source media into a file"""
 
-        if self._device is not None:
-            return self._device
+        if self._file is not None:
+            return self._file
 
         self.out.output("Examining source media `%s' ..." % self.source, False)
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
             self.out.success('looks like a directory')
-            self._device = self._dir_to_disk()
+            self._file = self._dir_to_disk()
         elif stat.S_ISREG(mode):
             self.out.success('looks like an image file')
-            self._device = self._losetup(self.source)
+            self._file = self.source
         elif not stat.S_ISBLK(mode):
             raise FatalError("Invalid media source. Only block devices, "
                              "regular files and directories are supported.")
         else:
             self.out.success('looks like a block device')
-            self._device = self.source
+            self._file = self.source
 
-        return self._device
+        return self._file
 
     def snapshot(self):
         """Creates a snapshot of the original source media of the Disk
         instance.
         """
-        size = blockdev('--getsz', self.device)
+
+        if self.source == '/':
+            self.out.warn("Snapshotting ignored for host bundling mode.")
+            return self.file
+
         self.out.output("Snapshotting media source ...", False)
+
+        # Create a qcow2 snapshot for image files
+        if not stat.S_ISBLK(os.stat(self.file).st_mode):
+            snapshot = create_snapshot(self.file, self.tmp)
+            self._add_cleanup(os.unlink, snapshot)
+            self.out.success('done')
+            return snapshot
+
+        # Create a device-mapper snapshot for block devices
+        size = int(blockdev('--getsz', self.file))
+
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
         self._add_cleanup(os.unlink, cow)
         # Create cow sparse file
-        dd('if=/dev/null', 'of=%s' % cow, 'bs=512', 'seek=%d' % int(size))
+        dd('if=/dev/null', 'of=%s' % cow, 'bs=512', 'seek=%d' % size)
         cowdev = self._losetup(cow)
 
-        snapshot = uuid.uuid4().hex
+        snapshot = 'snf-image-creator-snapshot-%s' % uuid.uuid4().hex
         tablefd, table = tempfile.mkstemp()
         try:
             try:
-                os.write(tablefd,
-                         "0 %d snapshot %s %s n 8" %
-                         (int(size), self.device, cowdev))
+                os.write(tablefd, "0 %d snapshot %s %s n 8\n" %
+                         (size, self.file, cowdev))
             finally:
                 os.close(tablefd)
 

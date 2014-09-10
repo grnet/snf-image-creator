@@ -22,7 +22,7 @@ snf-image-creator program.
 
 from image_creator import __version__ as version
 from image_creator.disk import Disk
-from image_creator.util import FatalError, MD5
+from image_creator.util import FatalError
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.kamaki_wrapper import Kamaki, ClientError
@@ -118,6 +118,11 @@ def parse_options(input_args):
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
                       help="don't perform any system preparation operation",
+                      action="store_false")
+
+    parser.add_option("--no-snapshot", dest="snapshot", default=True,
+                      help="don't snapshot the input media. (THIS IS "
+                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
                       action="store_false")
 
     parser.add_option("--public", dest="public", default=False,
@@ -263,7 +268,7 @@ def image_creator():
     try:
         # There is no need to snapshot the media if it was created by the Disk
         # instance as a temporary object.
-        device = disk.device if disk.source == '/' else disk.snapshot()
+        device = disk.file if not options.snapshot else disk.snapshot()
         image = disk.get_image(device, sysprep_params=options.sysprep_params)
 
         if image.is_unsupported() and not options.allow_unsupported:
@@ -309,8 +314,7 @@ def image_creator():
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)
 
-        md5 = MD5(out)
-        checksum = md5.compute(image.device, image.size)
+        checksum = image.md5()
 
         metastring = unicode(json.dumps(
             {'properties': metadata,
@@ -330,19 +334,17 @@ def image_creator():
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        # Destroy the image instance. We only need the disk device from now on
-        disk.destroy_image(image)
-
         out.output()
         try:
-            uploaded_obj = ""
             if options.upload:
                 out.output("Uploading image to the storage service:")
-                with open(device, 'rb') as f:
-                    uploaded_obj = kamaki.upload(
-                        f, image.size, options.upload,
-                        "(1/3)  Calculating block hashes",
-                        "(2/3)  Uploading missing blocks")
+                with image.raw_device() as raw:
+                    with open(raw, 'rb') as f:
+                        remote = kamaki.upload(
+                            f, image.size, options.upload,
+                            "(1/3)  Calculating block hashes",
+                            "(2/3)  Uploading missing blocks")
+
                 out.output("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
@@ -356,7 +358,7 @@ def image_creator():
                 img_type = 'public' if options.public else 'private'
                 out.output('Registering %s image with the compute service ...'
                            % img_type, False)
-                result = kamaki.register(options.register, uploaded_obj,
+                result = kamaki.register(options.register, remote,
                                          metadata, options.public)
                 out.success('done')
                 out.output("Uploading metadata file ...", False)
