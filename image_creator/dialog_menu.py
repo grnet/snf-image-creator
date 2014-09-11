@@ -704,11 +704,12 @@ def virtio(session):
 
         (code, choice) = d.menu(
             "In this menu you can see details about the installed VirtIO "
-            "drivers on the input media. Press <OK> to see more information "
+            "drivers on the input media. Press <Info> to see more information "
             "about a specific installed driver or <Update> to install one or "
             "more new drivers.", height=16, width=WIDTH, choices=choices,
-            menu_height=len(choices), cancel="Back", title="VirtIO Drivers",
-            extra_button=1, extra_label="Update", default_item=default_item)
+            ok_label="Info", menu_height=len(choices), cancel="Back",
+            title="VirtIO Drivers", extra_button=1, extra_label="Update",
+            default_item=default_item)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return True
