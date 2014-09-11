@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module implements the "expert" mode of the dialog-based version of
 snf-image-creator.
@@ -41,29 +23,31 @@ import os
 import textwrap
 import StringIO
 import json
+import re
+import time
 
 from image_creator import __version__ as version
-from image_creator.util import MD5, FatalError
+from image_creator.util import FatalError, virtio_versions
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, extract_metadata_string, add_cloud, edit_cloud
+    extract_image, add_cloud, edit_cloud, update_sysprep_param
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
-        ["linux", "windows"]),
+     ["linux", "windows"]),
     ("File system resize",
-        ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
-        ["linux", "windows"]),
+     ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
+     ["linux", "windows"]),
     ("Swap partition configuration", ["AddSwap"], ["linux"]),
     ("SSH keys removal", ["DeleteSSHKeys"], ["linux"]),
     ("Temporal RDP disabling", ["DisableRemoteDesktopConnections"],
-        ["windows"]),
+     ["windows"]),
     ("SELinux relabeling at next boot", ["SELinuxAutorelabel"], ["linux"]),
     ("Hostname/Computer Name assignment", ["AssignHostname"],
-        ["windows", "linux"]),
+     ["windows", "linux"]),
     ("Password change", ["ChangePassword"], ["windows", "linux"]),
     ("File injection", ["EnforcePersonality"], ["windows", "linux"])
 ]
@@ -76,13 +60,14 @@ class MetadataMonitor(object):
     def __init__(self, session, meta):
         self.session = session
         self.meta = meta
+        self.old = {}
 
     def __enter__(self):
         self.old = {}
         for (k, v) in self.meta.items():
             self.old[k] = v
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         d = self.session['dialog']
 
         altered = {}
@@ -118,8 +103,6 @@ def upload_image(session):
     """Upload the image to the storage service"""
     d = session["dialog"]
     image = session['image']
-    meta = session['metadata']
-    size = image.size
 
     if "account" not in session:
         d.msgbox("You need to select a valid cloud before you can upload "
@@ -129,8 +112,8 @@ def upload_image(session):
     while 1:
         if 'upload' in session:
             init = session['upload']
-        elif 'OS' in meta:
-            init = "%s.diskdump" % meta['OS']
+        elif 'OS' in session['metadata']:
+            init = "%s.diskdump" % session['metadata']['OS']
         else:
             init = ""
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
@@ -166,16 +149,16 @@ def upload_image(session):
         kamaki.out = out
         try:
             if 'checksum' not in session:
-                md5 = MD5(out)
-                session['checksum'] = md5.compute(image.device, size)
+                session['checksum'] = image.md5()
 
             try:
                 # Upload image file
-                with open(image.device, 'rb') as f:
-                    session["pithos_uri"] = \
-                        kamaki.upload(f, size, filename,
-                                      "Calculating block hashes",
-                                      "Uploading missing blocks")
+                with image.raw_device() as raw:
+                    with open(raw, 'rb') as f:
+                        session["pithos_uri"] = \
+                            kamaki.upload(f, image.size, filename,
+                                          "Calculating block hashes",
+                                          "Uploading missing blocks")
                 # Upload md5sum file
                 out.output("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
@@ -222,9 +205,8 @@ def register_image(session):
         session['metadata'] else ""
 
     while 1:
-        fields = [
-            ("Registration name:", name, 60),
-            ("Description (optional):", description, 80)]
+        fields = [("Registration name:", name, 60),
+                  ("Description (optional):", description, 80)]
 
         (code, output) = d.form(
             "Please provide the following registration info:", height=11,
@@ -241,14 +223,13 @@ def register_image(session):
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
 
-        ret = d.yesno("Make the image public?\\nA public image is accessible "
-                      "by every user of the service.", defaultno=1,
-                      width=WIDTH)
-        if ret not in (0, 1):
+        answer = d.yesno("Make the image public?\\nA public image is "
+                         "accessible by every user of the service.",
+                         defaultno=1, width=WIDTH)
+        if answer not in (0, 1):
             continue
 
-        is_public = True if ret == 0 else False
-
+        is_public = (answer == 0)
         break
 
     session['metadata']['DESCRIPTION'] = description
@@ -283,8 +264,8 @@ def register_image(session):
                     kamaki.share("%s.meta" % session['upload'])
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
-            except ClientError as e:
-                d.msgbox("Error in storage service client: %s" % e.message)
+            except ClientError as error:
+                d.msgbox("Error in storage service client: %s" % error.message)
                 return False
         finally:
             out.remove(gauge)
@@ -352,8 +333,8 @@ def delete_clouds(session):
         d.msgbox("Nothing selected!", width=SMALL_WIDTH)
         return False
 
-    if not d.yesno("Are you sure you want to remove the selected cloud "
-                   "accounts?", width=WIDTH, defaultno=1):
+    if not d.yesno("Are you sure you want to remove the selected accounts?",
+                   width=WIDTH, defaultno=1):
         for i in to_delete:
             Kamaki.remove_cloud(i)
             if 'cloud' in session and session['cloud'] == i:
@@ -388,13 +369,14 @@ def kamaki_menu(session):
         if 'account' not in session and 'cloud' in session:
             cloud += " <invalid>"
 
-        upload = session["upload"] if "upload" in session else "<none>"
-
         choices = [("Add/Edit", "Add/Edit cloud accounts"),
                    ("Delete", "Delete existing cloud accounts"),
                    ("Cloud", "Select cloud account to use: %s" % cloud),
-                   ("Upload", "Upload image to the cloud"),
-                   ("Register", "Register image with the cloud: %s" % upload)]
+                   ("Upload", "Upload image to the cloud")]
+
+        if 'upload' in session:
+            choices.append(("Register", "Register image with the cloud: %s"
+                            % session['upload']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -471,9 +453,11 @@ def add_property(session):
     """Add a new property to the image"""
     d = session['dialog']
 
+    regexp = re.compile('^[A-Za-z_]+$')
+
     while 1:
-        (code, answer) = d.inputbox("Please provide a name for a new image"
-                                    " property:", width=WIDTH)
+        (code, answer) = d.inputbox("Please provide a case-insensitive name "
+                                    "for a new image property:", width=WIDTH)
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
@@ -482,11 +466,22 @@ def add_property(session):
             d.msgbox("A property name cannot be empty", width=SMALL_WIDTH)
             continue
 
+        if not re.match(regexp, name):
+            d.msgbox("Allowed characters for name: [a-zA-Z0-9_]", width=WIDTH)
+            continue
+
+        # Image properties are case-insensitive
+        name = name.upper()
+
+        if name in session['metadata']:
+            d.msgbox("Image property: `%s' already exists" % name, width=WIDTH)
+            continue
+
         break
 
     while 1:
         (code, answer) = d.inputbox("Please provide a value for image "
-                                    "property %s" % name, width=WIDTH)
+                                    "property: `%s'" % name, width=WIDTH)
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
@@ -534,64 +529,42 @@ def modify_properties(session):
             continue
 
         (code, choice) = d.menu(
-            "In this menu you can edit existing image properties or add new "
-            "ones. Be careful! Most properties have special meaning and "
-            "alter the image deployment behaviour. Press <HELP> to see more "
-            "information about image properties. Press <BACK> when done.",
-            height=18, width=WIDTH, choices=choices, menu_height=10,
-            ok_label="Edit", extra_button=1, extra_label="Add", cancel="Back",
-            help_button=1, title="Image Properties")
+            "In this menu you can edit and delete existing image properties "
+            "or add new ones. Be careful! Most properties have special "
+            "meaning and alter the image deployment behavior. Press <HELP> to "
+            "see more information about image properties. Press <BACK> when "
+            "done.", height=18, width=WIDTH, choices=choices, menu_height=10,
+            ok_label="Edit/Del", extra_button=1, extra_label="Add",
+            cancel="Back", help_button=1, title="Image Properties")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return True
         # Edit button
         elif code == d.DIALOG_OK:
-            (code, answer) = d.inputbox("Please provide a new value for the "
-                                        "image property with name `%s':" %
-                                        choice,
-                                        init=session['metadata'][choice],
-                                        width=WIDTH)
-            if code not in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            (code, answer) = d.inputbox(
+                "Please provide a new value for `%s' image property or press "
+                "<Delete> to completely delete it." % choice,
+                init=session['metadata'][choice], width=WIDTH, extra_button=1,
+                extra_label="Delete")
+            if code == d.DIALOG_OK:
                 value = answer.strip()
                 if len(value) == 0:
                     d.msgbox("Value cannot be empty!")
                     continue
                 else:
                     session['metadata'][choice] = value
+            # Delete button
+            elif code == d.DIALOG_EXTRA:
+                if not d.yesno("Are you sure you want to delete `%s' image "
+                               "property?" % choice, width=WIDTH):
+                    del session['metadata'][choice]
+                    d.msgbox("Image property: `%s' was deleted." % choice,
+                             width=SMALL_WIDTH)
         # ADD button
         elif code == d.DIALOG_EXTRA:
             add_property(session)
         elif code == 'help':
             show_properties_help(session)
-
-
-def delete_properties(session):
-    """Delete an image property"""
-    d = session['dialog']
-
-    choices = []
-    for (key, val) in session['metadata'].items():
-        choices.append((key, "%s" % val, 0))
-
-    if len(choices) == 0:
-        d.msgbox("No available images properties to delete!",
-                 width=SMALL_WIDTH)
-        return True
-
-    (code, to_delete) = d.checklist("Choose which properties to delete:",
-                                    choices=choices, width=WIDTH)
-    to_delete = map(lambda x: x.strip('"'), to_delete)  # needed for OpenSUSE
-
-    # If the user exits with ESC or CANCEL, the returned tag list is empty.
-    for i in to_delete:
-        del session['metadata'][i]
-
-    cnt = len(to_delete)
-    if cnt > 0:
-        d.msgbox("%d image properties were deleted." % cnt, width=SMALL_WIDTH)
-        return True
-    else:
-        return False
 
 
 def exclude_tasks(session):
@@ -627,13 +600,14 @@ def exclude_tasks(session):
         index += 1
 
     while 1:
+        text = "Please choose which configuration tasks you would like to " \
+               "prevent from running during image deployment. " \
+               "Press <No Config> to suppress any configuration. " \
+               "Press <Help> for more help on the image deployment " \
+               "configuration tasks."
+
         (code, tags) = d.checklist(
-            text="Please choose which configuration tasks you would like to "
-                 "prevent from running during image deployment. "
-                 "Press <No Config> to supress any configuration. "
-                 "Press <Help> for more help on the image deployment "
-                 "configuration tasks.",
-            choices=choices, height=19, list_height=8, width=WIDTH,
+            text=text, choices=choices, height=19, list_height=8, width=WIDTH,
             help_button=1, extra_button=1, extra_label="No Config",
             title="Exclude Configuration Tasks")
         tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
@@ -671,77 +645,169 @@ def sysprep_params(session):
     d = session['dialog']
     image = session['image']
 
-    available = image.os.sysprep_params
-    needed = image.os.needed_sysprep_params
-
-    if len(needed) == 0:
-        return True
-
-    def print_form(names, extra_button=False):
-        """print the dialog form providing sysprep_params"""
-        fields = []
-        for name in names:
-            param = needed[name]
-            default = str(available[name]) if name in available else ""
-            fields.append(("%s: " % param.description, default,
-                           SYSPREP_PARAM_MAXLEN))
-
-        kwargs = {}
-        if extra_button:
-            kwargs['extra_button'] = 1
-            kwargs['extra_label'] = "Advanced"
-
-        txt = "Please provide the following system preparation parameters:"
-        return d.form(txt, height=13, width=WIDTH, form_height=len(fields),
-                      fields=fields, **kwargs)
-
-    def check_params(names, values):
-        """check if the provided sysprep parameters have leagal values"""
-        for i in range(len(names)):
-            param = needed[names[i]]
-            try:
-                normalized = param.type(values[i])
-                if param.validate(normalized):
-                    image.os.sysprep_params[names[i]] = normalized
-                    continue
-            except ValueError:
-                pass
-
-            d.msgbox("Invalid value for parameter: `%s'" % names[i],
-                     width=SMALL_WIDTH)
-            return False
-        return True
-
-    simple_names = [k for k, v in needed.items() if v.default is None]
-    advanced_names = [k for k, v in needed.items() if v.default is not None]
-
+    default = None
     while 1:
-        code, output = print_form(simple_names, extra_button=True)
+        choices = []
+        for name, param in image.os.sysprep_params.items():
+
+            # Don't show the hidden parameters
+            if param.hidden:
+                continue
+
+            value = str(param.value)
+            if len(value) == 0:
+                value = "<not_set>"
+            choices.append((name, value))
+
+        if len(choices) == 0:
+            d.msgbox("No customization parameters available", width=WIDTH)
+            return True
+
+        if default is None:
+            default = choices[0][0]
+
+        (code, choice) = d.menu(
+            "In this menu you can see and update the value for parameters "
+            "used in the system preparation tasks. Press <Details> to see "
+            "more info about a specific configuration parameters and <Update> "
+            "to update its value. Press <Back> when done.", height=18,
+            width=WIDTH, choices=choices, menu_height=10, ok_label="Details",
+            extra_button=1, extra_label="Update", cancel="Back",
+            default_item=default, title="System Preparation Parameters")
+
+        default = choice
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-            return False
-        if code == d.DIALOG_EXTRA:
-            while 1:
-                code, output = print_form(advanced_names)
-                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                    break
-                if check_params(advanced_names, output):
-                    break
-            continue
+            return True
+        elif code == d.DIALOG_OK:  # Details button
+            d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
+        else:  # Update button
+            update_sysprep_param(session, choice)
 
-        if check_params(simple_names, output):
-            break
+    return True
+
+
+def virtio(session):
+    """Display the state of the VirtIO drivers in the media"""
+
+    d = session['dialog']
+    image = session['image']
+
+    assert hasattr(image.os, 'virtio_state')
+    assert hasattr(image.os, 'install_virtio_drivers')
+
+    default_item = image.os.virtio_state.keys()[0]
+    while 1:
+        choices = []
+        for name, details in virtio_versions(image.os.virtio_state).items():
+            choices.append((name, details))
+
+        (code, choice) = d.menu(
+            "In this menu you can see details about the installed VirtIO "
+            "drivers on the input media. Press <OK> to see more information "
+            "about a specific installed driver or <Update> to install one or "
+            "more new drivers.", height=16, width=WIDTH, choices=choices,
+            menu_height=len(choices), cancel="Back", title="VirtIO Drivers",
+            extra_button=1, extra_label="Update", default_item=default_item)
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return True
+        elif code == d.DIALOG_OK:
+            default_item = choice
+
+            # Create a string with the driver details and display it.
+            details = ""
+            for fname, driver in image.os.virtio_state[choice].items():
+                details += "%s\n%s\n" % (fname, "=" * len(fname))
+                name = ""
+                if 'DriverPackageDisplayName' in driver:
+                    name = driver['DriverPackageDisplayName']
+                provider = ""
+                if 'Provider' in driver:
+                    provider = driver['Provider']
+                date = ""
+                version = ""
+                if 'DriverVer' in driver:
+                    version = driver['DriverVer'].split(',', 1)
+                    date = version[0].strip()
+                    version = version[1] if len(version) > 1 else ""
+                    try:
+                        date = time.strptime(
+                            date, "%m/%d/%y").strftime('%d/%m/%Y', date)
+                    except ValueError:
+                        pass
+                dtype = ""
+                if 'DriverPackageType' in driver:
+                    dtype = driver['DriverPackageType']
+                dclass = ""
+                if 'Class' in driver:
+                    dclass = driver['Class']
+
+                details += "Name:      %s\n" % name.strip('\'"')
+                details += "Provider:  %s\n" % provider.strip('\'"')
+                details += "Date:      %s\n" % date
+                details += "Version:   %s\n" % version
+                details += "Type:      %s\n" % dtype
+                details += "Class:     %s\n\n" % dclass
+
+            if len(details):
+                d.scrollbox(details, width=WIDTH)
+        else:  # Update button
+            title = "Please select a directory that hosts VirtIO drivers."
+            if not update_sysprep_param(session, "virtio", title=title):
+                continue
+            install_virtio_drivers(session)
+
+    return True
+
+
+def install_virtio_drivers(session):
+    """Installs new VirtIO drivers in the image"""
+    d = session['dialog']
+    image = session['image']
+
+    assert hasattr(image.os, 'install_virtio_drivers')
+
+    virtio = image.os.sysprep_params['virtio'].value
+    new_drivers = virtio_versions(image.os.compute_virtio_state(virtio))
+
+    msg = \
+        "The following VirtIO drivers were discovered in the directory you "\
+        "specified:\n\n"
+    for drv, drv_ver in new_drivers.items():
+        msg += "%s: %s\n" % (drv, drv_ver)
+    msg += "\nPress <Install> to continue with the installation of the " \
+        "aforementioned drivers or <Cancel> to return to the previous menu."
+    if d.yesno(msg, width=WIDTH, defaultno=1, height=11+len(new_drivers),
+               yes_label="Install", no_label="Cancel"):
+        return False
+
+    title = "VirtIO Drivers Installation"
+    infobox = InfoBoxOutput(d, title)
+    try:
+        image.out.add(infobox)
+        try:
+            image.os.install_virtio_drivers()
+            infobox.finalize()
+        except FatalError as e:
+            d.msgbox("VirtIO Drivers Installation failed: %s" % e, title=title,
+                     width=SMALL_WIDTH)
+            return False
+        finally:
+            image.out.remove(infobox)
+    finally:
+        infobox.cleanup()
 
     return True
 
 
 def sysprep(session):
-    """Perform various system preperation tasks on the image"""
+    """Perform various system preparation tasks on the image"""
     d = session['dialog']
     image = session['image']
 
     # Is the image already shrinked?
-    if 'shrinked' in session and session['shrinked']:
+    if image.os.shrinked:
         msg = "It seems you have shrinked the image. Running system " \
               "preparation tasks on a shrinked image is dangerous."
 
@@ -749,41 +815,46 @@ def sysprep(session):
                    width=SMALL_WIDTH, defaultno=1):
             return
 
-    wrapper = textwrap.TextWrapper(width=WIDTH - 5)
+    wrapper = textwrap.TextWrapper(width=WIDTH-5)
 
     syspreps = image.os.list_syspreps()
 
     if len(syspreps) == 0:
         d.msgbox("No system preparation task available to run!",
-                 title="System Preperation", width=SMALL_WIDTH)
+                 title="System Preparation", width=SMALL_WIDTH)
         return
 
     while 1:
         choices = []
         index = 0
 
-        help_title = "System Preperation Tasks"
+        help_title = "System Preparation Tasks"
         sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
-        for sysprep in syspreps:
-            name, descr = image.os.sysprep_info(sysprep)
+        for task in syspreps:
+            name, descr = image.os.sysprep_info(task)
             display_name = name.replace('-', ' ').capitalize()
             sysprep_help += "%s\n" % display_name
             sysprep_help += "%s\n" % ('-' * len(display_name))
             sysprep_help += "%s\n\n" % wrapper.fill(" ".join(descr.split()))
-            enabled = 1 if sysprep.enabled else 0
+            enabled = 1 if image.os.sysprep_enabled(task) else 0
             choices.append((str(index + 1), display_name, enabled))
             index += 1
 
         (code, tags) = d.checklist(
             "Please choose which system preparation tasks you would like to "
-            "run on the image. Press <Help> to see details about the system "
-            "preparation tasks.", title="Run system preparation tasks",
-            choices=choices, width=70, ok_label="Run", help_button=1)
+            "run on the image. Press <Params> to view or modify the "
+            "customization parameters or <Help> to see details about the "
+            "system preparation tasks.", title="Run system preparation tasks",
+            choices=choices, width=70, ok_label="Run", help_button=1,
+            extra_button=1, extra_label="Params")
+
         tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
+        elif code == d.DIALOG_EXTRA:
+            sysprep_params(session)
         elif code == d.DIALOG_HELP:
             d.scrollbox(sysprep_help, width=WIDTH)
         elif code == d.DIALOG_OK:
@@ -794,12 +865,10 @@ def sysprep(session):
                 else:
                     image.os.disable_sysprep(syspreps[i])
 
-            if len([s for s in image.os.list_syspreps() if s.enabled]) == 0:
-                d.msgbox("No system preperation task is selected!",
-                         title="System Preperation", width=SMALL_WIDTH)
-                continue
-
-            if not sysprep_params(session):
+            if len([s for s in image.os.list_syspreps()
+                    if image.os.sysprep_enabled(s)]) == 0:
+                d.msgbox("No system preparation task is selected!",
+                         title="System Preparation", width=SMALL_WIDTH)
                 continue
 
             infobox = InfoBoxOutput(d, "Image Configuration")
@@ -814,11 +883,12 @@ def sysprep(session):
                     with MetadataMonitor(session, image.os.meta):
                         try:
                             image.os.do_sysprep()
+                            update_background_title(session)
                             infobox.finalize()
-                        except FatalError as e:
-                            title = "System Preparation"
-                            d.msgbox("System Preparation failed: %s" % e,
-                                     title=title, width=SMALL_WIDTH)
+                        except FatalError as error:
+                            d.msgbox("System Preparation failed: %s" % error,
+                                     title="System Preparation",
+                                     width=SMALL_WIDTH)
                 finally:
                     image.out.remove(infobox)
             finally:
@@ -827,59 +897,24 @@ def sysprep(session):
     return True
 
 
-def shrink(session):
-    """Shrink the image"""
-    d = session['dialog']
-    image = session['image']
-
-    shrinked = 'shrinked' in session and session['shrinked']
-
-    if shrinked:
-        d.msgbox("The image is already shrinked!", title="Image Shrinking",
-                 width=SMALL_WIDTH)
-        return True
-
-    msg = "This operation will shrink the last partition of the image to " \
-          "reduce the total image size. If the last partition is a swap " \
-          "partition, then this partition is removed and the partition " \
-          "before that is shrinked. The removed swap partition will be " \
-          "recreated during image deployment."
-
-    if not d.yesno("%s\n\nDo you want to continue?" % msg, width=WIDTH,
-                   height=12, title="Image Shrinking"):
-        with MetadataMonitor(session, image.meta):
-            infobox = InfoBoxOutput(d, "Image Shrinking", height=4)
-            image.out.add(infobox)
-            try:
-                image.shrink()
-                infobox.finalize()
-            finally:
-                image.out.remove(infobox)
-
-        session['shrinked'] = True
-        update_background_title(session)
-    else:
-        return False
-
-    return True
-
-
 def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
+    image = session['image']
 
-    choices = [("Sysprep", "Run various image preparation tasks"),
-               ("Shrink", "Shrink image"),
-               ("View/Modify", "View/Modify image properties"),
-               ("Delete", "Delete image properties"),
-               ("Exclude", "Exclude various deployment tasks from running")]
+    choices = []
+    if hasattr(image.os, "install_virtio_drivers"):
+        choices.append(("VirtIO", "Install or update the VirtIO drivers"))
+    choices.extend(
+        [("Sysprep", "Run various image preparation tasks"),
+         ("Properties", "View & Modify image properties"),
+         ("Exclude", "Exclude various deployment tasks from running")])
 
     default_item = 0
 
-    actions = {"Sysprep": sysprep,
-               "Shrink": shrink,
-               "View/Modify": modify_properties,
-               "Delete": delete_properties,
+    actions = {"VirtIO": virtio,
+               "Sysprep": sysprep,
+               "Properties": modify_properties,
                "Exclude": exclude_tasks}
     while 1:
         (code, choice) = d.menu(
@@ -912,13 +947,13 @@ def main_menu(session):
 
     actions = {"Customize": customization_menu, "Register": kamaki_menu,
                "Extract": extract_image}
+    title = "Image Creator for Synnefo (snf-image-creator v%s)" % version
     while 1:
         (code, choice) = d.menu(
             text="Choose one of the following or press <Exit> to exit.",
             width=WIDTH, choices=choices, cancel="Exit", height=13,
             default_item=default_item, menu_height=len(choices),
-            title="Image Creator for synnefo (snf-image-creator version %s)" %
-                  version)
+            title=title)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             if confirm_exit(d):
