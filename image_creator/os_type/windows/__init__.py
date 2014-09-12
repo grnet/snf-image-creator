@@ -240,7 +240,7 @@ class Windows(OSBase):
     @add_sysprep_param('virtio', 'dir', "", DESCR['virtio'],
                        check=virtio_dir_check, hidden=True)
     @add_sysprep_param(
-        'virtio_timeout', 'posint', 300, DESCR['virtio_timeout'])
+        'virtio_timeout', 'posint', 900, DESCR['virtio_timeout'])
     def __init__(self, image, **kargs):
         super(Windows, self).__init__(image, **kargs)
 
