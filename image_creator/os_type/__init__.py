@@ -292,12 +292,14 @@ class OSBase(object):
         """Returns information about a sysprep object"""
         assert hasattr(obj, '_sysprep'), "Object is not a sysprep"
 
-        SysprepInfo = namedtuple("SysprepInfo", "name description")
+        SysprepInfo = namedtuple("SysprepInfo", "name description display")
 
         name = obj.__name__.replace('_', '-')[1:]
         description = textwrap.dedent(obj.__doc__)
+        display = getattr(obj, '_sysprep_display',
+                          name.replace('-', ' ').capitalize())
 
-        return SysprepInfo(name, description)
+        return SysprepInfo(name, description, display)
 
     def get_sysprep_by_name(self, name):
         """Returns the sysprep object with the given name"""

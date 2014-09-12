@@ -313,20 +313,21 @@ class Windows(OSBase):
             self.image.device, self.sysprep_params,
             namedtuple('User', 'rid name')(admin, self.usernames[admin]))
 
-    @sysprep('Disabling IPv6 privacy extensions')
+    @sysprep('Disabling IPv6 privacy extensions',
+             display="Disable IPv6 privacy extensions")
     def _disable_ipv6_privacy_extensions(self):
         """Disable IPv6 privacy extensions"""
 
         self.vm.rexec('netsh interface ipv6 set global '
                       'randomizeidentifiers=disabled store=persistent')
 
-    @sysprep('Disabling Teredo interface')
+    @sysprep('Disabling Teredo interface', display="Disable Teredo")
     def _disable_teredo(self):
         """Disable Teredo interface"""
 
         self.vm.rexec('netsh interface teredo set state disabled')
 
-    @sysprep('Disabling ISATAP Adapters')
+    @sysprep('Disabling ISATAP Adapters', display="Disable ISATAP")
     def _disable_isatap(self):
         """Disable ISATAP Adapters"""
 
@@ -338,7 +339,7 @@ class Windows(OSBase):
 
         self.vm.rexec('netsh firewall set icmpsetting 8')
 
-    @sysprep('Setting the system clock to UTC')
+    @sysprep('Setting the system clock to UTC', display="UTC")
     def _utc(self):
         """Set the hardware clock to UTC"""
 
@@ -354,7 +355,8 @@ class Windows(OSBase):
             "cmd /q /c for /f \"tokens=*\" %l in ('wevtutil el') do "
             "wevtutil cl \"%l\"")
 
-    @sysprep('Executing Sysprep on the image (may take more that 10 min)')
+    @sysprep('Executing Sysprep on the image (may take more that 10 min)',
+             display="Microsoft Sysprep")
     def _microsoft_sysprep(self):
         """Run the Microsoft System Preparation Tool. This will remove
         system-specific data and will make the image ready to be deployed.
@@ -365,7 +367,8 @@ class Windows(OSBase):
                       r'/quiet /generalize /oobe /shutdown', uninstall=True)
         self.sysprepped = True
 
-    @sysprep('Converting the image into a KMS client', enabled=False)
+    @sysprep('Converting the image into a KMS client', enabled=False,
+             display="KMS client setup")
     def _kms_client_setup(self):
         """Install the appropriate KMS client setup key to the image to convert
         it to a KMS client. Computers that are running volume licensing

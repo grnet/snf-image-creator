@@ -833,13 +833,12 @@ def sysprep(session):
         sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
         for task in syspreps:
-            name, descr = image.os.sysprep_info(task)
-            display_name = name.replace('-', ' ').capitalize()
-            sysprep_help += "%s\n" % display_name
-            sysprep_help += "%s\n" % ('-' * len(display_name))
+            name, descr, display = image.os.sysprep_info(task)
+            sysprep_help += "%s\n" % display
+            sysprep_help += "%s\n" % ('-' * len(display))
             sysprep_help += "%s\n\n" % wrapper.fill(" ".join(descr.split()))
             enabled = 1 if image.os.sysprep_enabled(task) else 0
-            choices.append((str(index + 1), display_name, enabled))
+            choices.append((str(index + 1), display, enabled))
             index += 1
 
         (code, tags) = d.checklist(
