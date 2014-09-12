@@ -156,10 +156,13 @@ class Disk(object):
             self.out.warn("Snapshotting ignored for host bundling mode.")
             return self.file
 
+        # Examine media file
+        mode = os.stat(self.file).st_mode
+
         self.out.output("Snapshotting media source ...", False)
 
         # Create a qcow2 snapshot for image files
-        if not stat.S_ISBLK(os.stat(self.file).st_mode):
+        if not stat.S_ISBLK(mode):
             snapshot = create_snapshot(self.file, self.tmp)
             self._add_cleanup(os.unlink, snapshot)
             self.out.success('done')
