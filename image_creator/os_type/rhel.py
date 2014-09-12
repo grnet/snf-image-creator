@@ -15,13 +15,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts OS-specific code for NetBSD."""
+"""This module hosts OS-specific code for Red Hat Enterprise Linux"""
 
-from image_creator.os_type.unix import Unix
+from image_creator.os_type.linux import Linux
 
 
-class Netbsd(Unix):
-    """OS class for NetBSD"""
-    pass
+class Rhel(Linux):
+    "OS class for Red Hat Enterprise Linux"""
+
+    def _do_collect_metadata(self):
+        """Collect metadata about the OS"""
+        super(Rhel, self)._do_collect_metadata()
+
+        # Check if the image is Oracle Linux
+        oracle = '/etc/oracle-release'
+        if self.image.g.is_file(oracle):
+            self.meta['OS'] = 'oraclelinux'
+            self.meta['DESCRIPTION'] = self.image.g.head_n(1, oracle)[0]
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

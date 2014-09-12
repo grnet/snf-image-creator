@@ -1,38 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module is the entrance point for the non-interactive version of the
 snf-image-creator program.
@@ -40,7 +22,7 @@ snf-image-creator program.
 
 from image_creator import __version__ as version
 from image_creator.disk import Disk
-from image_creator.util import FatalError, MD5
+from image_creator.util import FatalError
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.kamaki_wrapper import Kamaki, ClientError
@@ -122,27 +104,33 @@ def parse_options(input_args):
                       "input media", default=[], action="append",
                       metavar="SYSPREP")
 
+    parser.add_option("--install-virtio", dest="virtio", type="string",
+                      help="install VirtIO drivers hosted under DIR "
+                      "(Windows only)", metavar="DIR")
     parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
-                      default=False, help="print the needed sysprep parameters"
-                      " for this input media", action="store_true")
+                      default=False, action="store_true",
+                      help="print the defined system preparation parameters "
+                      "for this input media")
 
     parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
-                      help="Add KEY=VALUE system preparation parameter",
+                      help="add KEY=VALUE system preparation parameter",
                       action="append")
 
     parser.add_option("--no-sysprep", dest="sysprep", default=True,
                       help="don't perform any system preparation operation",
                       action="store_false")
 
-    parser.add_option("--no-shrink", dest="shrink", default=True,
-                      help="don't shrink any partition", action="store_false")
+    parser.add_option("--no-snapshot", dest="snapshot", default=True,
+                      help="don't snapshot the input media. (THIS IS "
+                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
+                      action="store_false")
 
     parser.add_option("--public", dest="public", default=False,
                       help="register image with the cloud as public",
                       action="store_true")
 
     parser.add_option("--allow-unsupported", dest="allow_unsupported",
-                      help="Proceed with the image creation even if the media "
+                      help="proceed with the image creation even if the media "
                       "is not supported", default=False, action="store_true")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
@@ -188,9 +176,13 @@ def parse_options(input_args):
         try:
             key, value = p.split('=', 1)
         except ValueError:
-            raise FatalError("Sysprep parameter optiont: `%s' is not in "
+            raise FatalError("Sysprep parameter option: `%s' is not in "
                              "KEY=VALUE format." % p)
         sysprep_params[key] = value
+
+    if options.virtio is not None:
+        sysprep_params['virtio'] = options.virtio
+
     options.sysprep_params = sysprep_params
 
     return options
@@ -246,7 +238,7 @@ def image_creator():
             account = Kamaki.get_account(options.cloud)
             if account is None:
                 raise FatalError(
-                    "Cloud: `$s' exists but is not valid!" % options.cloud)
+                    "Cloud: `%s' exists but is not valid!" % options.cloud)
             else:
                 kamaki = Kamaki(account, out)
         except ClientError as e:
@@ -274,9 +266,10 @@ def image_creator():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     try:
-        snapshot = disk.snapshot()
-
-        image = disk.get_image(snapshot, sysprep_params=options.sysprep_params)
+        # There is no need to snapshot the media if it was created by the Disk
+        # instance as a temporary object.
+        device = disk.file if not options.snapshot else disk.snapshot()
+        image = disk.get_image(device, sysprep_params=options.sysprep_params)
 
         if image.is_unsupported() and not options.allow_unsupported:
             raise FatalError(
@@ -305,12 +298,14 @@ def image_creator():
         if options.outfile is None and not options.upload:
             return 0
 
+        if options.virtio is not None and \
+                hasattr(image.os, 'install_virtio_drivers'):
+            image.os.install_virtio_drivers()
+
         if options.sysprep:
             image.os.do_sysprep()
 
         metadata = image.os.meta
-
-        size = options.shrink and image.shrink() or image.size
         metadata.update(image.meta)
 
         if image.is_unsupported():
@@ -319,8 +314,7 @@ def image_creator():
         # Add command line metadata to the collected ones...
         metadata.update(options.metadata)
 
-        md5 = MD5(out)
-        checksum = md5.compute(image.device, size)
+        checksum = image.md5()
 
         metastring = unicode(json.dumps(
             {'properties': metadata,
@@ -340,19 +334,17 @@ def image_creator():
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        # Destroy the image instance. We only need the snapshot from now on
-        disk.destroy_image(image)
-
         out.output()
         try:
-            uploaded_obj = ""
             if options.upload:
                 out.output("Uploading image to the storage service:")
-                with open(snapshot, 'rb') as f:
-                    uploaded_obj = kamaki.upload(
-                        f, size, options.upload,
-                        "(1/3)  Calculating block hashes",
-                        "(2/3)  Uploading missing blocks")
+                with image.raw_device() as raw:
+                    with open(raw, 'rb') as f:
+                        remote = kamaki.upload(
+                            f, image.size, options.upload,
+                            "(1/3)  Calculating block hashes",
+                            "(2/3)  Uploading missing blocks")
+
                 out.output("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
@@ -366,7 +358,7 @@ def image_creator():
                 img_type = 'public' if options.public else 'private'
                 out.output('Registering %s image with the compute service ...'
                            % img_type, False)
-                result = kamaki.register(options.register, uploaded_obj,
+                result = kamaki.register(options.register, remote,
                                          metadata, options.public)
                 out.success('done')
                 out.output("Uploading metadata file ...", False)
@@ -398,14 +390,9 @@ def image_creator():
 
 def main():
     try:
-        ret = image_creator()
-        sys.exit(ret)
+        sys.exit(image_creator())
     except FatalError as e:
         colored = sys.stderr.isatty()
-        warning = \
-            "The name of the executable has changed. If you want to use the " \
-            "user-friendly dialog-based program try `snf-image-creator'"
-        SimpleOutput(colored).warn(warning)
         SimpleOutput(colored).error(e)
         sys.exit(1)
 

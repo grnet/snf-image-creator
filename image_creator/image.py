@@ -1,44 +1,27 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2013 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from image_creator.util import FatalError
+from image_creator.util import FatalError, QemuNBD, image_info
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
 import re
 import guestfs
+import hashlib
 from sendfile import sendfile
 
 
@@ -50,6 +33,7 @@ class Image(object):
 
         self.device = device
         self.out = output
+        self.info = image_info(device)
 
         self.meta = kargs['meta'] if 'meta' in kargs else {}
         self.sysprep_params = \
@@ -62,6 +46,9 @@ class Image(object):
         self.g = guestfs.GuestFS()
         self.guestfs_enabled = False
         self.guestfs_version = self.g.version()
+
+        # This is needed if the image format is not raw
+        self.nbd = QemuNBD(device)
 
     def check_guestfs_version(self, major, minor, release):
         """Checks if the version of the used libguestfs is smaller, equal or
@@ -119,7 +106,7 @@ class Image(object):
         self.os.inspect()
 
     def set_unsupported(self, reason):
-        """Flag this image us ansupported"""
+        """Flag this image as unsupported"""
 
         self._unsupported = reason
         self.meta['UNSUPPORTED'] = reason
@@ -136,13 +123,13 @@ class Image(object):
             self.out.warn("Guestfs is already enabled")
             return
 
-        # Before version 1.18.4 the behaviour of kill_subprocess was different
+        # Before version 1.18.4 the behavior of kill_subprocess was different
         # and you need to reset the guestfs handler to relaunch a previously
-        # shut down qemu backend
+        # shut down QEMU backend
         if self.check_guestfs_version(1, 18, 4) < 0:
             self.g = guestfs.GuestFS()
 
-        self.g.add_drive_opts(self.device, readonly=0, format="raw")
+        self.g.add_drive_opts(self.device, readonly=0)
 
         # Before version 1.17.14 the recovery process, which is a fork of the
         # original process that called libguestfs, did not close its inherited
@@ -150,20 +137,26 @@ class Image(object):
         # process has opened pipes. Since the recovery process is an optional
         # feature of libguestfs, it's better to disable it.
         if self.check_guestfs_version(1, 17, 14) >= 0:
-            self.out.output("Enabling recovery proc")
+            self.out.output("Enabling recovery process ...", False)
             self.g.set_recovery_proc(1)
+            self.out.success('done')
         else:
             self.g.set_recovery_proc(0)
 
-        #self.g.set_trace(1)
-        #self.g.set_verbose(1)
+        # self.g.set_trace(1)
+        # self.g.set_verbose(1)
 
         self.out.output('Launching helper VM (may take a while) ...', False)
         # self.progressbar = self.out.Progress(100, "Launching helper VM",
         #                                     "percent")
         # eh = self.g.set_event_callback(self.progress_callback,
         #                               guestfs.EVENT_PROGRESS)
-        self.g.launch()
+        try:
+            self.g.launch()
+        except RuntimeError as e:
+            raise FatalError(
+                "Launching libguestfs's helper VM failed! Reason: %s" % str(e))
+
         self.guestfs_enabled = True
         # self.g.delete_event_callback(eh)
         # self.progressbar.success('done')
@@ -183,17 +176,22 @@ class Image(object):
 
         self.out.output("Shutting down helper VM ...", False)
         self.g.sync()
-        # guestfs_shutdown which is the prefered way to shutdown the backend
+        # guestfs_shutdown which is the preferred way to shutdown the backend
         # process was introduced in version 1.19.16
         if self.check_guestfs_version(1, 19, 16) >= 0:
             self.g.shutdown()
         else:
             self.g.kill_subprocess()
 
+        # We will reset the guestfs handler if needed
+        if self.check_guestfs_version(1, 18, 4) < 0:
+            self.g.close()
+
         self.guestfs_enabled = False
         self.out.success('done')
 
-    def _get_os(self):
+    @property
+    def os(self):
         """Return an OS class instance for this image"""
         if hasattr(self, "_os"):
             return self._os
@@ -208,7 +206,30 @@ class Image(object):
 
         return self._os
 
-    os = property(_get_os)
+    def raw_device(self, readonly=True):
+        """Returns a context manager that exports the raw image device. If
+        readonly is true, the block device that is returned is read only.
+        """
+
+        if self.guestfs_enabled:
+            self.g.umount_all()
+            self.g.sync()
+            self.g.drop_caches(3)  # drop everything
+
+        # Self gets overwritten
+        img = self
+
+        class RawImage:
+            """The RawImage context manager"""
+            def __enter__(self):
+                return img.device if img.info['format'] == 'raw' else \
+                    img.nbd.connect(readonly)
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                if img.info['format'] != 'raw':
+                    img.nbd.disconnect()
+
+        return RawImage()
 
     def destroy(self):
         """Destroy this Image instance."""
@@ -255,7 +276,7 @@ class Image(object):
 
         return last_partition
 
-    def shrink(self):
+    def shrink(self, silent=False):
         """Shrink the image.
 
         This is accomplished by shrinking the last file system of the
@@ -286,10 +307,9 @@ class Image(object):
 
         MB = 2 ** 20
 
-        self.out.output("Shrinking image (this may take a while) ...", False)
-
         if self.is_unsupported():
-            self.out.warn("Shrinking is disabled for unsupported images")
+            if not silent:
+                self.out.warn("Shrinking is disabled for unsupported images")
             return self.size
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
@@ -317,7 +337,9 @@ class Image(object):
             break
 
         if not re.match("ext[234]", fstype):
-            self.out.warn("Don't know how to shrink %s partitions." % fstype)
+            if not silent:
+                self.out.warn(
+                    "Don't know how to shrink %s partitions." % fstype)
             return self.size
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
@@ -381,12 +403,15 @@ class Image(object):
         assert (new_size <= self.size)
 
         if self.meta['PARTITION_TABLE'] == 'gpt':
-            ptable = GPTPartitionTable(self.device)
-            self.size = ptable.shrink(new_size, self.size)
+            with self.raw_device(readonly=False) as raw:
+                ptable = GPTPartitionTable(raw)
+                self.size = ptable.shrink(new_size, self.size)
         else:
             self.size = min(new_size + 2048 * sector_size, self.size)
 
-        self.out.success("new size is %dMB" % ((self.size + MB - 1) // MB))
+        if not silent:
+            self.out.success("Image size is %dMB" %
+                             ((self.size + MB - 1) // MB))
 
         return self.size
 
@@ -397,30 +422,57 @@ class Image(object):
         partition table. Empty space in the end of the device will be ignored.
         """
         MB = 2 ** 20
-        blocksize = 4 * MB  # 4MB
-        size = self.size
-        progr_size = (size + MB - 1) // MB  # in MB
+        blocksize = 2 ** 22  # 4MB
+        progr_size = (self.size + MB - 1) // MB  # in MB
         progressbar = self.out.Progress(progr_size, "Dumping image file", 'mb')
 
-        with open(self.device, 'r') as src:
-            with open(outfile, "w") as dst:
-                left = size
-                offset = 0
-                progressbar.next()
+        with self.raw_device() as raw:
+            with open(raw, 'rb') as src:
+                with open(outfile, "wb") as dst:
+                    left = self.size
+                    offset = 0
+                    progressbar.next()
+                    while left > 0:
+                        length = min(left, blocksize)
+                        sent = sendfile(dst.fileno(), src.fileno(), offset,
+                                        length)
+
+                        # Workaround for python-sendfile API change. In
+                        # python-sendfile 1.2.x (py-sendfile) the returning
+                        # value of sendfile is a tuple, where in version 2.x
+                        # (pysendfile) it is just a single integer.
+                        if isinstance(sent, tuple):
+                            sent = sent[1]
+
+                        offset += sent
+                        left -= sent
+                        progressbar.goto((self.size - left) // MB)
+
+        progressbar.success('image file %s was successfully created' % outfile)
+
+    def md5(self):
+        """Computes the MD5 checksum of the image"""
+
+        MB = 2 ** 20
+        blocksize = 2 ** 22  # 4MB
+        progr_size = ((self.size + MB - 1) // MB)  # in MB
+        progressbar = self.out.Progress(progr_size, "Calculating md5sum", 'mb')
+        md5 = hashlib.md5()
+
+        with self.raw_device() as raw:
+            with open(raw, "rb") as src:
+                left = self.size
                 while left > 0:
                     length = min(left, blocksize)
-                    sent = sendfile(dst.fileno(), src.fileno(), offset, length)
+                    data = src.read(length)
+                    md5.update(data)
+                    left -= length
+                    progressbar.goto((self.size - left) // MB)
 
-                    # Workaround for python-sendfile API change. In
-                    # python-sendfile 1.2.x (py-sendfile) the returning value
-                    # of sendfile is a tuple, where in version 2.x (pysendfile)
-                    # it is just a sigle integer.
-                    if isinstance(sent, tuple):
-                        sent = sent[1]
+        checksum = md5.hexdigest()
+        progressbar.success(checksum)
 
-                    offset += sent
-                    left -= sent
-                    progressbar.goto((size - left) // MB)
-        progressbar.success('image file %s was successfully created' % outfile)
+        return checksum
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
