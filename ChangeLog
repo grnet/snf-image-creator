@@ -1,4 +1,4 @@
-2014-09-11, v0.7rc1
+2014-09-12, v0.7rc2
 	* Support all QEMU supported disk image formats as input media
 	* Detect if a Windows input media is sysprepped
 	* Support VirtIO driver installation in Windows
