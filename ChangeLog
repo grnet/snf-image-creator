@@ -1,3 +1,10 @@
+2014-09-12, v0.7rc2
+	* Support all QEMU supported disk image formats as input media
+	* Detect if a Windows input media is sysprepped
+	* Support VirtIO driver installation in Windows
+	* Do a major code cleanup
+	* Fix bugs
+
 2014-06-10, v0.6.2
 	* Add support for Ubuntu 14.04
 	* Fix a bug in Windows image creation
