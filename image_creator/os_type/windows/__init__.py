@@ -701,7 +701,7 @@ class Windows(OSBase):
         """Check if winexe works on the Windows VM"""
 
         retries = self.sysprep_params['connection_retries'].value
-        timeout = [2]
+        timeout = [5]
         for i in xrange(1, retries - 1):
             timeout.insert(0, timeout[0] * 2)
 
@@ -724,8 +724,9 @@ class Windows(OSBase):
                 log.close()
             self.out.output("failed! See: `%s' for the full output" % log.name)
             if i < retries - 1:
-                self.out.output("retrying ...", False)
-                time.sleep(timeout.pop())
+                wait = timeout.pop()
+                self.out.output("retrying in %d seconds ..." % wait, False)
+                time.sleep(wait)
 
         raise FatalError("Connection to the Windows VM failed after %d retries"
                          % retries)
