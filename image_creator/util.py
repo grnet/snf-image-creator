@@ -51,7 +51,16 @@ def image_info(image):
     """Returns information about an image file"""
 
     qemu_img = get_command('qemu-img')
-    info = qemu_img('info', '--output', 'json', image)
+    try:
+        info = qemu_img('info', '--output', 'json', image)
+    except sh.ErrorReturnCode_1:
+        # Old version of qemu-img that does not support --output json
+        info = qemu_img('info', image)
+        for line in str(info).splitlines():
+            if line.startswith('file format:'):
+                format = line.split(':')[1].strip()
+                return {'format': format}
+        raise FatalError("Unable to determine the image format")
     return json.loads(str(info))
 
 
