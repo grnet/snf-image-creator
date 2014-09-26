@@ -44,6 +44,9 @@ Options
 --no-shrink
 	don't shrink any partition
 
+--no-snapshot
+	don't snapshot the input media. (THIS IS DANGEROUS AS IT WILL ALTER THE
+	ORIGINAL MEDIA!!!)
 --no-sysprep
 	don't perform any system preparation operation
 
