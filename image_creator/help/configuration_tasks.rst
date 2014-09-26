@@ -3,7 +3,7 @@ Configuration tasks performed during deployment
 
 Partition Table manipulation
 ----------------------------
-During image deployment the last partiton is enlarged to use all
+During image deployment the last partition is enlarged to use all
 the available disk space. If SWAP property is present an extra
 swap partition is also added.
 
@@ -20,16 +20,17 @@ fstab.
 
 SSH keys removal
 ----------------
-All SSH keys found in the image are removed. For debian instance,
-where the key creation is not perfored automatically, the keys
-are recreated by this task.
+All SSH keys found in the image are removed. On Debian and Ubuntu
+instances where the key creation is not performed automatically,
+this task will also recreate the deleted keys.
 
 Temporary disable Remote Desktop (RDP) connections
 --------------------------------------------------
 RDP connections are temporarily disabled during Windows
 configuration. This is done because when sysprep runs, there is a
-small time interval where the new password is not applied yet thus
-allowing RDP connections which raises some security conserns.
+small time interval where the new password is not applied and
+allowing RDP connections during this time would raise security
+concerns.
 
 Perform SELinux file system relabeling
 --------------------------------------
@@ -50,5 +51,5 @@ the USERS property.
 
 File Injection
 --------------
-The files specified by the PERSONALITY image property are
-injected into the instance's hard disk.
+When this tasks runs, the files specified by the PERSONALITY
+image property are injected into the instance's hard disk.

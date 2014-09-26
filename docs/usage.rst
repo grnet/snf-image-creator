@@ -17,7 +17,7 @@ snf-mkimage receives the following options:
 
 .. code-block:: console
 
-  $ snf-mkimage --help
+  # snf-mkimage --help
   Usage: snf-mkimage [options] <input_media>
 
   Options:
@@ -49,14 +49,16 @@ snf-mkimage receives the following options:
     --disable-sysprep=SYSPREP
                           prevent SYSPREP operation from running on the input
                           media
+    --install-virtio=DIR  install VirtIO drivers hosted under DIR (Windows only)
     --print-sysprep-params
-                          print the needed sysprep parameters for this input
-                          media
+                          print the defined system preparation parameters for
+                          this input media
     --sysprep-param=SYSPREP_PARAMS
-                          Add KEY=VALUE system preparation parameter
+                          add KEY=VALUE system preparation parameter
     --no-sysprep          don't perform any system preparation operation
-    --no-shrink           don't shrink any partition
     --public              register image with the cloud as public
+    --allow-unsupported   proceed with the image creation even if the media is
+                          not supported
     --tmpdir=DIR          create large temporary image files under DIR
 
 Most input options are self-describing. If you want to save a local copy of
@@ -65,10 +67,9 @@ image to the storage service of a cloud, provide valid cloud API access info
 (by either using a token and a URL with *-t* and *-a* respectively, or a cloud
 name with *-c*) and a remote filename using *-u*. If you also want to register
 the image with the compute service of the cloud, in addition to *-u* provide a
-registration name using *-r*. All images are
-registered as *private*. Only the user that registers the image can create
-VM's out of it. If you want the image to be visible by other user too, use the
-*--public* option.
+registration name using *-r*. All images are registered as *private*. Only the
+user that registers the image can create VM's out of it. If you want the image
+to be visible by other user too, use the *--public* option.
 
 By default, before extracting the image, snf-mkimage will perform a
 number of system preparation operations on the snapshot of the media and will
@@ -81,69 +82,74 @@ input media. The user can enable or disable specific *syspreps*, using
 *-{enable,disable}-sysprep* options. The user may specify those options
 multiple times.
 
-Running *snf-mkimage* with *--print-sysprep* on a raw file that hosts a
-debian system, we print the following output:
+Running *snf-mkimage* with *--print-sysprep* on a raw file that hosts an
+Ubuntu system, will print the following output:
 
 .. _sysprep:
 
 .. code-block:: console
 
-   $ snf-mkimage --print-syspreps ubuntu.raw
-   snf-image-creator 0.6
-   =====================
-   Examining source media `ubuntu_hd.raw' ... looks like an image file
-   Snapshotting media source ... done
-   Enabling recovery proc
-   Launching helper VM (may take a while) ... done
-   Inspecting Operating System ... ubuntu
-   Mounting the media read-only ... done
-   Collecting image metadata ... done
-   Umounting the media ... done
-   
-   Enabled system preparation operations:
-       cleanup-cache:
-           Remove all regular files under /var/cache
-   
-       cleanup-log:
-           Empty all files under /var/log
-   
-       cleanup-passwords:
-           Remove all passwords and lock all user accounts
-   
-       cleanup-tmp:
-           Remove all files under /tmp and /var/tmp
-   
-       cleanup-userdata:
-           Delete sensitive userdata
-   
-       fix-acpid:
-           Replace acpid powerdown action scripts to immediately shutdown the
-           system without checking if a GUI is running.
-   
-       remove-persistent-net-rules:
-           Remove udev rules that will keep network interface names persistent
-           after hardware changes and reboots. Those rules will be created again
-           the next time the image runs.
-   
-       remove-swap-entry:
-           Remove swap entry from /etc/fstab. If swap is the last partition
-           then the partition will be removed when shrinking is performed. If the
-           swap partition is not the last partition in the disk or if you are not
-           going to shrink the image you should probably disable this.
-   
-       use-persistent-block-device-names:
-           Scan fstab & grub configuration files and replace all non-persistent
-           device references with UUIDs.
-   
-   Disabled system preparation operations:
-       cleanup-mail:
-           Remove all files under /var/mail and /var/spool/mail
-   
-       remove-user-accounts:
-           Remove all user accounts with id greater than 1000
-   
-   
-   cleaning up ...
+  # snf-mkimage --print-syspreps ubuntu.raw
+
+  snf-image-creator 0.7
+  ===========================
+  Examining source media `ubuntu.raw' ... looks like an image file
+  Snapshotting media source ... done
+  Enabling recovery proc
+  Launching helper VM (may take a while) ... done
+  Inspecting Operating System ... ubuntu
+  Collecting image metadata ... done
+
+  Running OS inspection:
+  Checking if the media contains logical volumes (LVM)... no
+
+  Enabled system preparation operations:
+      cleanup-tmp:
+          Remove all files under /tmp and /var/tmp
+
+      remove-swap-entry:
+          Remove swap entry from /etc/fstab. If swap is the last partition
+          then the partition will be removed when shrinking is performed. If the
+          swap partition is not the last partition in the disk or if you are not
+          going to shrink the image you should probably disable this.
+
+      cleanup-cache:
+          Remove all regular files under /var/cache
+
+      cleanup-userdata:
+          Delete sensitive user data
+
+      cleanup-passwords:
+          Remove all passwords and lock all user accounts
+
+      cleanup-log:
+          Empty all files under /var/log
+
+      remove-persistent-net-rules:
+          Remove udev rules that will keep network interface names persistent
+          after hardware changes and reboots. Those rules will be created again
+          the next time the image runs.
+
+      use-persistent-block-device-names:
+          Scan fstab & grub configuration files and replace all non-persistent
+          device references with UUIDs.
+
+      fix-acpid:
+          Replace acpid powerdown action scripts to immediately shutdown the
+          system without checking if a GUI is running.
+
+      shrink:
+          Shrink the last file system and update the partition table
+
+  Disabled system preparation operations:
+      remove-user-accounts:
+          Remove all user accounts with id greater than 1000
+
+      cleanup-mail:
+          Remove all files under /var/mail and /var/spool/mail
+
+
+  cleaning up ...
 
 If you want the image to have all normal user accounts and all mail files
 removed, you should use *--enable-sysprep* option like this:
@@ -152,6 +158,15 @@ removed, you should use *--enable-sysprep* option like this:
 
    $ snf-mkimage --enable-sysprep cleanup-mail --enable-sysprep remove-user-accounts ...
 
+Sysprep parameters are parameters used by some sysprep tasks. In most cases you
+don't need to change their value. You can see the available sysprep parameters
+and the default values they have by using the *--print-sysprep-params* option.
+You can update their values by using the *--sysprep-param* option.
+
+If the media is a Windows image, you can install or update its VirtIO drivers
+by using the *--install-virtio* option. With this option you can point to a
+directory that hosts a set of extracted Windows VirtIO drivers.
+
 Dialog-based version
 ====================
 
@@ -159,7 +174,7 @@ Dialog-based version
 
 .. code-block:: console
 
- $ snf-image-creator --help
+ # snf-image-creator --help
  Usage: snf-image-creator [options] [<input_media>]
 
  Options:
@@ -184,13 +199,14 @@ be given the choice to run *snf-image-creator* in *wizard* or *expert* mode.
 Wizard mode
 -----------
 
-When *snf-image-creator* runs in *wizard* mode, the user is just asked to provide the
-following basic information:
+When *snf-image-creator* runs in *wizard* mode, the user is just asked to
+provide the following basic information:
 
  * Cloud: The cloud account to use to upload and register the resulting image
  * Name: A short name for the image (ex. "Slackware")
  * Description: An one-line description for the image
    (ex. "Slackware Linux 14.0 with KDE")
+ * VirtIO: A directory that hosts VirtIO drivers (for Windows images only)
  * Registration Type: Private or Public
 
 After confirming, the image will be extracted, uploaded to the storage service
@@ -209,8 +225,8 @@ process. The main menu can be seen in the picture below:
 
 In the *Customize* sub-menu the user can control:
 
+ * The installation of VirtIO drivers (only for Windows images)
  * The system preparation operations that will be applied on the media
- * Whether the image will be shrunk or not
  * The properties associated with the image
  * The configuration tasks that will run during image deployment
 
@@ -229,12 +245,12 @@ Host bundling operation
 =======================
 
 As a new feature in *v0.2*, snf-image-creator can create images out of the host
-system that runs the program. This is done either by specifying / as input
-media or by using the *Bundle Host* button in the media selection dialog of
-snf-mkimage. During this operation, the files of the disk are copied into a
-temporary image file, which means that the file system that will host the
-temporary image needs to have a lot of free space (see `large temporary files`_
-for more information).
+system that runs the program. This is done either by specifying */* as input
+media or by using the *Bundle Host* button in the media selection dialog.
+During this operation, the files of the disk are copied into a temporary image
+file, which means that the file system that will host the temporary image needs
+to have a lot of free space (see `large temporary files`_ for more
+information).
 
 Creating a new image
 ====================
@@ -272,19 +288,19 @@ And install the Ubuntu system on this file:
    use LVM partitions. They are not supported by snf-image-creator.
 
 You will be able to boot your installed OS and make any changes you want
-(e.g. install openssh-server) using the following command:
+(e.g. install OpenSSH Server) using the following command:
 
 .. code-block:: console
 
    $ sudo kvm -m 1G -boot c -drive file=ubuntu.raw,format=raw,cache=none,if=virtio
 
-After you're done, you may use *snf-image-creator* as root to create and upload the
-image:
+After you're done, you may use *snf-image-creator* as root to create and upload
+the image:
 
 .. code-block:: console
 
    $ sudo -s
-   $ snf-image-creator ubuntu.raw
+   # snf-image-creator ubuntu.raw
 
 In the first screen you will be asked to choose if you want to run the program
 in *Wizard* or *Expert* mode. Choose *Wizard*.
@@ -298,6 +314,21 @@ confirm the provided data.
 .. image:: /snapshots/confirm.png
 
 Choosing *YES* will create and upload the image to your cloud account.
+
+Working with different image formats
+====================================
+
+*snf-image-creator* is able to work with the most popular disk image formats.
+It has been successfully tested with:
+
+* Raw disk images
+* VMDK (VMware)
+* VHD (Microsoft Hyper-V)
+* VDI (VirtualBox)
+* qcow2 (QEMU)
+
+It can support any image format QEMU supports as long as it represents a
+bootable hard drive.
 
 Limitations
 ===========
@@ -315,12 +346,12 @@ Logical Volumes
 ---------------
 
 The program cannot work on input media that contain LVM partitions inside
-[#f1]_. The input media may only contain primary or logical partitions.
+[#f2]_. The input media may only contain primary or logical partitions.
 
 Para-virtualized drivers
 ------------------------
 
-Most synnefo deployments uses the *VirtIO* framework. The disk I/O controller
+Most Synnefo deployments uses the *VirtIO* framework. The disk I/O controller
 and the Ethernet cards on the VM instances are para-virtualized and need
 special *VirtIO* drivers. Those drivers are included in the Linux Kernel
 mainline since version 2.6.25 and are shipped with all the popular Linux
@@ -331,18 +362,15 @@ ramdisk, otherwise the VM won't be able to boot.
 Many popular Linux distributions, like Ubuntu and Debian, will automatically
 create a generic initial ramdisk file that contains many different modules,
 including the VirtIO drivers. Others that target more experienced users, like
-Slackware, won't do that [#f2]_. *snf-image-creator* cannot resolve this kind
+Slackware, won't do that [#f3]_. *snf-image-creator* cannot resolve this kind
 of problems and it's left to the user to do so. Please refer to your
 distribution's documentation for more information on this. You can always check
 if a system can boot with para-virtualized disk controller by launching it with
 kvm using the *if=virtio* option (see the kvm command in the
 `Creating a new image`_ section).
 
-For Windows and FreeBSD systems, the needed drivers need to be manually
-downloaded and installed on the media before the image creation process takes
-place. For *FreeBSD* the virtio drivers can be found
-`here <http://people.freebsd.org/~kuriyama/virtio/>`_. For Windows the drivers
-are hosted by the
+For Windows the program supports installing VirtIO drivers. You may download
+the latest drivers from the
 `Fedora Project <http://alt.fedoraproject.org/pub/alt/virtio-win/latest/images/>`_.
 
 Some caveats on image creation
@@ -372,19 +400,20 @@ Large temporary files
 
  * During image shrinking, the input media snapshot file may reach the size of
    the original media.
- * When bundling the host system, the temporary image file may became as large
-   as the rest of the disk files altogether.
+ * When bundling the host system, the temporary image file may became 10%
+   larger than rest of the disk files altogether.
 
 */tmp* directory is not a good place for hosting large files. In many systems
-the contents of */tmp* are stored in volatile memory and the size they may occupy
-is limited. By default, *snf-image-creator* will use a heuristic approach to
-determine where to store large temporary files. It will examine the free space
-under */var/tmp*, the user's home directory and */mnt* and will pick the one
-with the most available space. The user may overwrite this behaviour and
+the contents of */tmp* are stored in volatile memory and the size they may
+occupy is limited. By default, *snf-image-creator* will use a heuristic
+approach to determine where to store large temporary files. It will examine the
+free space under */var/tmp*, the user's home directory and */mnt* and will pick
+the one with the most available space. The user may overwrite this behavior and
 indicate a different directory using the *tmpdir* option. This option is
 supported by both *snf-image-creator* and *snf-mkimage*.
 
 .. rubric:: Footnotes
 
-.. [#f1] http://sourceware.org/lvm2/
-.. [#f2] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd
+.. [#f1] http://technet.microsoft.com/en-us/library/bb676673.aspx
+.. [#f2] http://sourceware.org/lvm2/
+.. [#f3] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd

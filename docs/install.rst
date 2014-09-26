@@ -44,31 +44,37 @@ Add the following line to */etc/apt/sources.list*:
 
    deb http://apt.dev.grnet.gr wheezy/
 
+Add the apt-dev GPG key to the list of trusted keys:
+
+.. code-block:: console
+
+   # curl https://dev.grnet.gr/files/apt-grnetdev.pub | apt-key add -
+
 And resynchronize the package index files from their sources:
 
 .. code-block:: console
 
-   $ sudo apt-get update
+   # apt-get update
 
 You should be able to list the package by calling:
 
 .. code-block:: console
 
-   $ apt-cache showpkg snf-image-creator
+   # apt-cache showpkg snf-image-creator
 
 And install the package with this command:
 
 .. code-block:: console
 
-   $ apt-get install snf-image-creator
+   # apt-get install snf-image-creator
 
 Ubuntu
 ------
 
-For *Ubuntu 12.04 LTS*, *12.10* and *13.04* systems, you can use our official
+For *Ubuntu 12.04 LTS* and *14.04 LTS* systems, you can use our official
 packages found in *grnet/synnefo* Lauchpad PPA.
 
-Add the synnefo PPA in your system:
+Add the Synnefo PPA in your system:
 
 .. code-block:: console
 
@@ -77,7 +83,7 @@ Add the synnefo PPA in your system:
 
 If *apt-add-repository* is missing, first install:
 
-*software-properties-common* (Ubuntu 12.10 & 13.04):
+*software-properties-common* (Ubuntu 14.04):
 
 .. code-block:: console
 
@@ -89,7 +95,7 @@ Or *python-software-properties* (Ubuntu 12.04):
 
    $ sudo apt-get install python-software-properties
 
-After the synnefo repository is set up, you should be able to list
+After the Synnefo repository is set up, you should be able to list
 snf-image-creator by calling:
 
 .. code-block:: console
@@ -109,27 +115,27 @@ Install the package by issuing:
 Fedora
 ------
 
-For *Fedora 17* you can use our official packages hosted at the *synnefo*
+For *Fedora 20* you can use our official packages hosted at the *synnefo*
 repository of the openSUSE Build Service.
 
-Add the *synnefo* repository for *Fedora 17* to *yum*:
+Add the *synnefo* repository for *Fedora 20* to *yum*:
 
 .. code-block:: console
 
-   $ cd /etc/yum.repos.d
-   $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_17/home:GRNET:synnefo.repo
+   # cd /etc/yum.repos.d
+   # wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_20/home:GRNET:synnefo.repo
 
 To list the *snf-image-creator* package use the following command:
 
 .. code-block:: console
 
-   $ yum info snf-image-creator
+   # yum info snf-image-creator
 
 Install the package by issuing:
 
 .. code-block:: console
 
-   $ yum install snf-image-creator
+   # yum install snf-image-creator
 
 CentOS
 ------
@@ -141,41 +147,41 @@ Add the *synnefo* repository for *CentOS 6* to the yum repositories list:
 
 .. code-block:: console
 
-   $ cd /etc/yum.repos.d
-   $ wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_CentOS-6/home:GRNET:synnefo.repo
+   # cd /etc/yum.repos.d
+   # wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_CentOS-6/home:GRNET:synnefo.repo
 
 Check the `Fedora <#fedora>`_ instructions on how to install the software.
 
-OpenSUSE
+openSUSE
 --------
 
-For *OpenSUSE 12.3* you can use our official packages hosted at the *synnefo*
-repository of the OpenSUSE Build Service.
+For *openSUSE 13.1* you can use our official packages hosted at the *Synnefo*
+repository of the openSUSE Build Service.
 
-Add the *Virtualization* repository for *OpenSUSE 12.3* to *YaST* with the
+Add the *Virtualization* repository for *openSUSE 13.1* to *YaST* with the
 *Zypper* package manager:
 
 .. code-block:: console
 
-   $ zypper ar -f http://download.opensuse.org/repositories/Virtualization/openSUSE_12.3/Virtualization.repo
+   # zypper ar -f http://download.opensuse.org/repositories/Virtualization/openSUSE_13.1/Virtualization.repo
 
-Add the *synnefo* repository:
+Add the *Synnefo* repository:
 
 .. code-block:: console
 
-   $ zypper ar -f http://download.opensuse.org/repositories/home:/GRNET:/synnefo/openSUSE_12.3/home:GRNET:synnefo.repo
+   # zypper ar -f http://download.opensuse.org/repositories/home:/GRNET:/synnefo/openSUSE_13.1/home:GRNET:synnefo.repo
 
 To list the *snf-image-creator* package use the following command:
 
 .. code-block:: console
 
-   $ zypper se snf-image-creator
+   # zypper se snf-image-creator
 
 Install the package by issuing:
 
 .. code-block:: console
 
-   $ zypper in snf-image-creator
+   # zypper in snf-image-creator
 
 
 Arch Linux
@@ -200,13 +206,13 @@ the *yaourt* package:
    $ tar -xvf package-query.tar.gz
    $ cd package-query
    $ makepkg -s
-   $ pacman -U package-query-<VERSION>-<ARCH>.pkg.tar.xz
+   $ su -c 'pacman -U package-query-<VERSION>-<ARCH>.pkg.tar.xz'
    $ cd ..
    $ wget https://aur.archlinux.org/packages/ya/yaourt/yaourt.tar.gz
    $ tar -xvf yaourt.tar.gz
    $ cd yaourt
    $ makepkg -s
-   $ pacman -U yaourt-<VERSION>-<ARCH>.pkg.tar.xz
+   $ su -c 'pacman -U yaourt-<VERSION>-<ARCH>.pkg.tar.xz'
 
 Install *snf-image-creator* using yaourt:
 
@@ -282,7 +288,7 @@ kamaki Installation
 -------------------
 
 Refer to `./kamaki documentation <http://docs.dev.grnet.gr/kamaki/latest/installation.html>`_
-for instructions. You may install kamaki from source inside the virtualenv
+for instructions. You may install *./kamaki* from source inside the virtualenv
 you've created above or by using binary packages if they are available for your
 distribution.
 
@@ -309,7 +315,7 @@ cloning its git repository:
    $ python ./setup.py install
 
 To do the latter, you'll need to have git (http://git-scm.com/) installed.
-For ubuntu this can be done using:
+For Ubuntu this can be done using:
 
 .. code-block:: console
 

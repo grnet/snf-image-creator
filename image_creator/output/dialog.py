@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module provides various dialog-based Output classes"""
 
@@ -48,12 +30,12 @@ class GaugeOutput(Output):
         self.percent = 0
         self.d.gauge_start(self.msg, title=title)
 
-        # Open pipe workaround. A fork will dublicate the open file descriptor.
+        # Open pipe workaround. A fork will duplicate the open file descriptor.
         # The FD_CLOEXEC flag makes sure that the gauge internal fd will be
         # closed if execve is executed. This is needed because libguestfs will
-        # fork/exec the kvm process. If this fd stays open in the kvm process,
+        # fork/exec the KVM process. If this fd stays open in the KVM process,
         # then doing a gauge_stop will make this process wait forever for
-        # a dialog process that is blocked waiting for input from the kvm
+        # a dialog process that is blocked waiting for input from the KVM
         # process's open file descriptor.
         fd = self.d._gauge_process['stdin'].fileno()
         flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
@@ -67,7 +49,7 @@ class GaugeOutput(Output):
         time.sleep(0.4)
 
     def success(self, result, new_line=True):
-        """Print result after a successfull action"""
+        """Print result after a successful action"""
         self.percent = 100
         self.d.gauge_update(self.percent, "%s %s" % (self.msg, result),
                             update_text=True)
