@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module hosts OS-specific code for Linux"""
 
@@ -49,7 +31,7 @@ class Linux(Unix):
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
 
     @sysprep('Removing user accounts with id greater that 1000', enabled=False)
-    def remove_user_accounts(self):
+    def _remove_user_accounts(self):
         """Remove all user accounts with id greater than 1000"""
 
         if 'USERS' not in self.meta:
@@ -102,7 +84,7 @@ class Linux(Unix):
                 self.image.g.rm_rf(home)
 
     @sysprep('Cleaning up password & locking all user accounts')
-    def cleanup_passwords(self):
+    def _cleanup_passwords(self):
         """Remove all passwords and lock all user accounts"""
 
         shadow = []
@@ -120,7 +102,7 @@ class Linux(Unix):
         self.image.g.rm_rf('/etc/shadow-')
 
     @sysprep('Fixing acpid powerdown action')
-    def fix_acpid(self):
+    def _fix_acpid(self):
         """Replace acpid powerdown action scripts to immediately shutdown the
         system without checking if a GUI is running.
         """
@@ -170,15 +152,15 @@ class Linux(Unix):
             elif event.strip() == ".*":
                 self.out.warn("Found action `.*'. Don't know how to handle "
                               "this. Please edit `%s' image file manually to "
-                              "make the system immediatelly shutdown when an "
-                              "power button acpi event occures." %
+                              "make the system immediately shutdown when an "
+                              "power button ACPI event occurs." %
                               action.strip().split()[0])
                 return
 
         self.out.warn("No acpi power button event found!")
 
     @sysprep('Removing persistent network interface names')
-    def remove_persistent_net_rules(self):
+    def _remove_persistent_net_rules(self):
         """Remove udev rules that will keep network interface names persistent
         after hardware changes and reboots. Those rules will be created again
         the next time the image runs.
@@ -189,7 +171,7 @@ class Linux(Unix):
             self.image.g.rm(rule_file)
 
     @sysprep('Removing swap entry from fstab')
-    def remove_swap_entry(self):
+    def _remove_swap_entry(self):
         """Remove swap entry from /etc/fstab. If swap is the last partition
         then the partition will be removed when shrinking is performed. If the
         swap partition is not the last partition in the disk or if you are not
@@ -209,7 +191,7 @@ class Linux(Unix):
         self.image.g.write('/etc/fstab', new_fstab)
 
     @sysprep('Replacing fstab & grub non-persistent device references')
-    def use_persistent_block_device_names(self):
+    def _use_persistent_block_device_names(self):
         """Scan fstab & grub configuration files and replace all non-persistent
         device references with UUIDs.
         """
@@ -221,7 +203,7 @@ class Linux(Unix):
         self._persistent_grub1(persistent_root)
 
     def _persistent_grub1(self, new_root):
-        """Replaces non-persistent device name occurencies with persistent
+        """Replaces non-persistent device name occurrences with persistent
         ones in GRUB1 configuration files.
         """
         if self.image.g.is_file('/boot/grub/menu.lst'):
@@ -247,7 +229,7 @@ class Linux(Unix):
             self.image.g.aug_close()
 
     def _persistent_fstab(self):
-        """Replaces non-persistent device name occurencies in /etc/fstab with
+        """Replaces non-persistent device name occurrences in /etc/fstab with
         persistent ones.
         """
         mpoints = self.image.g.mountpoints()

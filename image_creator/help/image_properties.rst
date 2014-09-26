@@ -8,7 +8,7 @@ Properties used during image deployment
  - ROOT_PARTITION=n
      The partition number of the root partition.
  - USERS="username1 username2..."
-     This is a space-seperated list of users, whose password will
+     This is a space-separated list of users, whose password will
      be reset during deployment.
  - SWAP=<n>:<size>
      If this property is present, a swap partition with given

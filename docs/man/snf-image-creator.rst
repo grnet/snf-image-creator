@@ -23,5 +23,8 @@ Options
 	show this help message and exit
 -l FILE, --logfile=FILE
 	log all messages to FILE
+--no-snapshot
+	don't snapshot the input media. (THIS IS DANGEROUS AS IT WILL ALTER THE
+	ORIGINAL MEDIA!!!)
 --tmpdir=DIR
 	create large temporary image files under DIR

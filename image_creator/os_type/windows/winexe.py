@@ -1,37 +1,19 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2013 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module provides an interface for the WinEXE utility"""
 
@@ -55,11 +37,12 @@ class WinEXE:
     def is_installed(program='winexe'):
         return which(program) is not None
 
-    def __init__(self, username, password, hostname, program='winexe'):
-        self._host = hostname
+    def __init__(self, username, hostname, **kwargs):
         self._user = username
-        self._pass = password
-        self._prog = program
+        self._host = hostname
+
+        self._pass = kwargs['password'] if 'password' in kwargs else None
+        self._prog = kwargs['progname'] if 'progname' in kwargs else 'winexe'
 
         # -U USERNAME[%PASSWORD]
         user = '%s%s' % (self._user, '%%%s' % self._pass if self._pass else "")
@@ -72,14 +55,22 @@ class WinEXE:
         user = '%s%s' % (self._user, '%%%s' % self._pass if self._pass else "")
         self._opts = ['-U', user]
 
-    def runas(self, username, password):
+    def runas(self, username, passwd=None):
         """Run command as this user"""
-        self._opts.append('--runas=%s%%%s' % (username, password))
+
+        opt = '--runas=%s%s' % (username,
+                                '%%%s' % passwd if passwd is not None else "")
+        self._opts.append(opt)
         return self
 
     def system(self):
         """Use SYSTEM account"""
         self._opts.append('--system')
+        return self
+
+    def no_pass(self):
+        """Do not ask for password"""
+        self._opts.append('--no-pass')
         return self
 
     def uninstall(self):

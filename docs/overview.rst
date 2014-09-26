@@ -2,8 +2,12 @@ Overview
 ^^^^^^^^
 
 snf-image-creator is a simple command-line tool for creating OS images. The
-original media the image is created from, can be a block device, a regular
-file that represents a hard disk or the host system itself.
+original media, the image is created from, can be:
+
+ * a block device, representing a hard disk
+ * a disk image file, representing a hard disk (supports all image file formats
+   supported by QEMU)
+ * the host system itself
 
 Snapshotting
 ============
@@ -22,7 +26,7 @@ Those operations will:
  * Shrink the image
  * Clear out sensitive user data (passwords, ssh keys, history files, etc.)
  * Prepare the guest OS for being deployed on a virtual environment (change
-   device names, remove persistent net rules, etc.)
+   device names, remove persistent net rules, install VirtIO drivers, etc.)
 
 Creation
 ========

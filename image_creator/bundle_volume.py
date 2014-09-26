@@ -1,39 +1,21 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2012 GRNET S.A. All rights reserved.
+# Copyright (C) 2011-2014 GRNET S.A.
 #
-# Redistribution and use in source and binary forms, with or
-# without modification, are permitted provided that the following
-# conditions are met:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#   1. Redistributions of source code must retain the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#   2. Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials
-#      provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY GRNET S.A. ``AS IS'' AND ANY EXPRESS
-# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL GRNET S.A OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
-# USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and
-# documentation are those of the authors and should not be
-# interpreted as representing official policies, either expressed
-# or implied, of GRNET S.A.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts the code that performes the host bundling operation. By
+"""This module hosts the code that performs the host bundling operation. By
 using the create_image method of the BundleVolume class the user can create an
 image out of the running system.
 """
@@ -115,7 +97,7 @@ class BundleVolume(object):
                 yield FileSystemTableEntry(*entry)
 
     def _get_root_partition(self):
-        """Return the fstab entry accosiated with the root filesystem"""
+        """Return the fstab entry associated with the root file system"""
         for entry in self._read_fstable('/etc/fstab'):
             if entry.mpoint == '/':
                 return entry.dev
@@ -144,8 +126,8 @@ class BundleVolume(object):
         """Copy the partition table of the host system into the image"""
 
         # Copy the MBR and the space between the MBR and the first partition.
-        # In msdos partition tables Grub Stage 1.5 is located there.
-        # In gpt partition tables the Primary GPT Header is there.
+        # In MSDOS partition tables GRUB Stage 1.5 is located there.
+        # In GUID partition tables the Primary GPT Header is there.
         first_sector = self.disk.getPrimaryPartitions()[0].geometry.start
 
         dd('if=%s' % self.disk.device.path, 'of=%s' % image,
@@ -195,8 +177,6 @@ class BundleVolume(object):
         shrink the partition before that. Make sure it can still host all the
         files the corresponding host file system hosts
         """
-        new_end = self.disk.device.length
-
         image_disk = parted.Disk(parted.Device(image))
 
         is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
@@ -205,6 +185,7 @@ class BundleVolume(object):
         partitions = self._get_partitions(self.disk)
 
         last = partitions[-1]
+        new_end = last.end
         if last.fs == 'linux-swap(v1)':
             MB = 2 ** 20
             size = (last.end - last.start + 1) * self.disk.device.sectorSize
@@ -286,7 +267,7 @@ class BundleVolume(object):
         try_fail_repeat(dmsetup, 'remove', dev.split('/dev/mapper/')[1])
 
     def _mount(self, target, devs):
-        """Mount a list of filesystems in mountpoints relative to target"""
+        """Mount a list of file systems in mount points relative to target"""
         devs.sort(key=lambda d: d[1])
         for dev, mpoint, options in devs:
             absmpoint = os.path.abspath(target + mpoint)
@@ -299,7 +280,7 @@ class BundleVolume(object):
                 mount(dev, absmpoint)
 
     def _umount_all(self, target):
-        """Unmount all filesystems that are mounted under the directory target
+        """Umount all file systems that are mounted under the target directory
         """
         mpoints = []
         for entry in self._read_fstable('/proc/mounts'):
@@ -312,7 +293,7 @@ class BundleVolume(object):
 
     def _to_exclude(self):
         """Find which directories to exclude during the image copy. This is
-        accompliced by checking which directories serve as mount points for
+        accomplished by checking which directories serve as mount points for
         virtual file systems
         """
         excluded = ['/tmp', '/var/tmp']
@@ -350,7 +331,7 @@ class BundleVolume(object):
 
     def _replace_uuids(self, target, new_uuid):
         """Replace UUID references in various files. This is needed after
-        copying system files of the host into a new filesystem
+        copying system files of the host into a new file system
         """
 
         files = ['/etc/fstab',
@@ -372,8 +353,8 @@ class BundleVolume(object):
                 lines = src.readlines()
             with open(f, 'w') as dest:
                 for line in lines:
-                    for i, uuid in new_uuid.items():
-                        line = re.sub(orig[i], uuid, line)
+                    for i, new in new_uuid.items():
+                        line = re.sub(orig[i], new, line)
                     dest.write(line)
 
     def _create_filesystems(self, image, partitions):
@@ -413,8 +394,8 @@ class BundleVolume(object):
             # Create the file systems
             for i, dev in mapped.iteritems():
                 fs = filesystem[i].fs
-                self.out.output('Creating %s filesystem on partition %d ... ' %
-                                (fs, i), False)
+                self.out.output('Creating %s file system on partition %d ... '
+                                % (fs, i), False)
                 get_command('mkfs.%s' % fs)(*(MKFS_OPTS[fs] + [dev]))
 
                 # For ext[234] enable the default mount options
@@ -455,10 +436,9 @@ class BundleVolume(object):
                 rsync.archive().hard_links().xattrs().sparse().acls()
                 rsync.run('/', target, 'host', 'temporary image')
 
-                # Create missing mountpoints. Since they are mountpoints, we
-                # cannot determine the ownership and the mode of the real
-                # directory. Make them inherit those properties from their
-                # parent dir
+                # Create missing mount points. We cannot determine the
+                # ownership and the mode of the real directory. Make them
+                # inherit those properties from their parent directory.
                 for excl in excluded:
                     dirname = os.path.dirname(excl)
                     stat = os.stat(dirname)
@@ -467,7 +447,7 @@ class BundleVolume(object):
                     os.chown(target + excl, stat.st_uid, stat.st_gid)
 
                 # /tmp and /var/tmp are special cases. We exclude then even if
-                # they aren't mountpoints. Restore their permissions.
+                # they aren't mount points. Restore their permissions.
                 for excl in ('/tmp', '/var/tmp'):
                     if self._is_mpoint(excl):
                         os.chmod(target + excl, 041777)
@@ -477,9 +457,9 @@ class BundleVolume(object):
                         os.chmod(target + excl, stat.st_mode)
                         os.chown(target + excl, stat.st_uid, stat.st_gid)
 
-                # We need to replace the old UUID referencies with the new
-                # ones in grub configuration files and /etc/fstab for file
-                # systems that have been recreated.
+                # We need to replace the old UUID references with the new ones
+                # in GRUB configuration files and /etc/fstab for file systems
+                # that have been recreated.
                 self._replace_uuids(target, new_uuid)
 
             finally:
@@ -513,7 +493,7 @@ class BundleVolume(object):
             ptable = GPTPartitionTable(image)
             size = ptable.shrink(size, old_size)
         else:
-            # Alighn to 2048
+            # Align to 2048
             end_sector = ((end_sector + 2047) // 2048) * 2048
             size = (end_sector + 1) * self.disk.device.sectorSize
 
