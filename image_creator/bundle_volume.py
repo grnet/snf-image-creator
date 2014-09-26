@@ -177,8 +177,6 @@ class BundleVolume(object):
         shrink the partition before that. Make sure it can still host all the
         files the corresponding host file system hosts
         """
-        new_end = self.disk.device.length
-
         image_disk = parted.Disk(parted.Device(image))
 
         is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
@@ -187,6 +185,7 @@ class BundleVolume(object):
         partitions = self._get_partitions(self.disk)
 
         last = partitions[-1]
+        new_end = last.end
         if last.fs == 'linux-swap(v1)':
             MB = 2 ** 20
             size = (last.end - last.start + 1) * self.disk.device.sectorSize
