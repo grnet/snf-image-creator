@@ -23,6 +23,7 @@ import signal
 import tempfile
 import os
 import time
+import errno
 from string import lowercase, uppercase, digits
 
 from image_creator.util import FatalError, get_kvm_binary
@@ -168,8 +169,9 @@ class VM(object):
             if self.serial is not None:
                 try:
                     os.unlink(self.serial)
-                except FileNotFoundError:
-                    pass
+                except OSError as e:
+                    if errno.errorcode[e.errno] != 'ENOENT':  # File not found
+                        raise
 
     def wait_on_serial(self, timeout):
         """Wait until the random token appears on the VM's serial port"""

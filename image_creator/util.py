@@ -25,30 +25,11 @@ import os
 import re
 import json
 import tempfile
-from sh import qemu_img
-from sh import qemu_nbd
-from sh import modprobe
 
 
 class FatalError(Exception):
     """Fatal Error exception of snf-image-creator"""
     pass
-
-
-def image_info(image):
-    """Returns information about an image file"""
-    info = qemu_img('info', '--output', 'json', image)
-    return json.loads(str(info))
-
-
-def create_snapshot(source, target_dir):
-    """Returns a qcow2 snapshot of an image file"""
-
-    snapfd, snap = tempfile.mkstemp(prefix='snapshot-', dir=target_dir)
-    os.close(snapfd)
-    qemu_img('create', '-f', 'qcow2', '-o',
-             'backing_file=%s' % os.path.abspath(source), snap)
-    return snap
 
 
 def get_command(command):
@@ -64,6 +45,34 @@ def get_command(command):
         return sh.__getattr__(command)
     except sh.CommandNotFound as e:
         return find_sbin_command(command, e)
+
+
+def image_info(image):
+    """Returns information about an image file"""
+
+    qemu_img = get_command('qemu-img')
+    try:
+        info = qemu_img('info', '--output', 'json', image)
+    except sh.ErrorReturnCode_1:
+        # Old version of qemu-img that does not support --output json
+        info = qemu_img('info', image)
+        for line in str(info).splitlines():
+            if line.startswith('file format:'):
+                format = line.split(':')[1].strip()
+                return {'format': format}
+        raise FatalError("Unable to determine the image format")
+    return json.loads(str(info))
+
+
+def create_snapshot(source, target_dir):
+    """Returns a qcow2 snapshot of an image file"""
+
+    qemu_img = get_command('qemu-img')
+    snapfd, snap = tempfile.mkstemp(prefix='snapshot-', dir=target_dir)
+    os.close(snapfd)
+    qemu_img('create', '-f', 'qcow2', '-o',
+             'backing_file=%s' % os.path.abspath(source), snap)
+    return snap
 
 
 def get_kvm_binary():
@@ -131,6 +140,8 @@ class QemuNBD(object):
         self.image = image
         self.device = None
         self.pattern = re.compile('^nbd\d+$')
+        self.modprobe = get_command('modprobe')
+        self.qemu_nbd = get_command('qemu-nbd')
 
     def _list_devices(self):
         """Returns all the NBD block devices"""
@@ -141,7 +152,7 @@ class QemuNBD(object):
         devs = self._list_devices()
 
         if len(devs) == 0:  # Is nbd module loaded?
-            modprobe('nbd', 'max_part=16')
+            self.modprobe('nbd', 'max_part=16')
             # Wait a second for /dev to be populated
             time.sleep(1)
             devs = self._list_devices()
@@ -166,7 +177,7 @@ class QemuNBD(object):
             args.append('-r')
         args.append(self.image)
 
-        qemu_nbd(*args)
+        self.qemu_nbd(*args)
         self.device = device
         return device
 
@@ -174,7 +185,7 @@ class QemuNBD(object):
         """Disconnect the image from the connected device"""
         assert self.device is not None, "No device connected"
 
-        qemu_nbd('-d', self.device)
+        self.qemu_nbd('-d', self.device)
         self.device = None
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
