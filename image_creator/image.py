@@ -161,7 +161,8 @@ class Image(object):
             self.g.launch()
         except RuntimeError as e:
             raise FatalError(
-                "Launching libguestfs's helper VM failed! Reason: %s" % str(e))
+                "Launching libguestfs's helper VM failed!\nReason: %s.\n\n"
+                "Please run `libguestfs-test-tool' for more info." % str(e))
 
         self.guestfs_enabled = True
         # self.g.delete_event_callback(eh)

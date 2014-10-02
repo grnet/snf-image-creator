@@ -24,16 +24,15 @@ user is asked if he wants to use the program in expert or wizard mode.
 import dialog
 import sys
 import os
-import textwrap
 import signal
 import optparse
 import types
 import termios
 import traceback
+import tempfile
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError
-from image_creator.output import Output
 from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput
 from image_creator.output.composite import CompositeOutput
@@ -197,6 +196,8 @@ def dialog_main(media, logfile, tmpdir, snapshot):
 
     d.setBackgroundTitle('snf-image-creator')
 
+    tmplog = None if logfile else tempfile.NamedTemporaryFile(
+        prefix='fatal-', delete=False)
     try:
         while True:
             media = select_file(d, init=media, ftype="br", bundle_host=True,
@@ -208,7 +209,7 @@ def dialog_main(media, logfile, tmpdir, snapshot):
                 continue
             break
 
-        log = SimpleOutput(False, logfile) if logfile is not None else Output()
+        log = SimpleOutput(False, logfile if logfile else tmplog)
         while 1:
             try:
                 out = CompositeOutput([log])
@@ -218,9 +219,16 @@ def dialog_main(media, logfile, tmpdir, snapshot):
                 log.output("Resetting everything ...")
                 continue
     except FatalError as error:
-        msg = textwrap.fill(str(error), width=WIDTH-4)
+        log.error(str(error))
+        msg = 'A fatal error occured. See %s for a full log.' % log.stream.name
         d.infobox(msg, width=WIDTH, title="Fatal Error")
         return 1
+    else:
+        if tmplog:
+            os.unlink(tmplog.name)
+    finally:
+        if tmplog:
+            tmplog.close()
 
 
 def main():
