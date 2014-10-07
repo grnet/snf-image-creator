@@ -27,6 +27,44 @@ import hashlib
 from sendfile import sendfile
 
 
+OSTYPE_ORDER = {
+    "windows": 8000,
+    "linux": 7000,
+    "freebsd": 6000,
+    "netbsd": 5000,
+    "openbsd": 4000,
+    "hurd": 3000,
+    "dos": 2000,
+    "minix": 1000,
+    "unknown": 0
+}
+
+DISTRO_ORDER = {
+    "rhel": 590,
+    "sles": 580,
+    "oraclelinux":  570,
+    "scientificlinux": 560,
+    "linuxmint": 490,
+    "ubuntu": 480,
+    "debian": 470,
+    "fedora": 460,
+    "centos": 450,
+    "opensuse": 440,
+    "archlinux": 430,
+    "gentoo": 420,
+    "mageia": 410,
+    "slackware": 400,
+    "mandriva": 390,
+    "cirros": 200,
+    "pardus": 190,
+    "redhat-based": 180,
+    "suse-based": 170,
+    "meego": 160,
+    "buildroot": 150,
+    "ttylinux": 140,
+}
+
+
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
@@ -107,6 +145,12 @@ class Image(object):
         self.out.success(
             'found a(n) %s system' %
             self.ostype if self.distro == "unknown" else self.distro)
+
+        self.meta['SORTORDER'] = OSTYPE_ORDER[self.ostype]
+        try:
+            self.meta['SORTORDER'] += DISTRO_ORDER[self.distro]
+        except KeyError:
+            pass
 
         # Inspect the OS
         self.os.inspect()
