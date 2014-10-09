@@ -407,20 +407,20 @@ class Windows(OSBase):
         stdout, stderr, rc = self.vm.rexec(cmd)
 
         querymax = None
+        expr = re.compile(
+            r'.+:\s*(\d+)\s*([KMGT]?)B\s*(?:\((\d+)\s*([KMGT]?)B\))?\s*$')
         for line in stdout.splitlines():
             # diskpart will return something like this:
             #
-            #   The maximum number of reclaimable bytes is: xxxx MB
-            #
-            if line.find('reclaimable') >= 0:
-                answer = line.split(':')[1].strip()
-                m = re.search(r'(\d+)\s*([KMGT]?)B', answer, re.IGNORECASE)
-                if m:
-                    querymax = m.group(1)
-                    unit = m.group(2)
-                else:
-                    raise FatalError("Unexpected output for `shrink querymax' "
-                                     "command: %s" % line)
+            # a) The maximum number of reclaimable bytes is: xxxx MB
+            # b) The maximum number of reclaimable bytes is: xxxx GB (xxxx MB)
+
+            match = expr.match(line)
+            if match:
+                offset = 0 if match.group(3) is None else 2
+                querymax = match.group(offset+1)
+                unit = match.group(offset+2)
+                break
 
         if querymax is None:
             raise FatalError("Error in shrinking! Couldn't find the max "
@@ -472,7 +472,7 @@ class Windows(OSBase):
                 "Shrinking failed. Please make sure the media is defragged.")
 
         for line in stdout.splitlines():
-            if line.find('shrunk') >= 0:
+            if line.find("%d" % querymax) >= 0:
                 self.out.output(" %s" % line)
 
         self.shrinked = True

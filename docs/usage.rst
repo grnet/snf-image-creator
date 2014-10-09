@@ -412,8 +412,80 @@ the one with the most available space. The user may overwrite this behavior and
 indicate a different directory using the *tmpdir* option. This option is
 supported by both *snf-image-creator* and *snf-mkimage*.
 
+Troubleshooting
+===============
+
+Failures in launching libguestfs's helper VM
+--------------------------------------------
+
+The most common error you may get when using *snf-image-creator* is a failure
+when launching *libguestfs*'s helper VM. *libguestfs* [#f4]_ is a library
+for manipulating disk images and *snf-image-creator* makes heavy use of it.
+Most of the time those errors have to do with the installation of this
+library and not with *snf-image-creator* itself.
+
+The first thing you should do when troubleshooting this is to run the
+``liguestfs-test-tool`` diagnostic tool. This tool gets shipped with the
+library to test if *libguestfs* works as expected. If it runs to completion
+successfully, you will see this near the end:
+
+.. code-block:: console
+
+    ===== TEST FINISHED OK =====
+
+and the test tool will exit with code 0.
+
+If you get errors like this:
+
+.. code-block:: console
+
+   libguestfs: launch: backend=libvirt
+   libguestfs: launch: tmpdir=/tmp/libguestfseKwXgq
+   libguestfs: launch: umask=0022
+   libguestfs: launch: euid=0
+   libguestfs: libvirt version = 1001001 (1.1.1)
+   libguestfs: [00012ms] connect to libvirt
+   libguestfs: opening libvirt handle: URI = NULL, auth = virConnectAuthPtrDefault, flags = 0
+   libvirt: XML-RPC error : Failed to connect socket to '/var/run/libvirt/libvirt-sock': No such file or directory
+   libguestfs: error: could not connect to libvirt (URI = NULL): Failed to connect socket to '/var/run/libvirt/libvirt-sock': No such file or directory [code=38 domain=7]
+   libguestfs-test-tool: failed to launch appliance
+   libguestfs: closing guestfs handle 0x7ff0d44f8bb0 (state 0)
+   libguestfs: command: run: rm
+   libguestfs: command: run: \ -rf /tmp/libguestfseKwXgq
+
+it means that *libguestfs* is configured to use *libvirt* backend by default
+but the libvirt deamon is not running. You can either start libvirt deamon
+(providing instructions on how to do this is out of the scope of this
+tutorial) or change the default backend to *direct* by defining the
+**LIBGUESTFS_BACKEND** variable like this:
+
+.. code-block:: console
+
+   # export LIBGUESTFS_BACKEND=direct
+
+If you run the ``libguestfs-test-tool``, the command should finish without
+errors. Do the same every time before running *snf-image-creator*.
+
+If you get errors on *febootstrap-supermin-helper* like this one:
+
+.. code-block:: console
+
+   febootstrap-supermin-helper: ext2: parent directory not found: /lib:
+   File not found by ext2_lookup
+   libguestfs: error: external command failed, see earlier error messages
+   libguestfs-test-tool: failed to launch appliance
+   libguestfs: closing guestfs handle 0x7b3160 (state 0)
+
+you probably need to update the supermin appliance (just once). On Debian
+and Ubuntu systems you can do it using the command below:
+
+.. code-block:: console
+
+   # update-guestfs-appliance
+
 .. rubric:: Footnotes
 
 .. [#f1] http://technet.microsoft.com/en-us/library/bb676673.aspx
 .. [#f2] http://sourceware.org/lvm2/
 .. [#f3] http://mirrors.slackware.com/slackware/slackware-14.0/README.initrd
+.. [#f4] http://libguestfs.org/

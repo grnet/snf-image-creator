@@ -123,7 +123,7 @@ Add the *synnefo* repository for *Fedora 20* to *yum*:
 .. code-block:: console
 
    # cd /etc/yum.repos.d
-   # wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_20/home:GRNET:synnefo.repo
+   # curl -O http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_20/home:GRNET:synnefo.repo
 
 To list the *snf-image-creator* package use the following command:
 
@@ -140,15 +140,24 @@ Install the package by issuing:
 CentOS
 ------
 
-For *CentOS 6* you can use our official packages hosted at the *synnefo*
-repository of the OpenSUSE Build Service.
+For *CentOS 6* and *CentOS 7* you can use our official packages hosted at the
+*synnefo* repository of the OpenSUSE Build Service.
 
 Add the *synnefo* repository for *CentOS 6* to the yum repositories list:
+
+For *CentOS 6*:
 
 .. code-block:: console
 
    # cd /etc/yum.repos.d
-   # wget http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_CentOS-6/home:GRNET:synnefo.repo
+   # curl -O http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_CentOS-6/home:GRNET:synnefo.repo
+
+For *CentOS 7*:
+
+.. code-block:: console
+
+   # cd /etc/yum.repos.d
+   # curl -O http://download.opensuse.org/repositories/home:/GRNET:/synnefo/CentOS_7/home:GRNET:synnefo.repo
 
 Check the `Fedora <#fedora>`_ instructions on how to install the software.
 

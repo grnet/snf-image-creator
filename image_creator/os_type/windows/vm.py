@@ -116,8 +116,7 @@ class VM(object):
         if 'mem' in self.params:
             args.extend(['-m', str(self.params['mem'].value)])
 
-        args.extend(['-drive',
-                     'file=%s,format=raw,cache=unsafe,if=%s' %
+        args.extend(['-drive', 'file=%s,cache=unsafe,if=%s' %
                      (self.disk, self.interface)])
 
         args.extend(
