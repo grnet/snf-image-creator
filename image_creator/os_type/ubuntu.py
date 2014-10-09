@@ -17,6 +17,8 @@
 
 """This module hosts OS-specific code for Ubuntu Linux"""
 
+import re
+
 from image_creator.os_type.linux import Linux
 
 
@@ -27,12 +29,19 @@ class Ubuntu(Linux):
         """Collect metadata about the OS"""
 
         super(Ubuntu, self)._do_collect_metadata()
-        apps = self.image.g.inspect_list_applications(self.root)
-        for app in apps:
-            if app['app_name'] == 'kubuntu-desktop':
-                self.meta['OS'] = 'kubuntu'
-                descr = self.meta['DESCRIPTION'].replace('Ubuntu', 'Kubuntu')
-                self.meta['DESCRIPTION'] = descr
+
+        regexp = re.compile('^(k|l|x)?ubuntu-desktop$')
+        variant = ""
+        for app in self.image.g.inspect_list_applications(self.root):
+            match = regexp.match(app['app_name'])
+            if match:
+                variant = match.group(1) + 'ubuntu'
                 break
+
+        if variant:
+            self.meta['OS'] = variant
+            descr = self.meta['DESCRIPTION'].replace('Ubuntu',
+                                                     variant.capitalize())
+            self.meta['DESCRIPTION'] = descr
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
