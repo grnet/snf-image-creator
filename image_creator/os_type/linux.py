@@ -21,6 +21,7 @@ from image_creator.os_type.unix import Unix, sysprep
 
 import re
 import time
+import pkg_resources
 
 X2GO_DESKTOPSESSIONS = {
     'CINNAMON': 'cinnamon',
@@ -320,6 +321,15 @@ class Linux(Unix):
         if not len(self.meta['USERS']):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
+
+        kernels = []
+        for f in self.image.g.ls('/boot'):
+            if f.startswith('config-'):
+                kernels.append(f[7:])
+
+        if len(kernels):
+            kernels.sort(key=lambda x: pkg_resources.parse_version(x))
+            self.meta['KERNEL'] = kernels[-1]
 
         if self.is_enabled('sshd'):
             ssh = []
