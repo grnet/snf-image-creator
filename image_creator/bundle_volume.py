@@ -44,17 +44,52 @@ umount = get_command('umount')
 blkid = get_command('blkid')
 tune2fs = get_command('tune2fs')
 
-MKFS_OPTS = {'ext2': ['-F'],
-             'ext3': ['-F'],
-             'ext4': ['-F'],
-             'reiserfs': ['-ff'],
-             'btrfs': [],
-             'minix': [],
-             'xfs': ['-f'],
-             'jfs': ['-f'],
-             'ntfs': ['-F'],
-             'msdos': [],
-             'vfat': []}
+MKFS_OPTS = {'ext2': {'force': '-F', 'uuid': '-U', 'label': '-L'},
+             'ext3': {'force': '-F', 'uuid': '-U', 'label': '-L'},
+             'ext4': {'force': '-F', 'uuid': '-U', 'label': '-L'},
+             'reiserfs': {'force': '-ff', 'uuid': '-u', 'label': '-l'},
+             'btrfs':  {'force': '-f', 'label': '-L'},
+             'minix': {},
+             'xfs': {'force': '-f', 'label': '-L'},
+             'jfs': {'force': '-f', 'label': '-L'},
+             'ntfs': {'force': '-F', 'label': '-L'},
+             'msdos': {'uuid': '-i'},
+             'vfat': {'uuid': '-i'}}
+
+UUID_UPDATE = {
+    'ext2': lambda d, u: tune2fs('-U', u, d),
+    'ext3': lambda d, u: tune2fs('-U', u, d),
+    'ext4': lambda d, u: tune2fs('-U', u, d),
+    'reiserfs': lambda d, u: get_command('reiserfstune')('-u', u, d),
+    'xfs': lambda d, u: get_command('xfs_admin')('-U', u, d),
+    'jfs': lambda d, u: get_command('jfstune')('-U', u, d),
+    'ntfs': lambda d, u: get_command('ntfslable')('--new-serial=%s' % u, d)}
+
+
+def mkfs(fs, device, uuid=None, label=None):
+    """Create a filesystem on the device"""
+
+    mkfs = get_command('mkfs.%s' % fs)
+
+    args = []
+
+    if 'force' in MKFS_OPTS[fs]:
+        args.append(MKFS_OPTS[fs]['force'])
+
+    if label:
+        args.append(MKFS_OPTS[fs]['label'])
+        args.append(label)
+
+    if 'uuid' in MKFS_OPTS[fs] and uuid:
+        args.append(MKFS_OPTS[fs]['uuid'])
+        args.append(uuid)
+
+    args.append(device)
+
+    mkfs(*args)
+
+    if 'uuid' not in MKFS_OPTS[fs] and 'uuid':
+        UUID_UPDATE[fs](device, uuid)
 
 
 class BundleVolume(object):
@@ -329,34 +364,6 @@ class BundleVolume(object):
 
         return excluded
 
-    def _replace_uuids(self, target, new_uuid):
-        """Replace UUID references in various files. This is needed after
-        copying system files of the host into a new file system
-        """
-
-        files = ['/etc/fstab',
-                 '/boot/grub/grub.cfg',
-                 '/boot/grub/menu.lst',
-                 '/boot/grub/grub.conf']
-
-        orig = {}
-        for p in self.disk.partitions:
-            if p.number in new_uuid.keys():
-                orig[p.number] = \
-                    blkid('-s', 'UUID', '-o', 'value', p.path).stdout.strip()
-
-        for f in map(lambda f: target + f, files):
-            if not os.path.exists(f):
-                continue
-
-            with open(f, 'r') as src:
-                lines = src.readlines()
-            with open(f, 'w') as dest:
-                for line in lines:
-                    for i, new in new_uuid.items():
-                        line = re.sub(orig[i], new, line)
-                    dest.write(line)
-
     def _create_filesystems(self, image, partitions):
         """Fill the image with data. Host file systems that are not currently
         mounted are binary copied into the image. For mounted file systems, a
@@ -393,10 +400,15 @@ class BundleVolume(object):
             new_uuid = {}
             # Create the file systems
             for i, dev in mapped.iteritems():
+                uuid = blkid(
+                    '-s', 'UUID', '-o', 'value', orig_dev[i]).stdout.strip()
+                label = blkid(
+                    '-s', 'LABEL', '-o', 'value', orig_dev[i]).stdout.strip()
                 fs = filesystem[i].fs
+
                 self.out.output('Creating %s file system on partition %d ... '
                                 % (fs, i), False)
-                get_command('mkfs.%s' % fs)(*(MKFS_OPTS[fs] + [dev]))
+                mkfs(fs, dev, uuid=uuid, label=label)
 
                 # For ext[234] enable the default mount options
                 if re.match('^ext[234]$', fs):
@@ -456,11 +468,6 @@ class BundleVolume(object):
                         stat = os.stat(excl)
                         os.chmod(target + excl, stat.st_mode)
                         os.chown(target + excl, stat.st_uid, stat.st_gid)
-
-                # We need to replace the old UUID references with the new ones
-                # in GRUB configuration files and /etc/fstab for file systems
-                # that have been recreated.
-                self._replace_uuids(target, new_uuid)
 
             finally:
                 self._umount_all(target)
