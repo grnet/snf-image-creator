@@ -30,7 +30,7 @@ class Ubuntu(Linux):
 
         super(Ubuntu, self)._do_collect_metadata()
 
-        regexp = re.compile('^(k|l|x)?ubuntu-desktop$')
+        regexp = re.compile('^(k|l|x)ubuntu-desktop$')
         variant = ""
         for app in self.image.g.inspect_list_applications(self.root):
             match = regexp.match(app['app_name'])
