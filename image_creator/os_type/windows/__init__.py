@@ -863,7 +863,7 @@ class Windows(OSBase):
                 else:
                     self._cleanup('virtio')
 
-        self.out.output("VirtIO drivers were successfully installed")
+        self.out.success("VirtIO drivers were successfully installed")
         self.out.output()
 
     def _upload_virtio_drivers(self, dirname, drvs, delete_old=True):
