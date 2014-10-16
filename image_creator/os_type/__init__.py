@@ -26,6 +26,17 @@ import re
 from collections import namedtuple
 from functools import wraps
 
+OSTYPE_ORDER = {
+    "windows": 8,
+    "linux": 7,
+    "freebsd": 6,
+    "netbsd": 5,
+    "openbsd": 4,
+    "hurd": 3,
+    "dos": 2,
+    "minix": 1
+}
+
 
 def os_cls(distro, osfamily):
     """Given the distro name and the osfamily, return the appropriate OSBase
@@ -570,12 +581,17 @@ class OSBase(object):
             self.out.warn("Unable to identify the partition number from root "
                           "partition: %s" % self.root)
 
-        self.meta['OSFAMILY'] = self.image.g.inspect_get_type(self.root)
-        self.meta['OS'] = self.image.g.inspect_get_distro(self.root)
-        if self.meta['OS'] == "unknown":
-            self.meta['OS'] = self.meta['OSFAMILY']
-        self.meta['DESCRIPTION'] = \
-            self.image.g.inspect_get_product_name(self.root)
+        osfamily = self.image.g.inspect_get_type(self.root)
+        distro = self.image.g.inspect_get_distro(self.root)
+        name = self.image.g.inspect_get_product_name(self.root)
+
+        self.meta['OSFAMILY'] = osfamily
+        self.meta['OS'] = distro if distro != "unknown" else osfamily
+        self.meta['DESCRIPTION'] = name
+        try:
+            self.meta['SORTORDER'] = 1000000 * OSTYPE_ORDER[osfamily]
+        except KeyError:
+            self.meta['SORTORDER'] = 0
 
     def _do_mount(self, readonly):
         """helper method for mount"""

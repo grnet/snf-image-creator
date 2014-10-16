@@ -36,6 +36,26 @@ X2GO_DESKTOPSESSIONS = {
 
 X2GO_EXECUTABLE = "x2goruncommand"
 
+DISTRO_ORDER = {
+    "ubuntu": 80,
+    "linuxmint": 75,
+    "debian": 70,
+    "rhel": 60,
+    "fedora": 58,
+    "centos": 55,
+    "scientificlinux": 50,
+    "sles": 45,
+    "opensuse": 44,
+    "archlinux": 40,
+    "gentoo": 35,
+    "slackware": 30,
+    "oraclelinux": 28,
+    "mageia": 20,
+    "mandriva": 19,
+    "cirros": 15,
+    "pardus": 10
+}
+
 
 class Linux(Unix):
     """OS class for Linux"""
@@ -330,6 +350,19 @@ class Linux(Unix):
         if len(kernels):
             kernels.sort(key=lambda x: pkg_resources.parse_version(x))
             self.meta['KERNEL'] = kernels[-1]
+
+        distro = self.image.g.inspect_get_distro(self.root)
+        major = self.image.g.inspect_get_major_version(self.root)
+        if major > 99:
+            major = 99
+        minor = self.image.g.inspect_get_minor_version(self.root)
+        if minor > 99:
+            minor = 99
+        try:
+            self.meta['SORTORDER'] += \
+                10000 * DISTRO_ORDER[distro] + 100 * major + minor
+        except KeyError:
+            pass
 
         if self.is_enabled('sshd'):
             ssh = []

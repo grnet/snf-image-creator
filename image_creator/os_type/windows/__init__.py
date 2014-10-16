@@ -718,9 +718,11 @@ class Windows(OSBase):
             else:
                 self.meta['REMOTE_CONNECTION'] += "rdp:port=%d" % port
 
-        self.meta["KERNEL"] = "Windows NT %d.%d" % \
-            (guestfs.inspect_get_major_version(self.root),
-             guestfs.inspect_get_minor_version(self.root))
+        major = self.image.g.inspect_get_major_version(self.root)
+        minor = self.image.g.inspect_get_minor_version(self.root)
+
+        self.meta["KERNEL"] = "Windows NT %d.%d" % (major, minor)
+        self.meta['SORTORDER'] += (100 * major + minor) * 100
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
