@@ -135,6 +135,40 @@ class Registry(object):
 
         return self._current_control_set
 
+    def _update_dword(self, keyname, valuename, data, default, valid):
+        """Updates a registry key dword value to data.
+
+            default: The default value is the key does not exist
+            valid: a range of valid values
+
+        Returns:
+            True if the key is changed
+            False if the key is unchanged
+        """
+
+        if data not in valid:
+            raise ValueError("Valid values for parameter are %r" % (valid,))
+
+        hivename, keyname = keyname.split('/', 1)
+        with self.open_hive(hivename, write=True) as hive:
+            key = traverse(hive, keyname)
+
+            value = None
+            for v in hive.node_values(key):
+                if hive.value_key(v) == valuename:
+                    value = v
+
+            if value is not None:
+                if data == hive.value_dword(value):
+                    return False
+            elif data == default:
+                return False
+
+            hive.node_set_value(key, REG_DWORD(valuename, data))
+            hive.commit(None)
+
+        return True
+
     def get_setup_state(self):
         """Returns the stage of Windows Setup the image is in.
         The method will return an int with one of the following values:
@@ -282,29 +316,10 @@ class Registry(object):
             False if the key is unchanged
         """
 
-        if value not in (0, 1):
-            raise ValueError("Valid values for value parameter are 0 and 1")
+        key = 'SOFTWARE/Microsoft/Windows/CurrentVersion/Policies/System'
+        valuename = 'LocalAccountTokenFilterPolicy'
 
-        with self.open_hive('SOFTWARE', write=True) as hive:
-            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
-            system = traverse(hive, path)
-
-            policy = None
-            for val in hive.node_values(system):
-                if hive.value_key(val) == "LocalAccountTokenFilterPolicy":
-                    policy = val
-
-            if policy is not None:
-                if value == hive.value_dword(policy):
-                    return False
-            elif value == 0:
-                return False
-
-            hive.node_set_value(
-                system, REG_DWORD("LocalAccountTokenFilterPolicy", value))
-            hive.commit(None)
-
-        return True
+        return self._update_dword(key, valuename, value, 0, (0, 1))
 
     def update_uac(self, value):
         """Enable or disable the User Account Control by changing the value of
@@ -318,28 +333,10 @@ class Registry(object):
             False if the key is unchanged
         """
 
-        if value not in (0, 1):
-            raise ValueError("Valid values for value parameter are 0 and 1")
+        key = 'SOFTWARE/Microsoft/Windows/CurrentVersion/Policies/System'
+        valuename = 'EnableLUA'
 
-        with self.open_hive('SOFTWARE', write=True) as hive:
-            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
-            system = traverse(hive, path)
-
-            enablelua = None
-            for val in hive.node_values(system):
-                if hive.value_key(val) == 'EnableLUA':
-                    enablelua = val
-
-            if enablelua is not None:
-                if value == hive.value_dword(enablelua):
-                    return False
-            elif value == 1:
-                return False
-
-            hive.node_set_value(system, REG_DWORD('EnableLUA', value))
-            hive.commit(None)
-
-        return True
+        return self._update_dword(key, valuename, value, 1, (0, 1))
 
     def enum_users(self):
         """Returns:
