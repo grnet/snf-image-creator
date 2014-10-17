@@ -514,12 +514,24 @@ class Windows(OSBase):
                 self._add_cleanup('sysprep', self.registry.reset_account,
                                   self.vm.admin.rid, False)
 
-            if self.registry.update_uac(0):
-                self._add_cleanup('sysprep', self.registry.update_uac, 1)
+            old = self.registry.update_uac(0)
+            if old != 0:
+                self._add_cleanup('sysprep', self.registry.update_uac, old)
 
-            if self.registry.update_uac_remote_setting(1):
+            old = self.registry.update_uac_remote_setting(1)
+            if old != 1:
                 self._add_cleanup('sysprep',
-                                  self.registry.update_uac_remote_setting, 0)
+                                  self.registry.update_uac_remote_setting, old)
+
+            old = self.registry.update_noautoupdate(1)
+            if old != 1:
+                self._add_cleanup('sysprep',
+                                  self.registry.update_noautoupdate, old)
+
+            old = self.registry.update_auoptions(1)
+            if old != 1:
+                self._add_cleanup('sysprep',
+                                  self.registry.update_auoptions, old)
 
             # disable the firewalls
             self._add_cleanup('sysprep', self.registry.update_firewalls,
@@ -886,8 +898,19 @@ class Windows(OSBase):
                               self.vm.admin.rid,
                               self.registry.reset_account(self.vm.admin.rid))
 
-            if self.registry.update_uac(0):
-                self._add_cleanup('virtio', self.registry.update_uac, 1)
+            old = self.registry.update_uac(0)
+            if old != 0:
+                self._add_cleanup('virtio', self.registry.update_uac, old)
+
+            old = self.registry.update_noautoupdate(1)
+            if old != 1:
+                self._add_cleanup('virtio',
+                                  self.registry.update_noautoupdate, old)
+
+            old = self.registry.update_auoptions(1)
+            if old != 1:
+                self._add_cleanup('virtio',
+                                  self.registry.update_auoptions, old)
 
             # We disable this with powershell scripts
             self.registry.enable_autologon(self.vm.admin.name)

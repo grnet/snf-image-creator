@@ -142,8 +142,7 @@ class Registry(object):
             valid: a range of valid values
 
         Returns:
-            True if the key is changed
-            False if the key is unchanged
+            The old value of the field
         """
 
         if data not in valid:
@@ -157,17 +156,20 @@ class Registry(object):
             for v in hive.node_values(key):
                 if hive.value_key(v) == valuename:
                     value = v
+                    break
 
+            old = default
             if value is not None:
-                if data == hive.value_dword(value):
-                    return False
-            elif data == default:
-                return False
+                old = hive.value_dword(value)
+            elif old is None:
+                raise FatalError("Value: `%s' of key: `%s/%s' is missing." %
+                                 (valuename, hivename, keyname))
 
-            hive.node_set_value(key, REG_DWORD(valuename, data))
-            hive.commit(None)
+            if old != data:
+                hive.node_set_value(key, REG_DWORD(valuename, data))
+                hive.commit(None)
 
-        return True
+        return old
 
     def get_setup_state(self):
         """Returns the stage of Windows Setup the image is in.
@@ -312,8 +314,7 @@ class Registry(object):
         For more info see here: http://support.microsoft.com/kb/951016
 
         Returns:
-            True if the key is changed
-            False if the key is unchanged
+            The old value of the field
         """
 
         key = 'SOFTWARE/Microsoft/Windows/CurrentVersion/Policies/System'
@@ -329,14 +330,49 @@ class Registry(object):
         value = 0 will disable the UAC
 
         Returns:
-            True if the key is changed
-            False if the key is unchanged
+            The old value of the field
         """
 
         key = 'SOFTWARE/Microsoft/Windows/CurrentVersion/Policies/System'
         valuename = 'EnableLUA'
 
         return self._update_dword(key, valuename, value, 1, (0, 1))
+
+    def update_noautoupdate(self, value):
+        """Enable or disable Automatic Updates by changing the NoAutoUpdate
+        value of the "Auto Update" registry key.
+
+        value = 0 will enable Automatic Updates (Default)
+        value = 1 will disable Automatic Updates
+
+        Returns:
+            The old value of the field
+        """
+
+        key = 'SOFTWARE' \
+            '/Microsoft/Windows/CurrentVersion/WindowsUpdate/Auto Update'
+        valuename = 'NoAutoUpdate'
+
+        return self._update_dword(key, valuename, value, 0, (0, 1))
+
+    def update_auoptions(self, value):
+        """Updates the AUOptions value of the "Auto Update" registry key.
+
+        value = 1 will disabled Automatic Updates
+        value = 2 will notify of download and installation
+        value = 3 will automatically download and notify of installation
+        value = 4 will automatically download and schedule installation
+
+        Returns:
+            The old value of the field
+        """
+
+        key = 'SOFTWARE' \
+            '/Microsoft/Windows/CurrentVersion/WindowsUpdate/Auto Update'
+        valuename = 'AUOptions'
+
+        return self._update_dword(key, valuename, value, None,
+                                  tuple(range(1, 5)))
 
     def enum_users(self):
         """Returns:
