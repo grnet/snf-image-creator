@@ -523,14 +523,21 @@ class Windows(OSBase):
                 self._add_cleanup('sysprep',
                                   self.registry.update_uac_remote_setting, old)
 
+            def if_not_sysprepped(task, *args):
+                """Only perform this if the image is not syspreped"""
+                if not self.sysprepped:
+                    task(*args)
+
+            # The next 2 registry values get completely removed by Microsoft
+            # Sysprep. They should not be reverted if Sysprep gets executed.
             old = self.registry.update_noautoupdate(1)
             if old != 1:
-                self._add_cleanup('sysprep',
+                self._add_cleanup('sysprep', if_not_sysprepped,
                                   self.registry.update_noautoupdate, old)
 
             old = self.registry.update_auoptions(1)
             if old != 1:
-                self._add_cleanup('sysprep',
+                self._add_cleanup('sysprep', if_not_sysprepped,
                                   self.registry.update_auoptions, old)
 
             # disable the firewalls
