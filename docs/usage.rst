@@ -297,7 +297,7 @@ And install the Ubuntu system on this file:
 
 .. warning::
 
-   During the installation, you will be asked about the partition scheme. Don't 
+   During the installation, you will be asked about the partition scheme. Don't
    use LVM partitions. They are not supported by snf-image-creator.
 
 You will be able to boot your installed OS and make any changes you want
@@ -336,7 +336,7 @@ It has been successfully tested with:
 
 * Raw disk images
 * VMDK (VMware)
-* VHD (Microsoft Hyper-V)
+* VHD (Microsoft Hyper-V) [#f1]_
 * VDI (VirtualBox)
 * qcow2 (QEMU)
 
