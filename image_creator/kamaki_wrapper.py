@@ -31,6 +31,12 @@ from kamaki.clients.pithos import PithosClient
 from kamaki.clients.astakos import CachedAstakosClient as AstakosClient
 
 try:
+    from kamaki.clients.utils import https
+    https.patch_ignore_ssl()
+except ImportError:
+    pass
+
+try:
     config = Config()
 except Exception as e:
     sys.stderr.write("Kamaki config error: %s\n" % str(e))

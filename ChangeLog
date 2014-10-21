@@ -1,3 +1,6 @@
+2014-10-21, v0.7.3
+	* Instruct kamaki to ignore the ssl certificates (kamaki >= 0.13rc5).
+
 2014-10-14, v0.7.2
 	* Fix an exception triggered when collecting Ubuntu metadata
 
