@@ -300,12 +300,82 @@ class Linux(Unix):
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Linux, self)._do_collect_metadata()
-        self.meta["USERS"] = " ".join(self._get_passworded_users())
+        users = self._get_passworded_users()
+        self.meta["USERS"] = " ".join(users)
 
         # Delete the USERS metadata if empty
         if not len(self.meta['USERS']):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
+
+        if self.is_enabled('sshd'):
+            ssh = []
+            opts = self.ssh_connection_options(users)
+            for user in opts['users']:
+                ssh.append("ssh:port=%d,user=%s" % (opts['port'], user))
+
+            if 'REMOTE_CONNECTION' not in self.meta:
+                self.meta['REMOTE_CONNECTION'] = ""
+            else:
+                self.meta['REMOTE_CONNECTION'] += " "
+
+            if len(ssh):
+                self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
+            else:
+                self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
+        else:
+            self.out.warn("OpenSSH Daemon is not configured to run on boot")
+
+    def is_enabled(self, service):
+        """Check if a service is enabled to run on boot"""
+
+        systemd_services = '/etc/systemd/system/multi-user.target.wants'
+        exec_start = re.compile(r'^\s*ExecStart=.+bin/%s\s?' % service)
+        if self.image.g.is_dir(systemd_services):
+            for entry in self.image.g.readdir(systemd_services):
+                if entry['ftyp'] not in ('l', 'f'):
+                    continue
+                service_file = "%s/%s" % (systemd_services, entry['name'])
+                for line in self.image.g.cat(service_file).splitlines():
+                    if exec_start.search(line):
+                        return True
+
+        found = set()
+
+        def check_file(path):
+            regexp = re.compile(r"[/=\s'\"]%s('\")?\s" % service)
+            for line in self.image.g.cat(path).splitlines():
+                line = line.split('#', 1)[0].strip()
+                if len(line) == 0:
+                    continue
+                if regexp.search(line):
+                    found.add(path)
+                    return
+
+        # Check upstart config files under /etc/init
+        # Only examine *.conf files
+        if self.image.g.is_dir('/etc/init'):
+            self._foreach_file('/etc/init', check_file, maxdepth=1,
+                               include='.+\.conf$')
+            if len(found):
+                return True
+
+        # Check scripts under /etc/rc[1-5].d/ and /etc/rc.d/rc[1-5].d/
+        for conf in ["/etc/%src%d.d" % (d, i) for i in xrange(1, 6)
+                     for d in ('', 'rc.d/')]:
+            try:
+                for entry in self.image.g.readdir(conf):
+                    if entry['ftyp'] not in ('l', 'f'):
+                        continue
+                    check_file("%s/%s" % (conf, entry['name']))
+
+                    if len(found):
+                        return True
+
+            except RuntimeError:
+                continue
+
+        return False
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
