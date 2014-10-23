@@ -22,6 +22,19 @@ from image_creator.os_type.unix import Unix, sysprep
 import re
 import time
 
+X2GO_DESKTOPSESSIONS = {
+    'CINNAMON': 'cinnamon',
+    'KDE': 'startkde',
+    'GNOME': 'gnome-session',
+    'MATE': 'mate-session',
+    'XFCE': 'xfce4-session',
+    'LXDE': 'startlxde',
+    'TRINITY': 'starttrinity',
+    'UNITY': 'unity',
+}
+
+X2GO_EXECUTABLE = "x2goruncommand"
+
 
 class Linux(Unix):
     """OS class for Linux"""
@@ -323,6 +336,24 @@ class Linux(Unix):
                 self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
             else:
                 self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
+
+            # Check if x2go is installed
+            x2go_installed = False
+            desktops = set()
+            for path in ('/bin', '/usr/bin', '/usr/local/bin'):
+                if self.image.g.is_file("%s/%s" % (path, X2GO_EXECUTABLE)):
+                    x2go_installed = True
+                for name, exe in X2GO_DESKTOPSESSIONS.items():
+                    if self.image.g.is_file("%s/%s" % (path, exe)):
+                        desktops.add(name)
+
+            if x2go_installed:
+                self.meta['REMOTE_CONNECTION'] += " "
+                if len(desktops) == 0:
+                    self.meta['REMOTE_CONNECTION'] += "x2go"
+                else:
+                    self.meta['REMOTE_CONNECTION'] += \
+                        " ".join(["x2go:session=%s" % d for d in desktops])
         else:
             self.out.warn("OpenSSH Daemon is not configured to run on boot")
 
