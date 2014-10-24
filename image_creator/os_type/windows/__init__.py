@@ -697,8 +697,26 @@ class Windows(OSBase):
         super(Windows, self)._do_collect_metadata()
 
         # We only care for active users
-        self.meta["USERS"] = \
-            " ".join([self.usernames[a] for a in self.active_users])
+        active = [self.usernames[a] for a in self.active_users]
+        self.meta["USERS"] = " ".join(active)
+
+        # Get RDP settings
+        settings = self.registry.get_rdp_settings()
+
+        if settings['disabled']:
+            self.out.warn("RDP is disabled on the image")
+        else:
+            if 'REMOTE_CONNECTION' not in self.meta:
+                self.meta['REMOTE_CONNECTION'] = ""
+            else:
+                self.meta['REMOTE_CONNECTION'] += " "
+
+            port = settings['port']
+            if len(active):
+                rdp = ["rdp:port=%d,user=%s" % (port, user) for user in active]
+                self.meta['REMOTE_CONNECTION'] += " ".join(rdp)
+            else:
+                self.meta['REMOTE_CONNECTION'] += "rdp:port=%d" % port
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
