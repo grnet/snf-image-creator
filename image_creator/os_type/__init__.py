@@ -517,6 +517,8 @@ class OSBase(object):
           http://libguestfs.org/guestfs.3.html#guestfs_readdir
 
         * exclude: Exclude all files that follow this pattern.
+
+        * include: Only include files that follow this pattern.
         """
         if not self.image.g.is_dir(directory):
             self.out.warn("Directory: `%s' does not exist!" % directory)
@@ -531,6 +533,7 @@ class OSBase(object):
         kargs['maxdepth'] = maxdepth
 
         exclude = None if 'exclude' not in kargs else kargs['exclude']
+        include = None if 'include' not in kargs else kargs['include']
         ftype = None if 'ftype' not in kargs else kargs['ftype']
         has_ftype = lambda x, y: y is None and True or x['ftyp'] == y
 
@@ -541,6 +544,9 @@ class OSBase(object):
             full_path = "%s/%s" % (directory, f['name'])
 
             if exclude and re.match(exclude, full_path):
+                continue
+
+            if include and not re.match(include, full_path):
                 continue
 
             if has_ftype(f, 'd'):

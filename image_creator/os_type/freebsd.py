@@ -53,7 +53,10 @@ class Freebsd(Unix):
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Freebsd, self)._do_collect_metadata()
-        self.meta["USERS"] = " ".join(self._get_passworded_users())
+
+        users = self._get_passworded_users()
+
+        self.meta["USERS"] = " ".join(users)
 
         # The original product name key is long and ugly
         self.meta['DESCRIPTION'] = \
@@ -63,6 +66,44 @@ class Freebsd(Unix):
         if not len(self.meta['USERS']):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
+
+        # Check if ssh is enabled
+        sshd_enabled = False
+        sshd_service = re.compile(r'^sshd_enable=.+$')
+
+        # Freebsd has a checkyesno() functions that tests the service variable
+        # against all those different values in a case insensitive manner!!!
+        sshd_yes = re.compile(r"^sshd_enable=(['\"]?)(YES|TRUE|ON|1)\1$",
+                              re.IGNORECASE)
+        for rc_conf in ('/etc/rc.conf', '/etc/rc.conf.local'):
+            if not self.image.g.is_file(rc_conf):
+                continue
+
+            for line in self.image.g.cat(rc_conf).splitlines():
+                line = line.split('#')[0].strip()
+                # Be paranoid. Don't stop examining lines after a match. This
+                # is a shell variable and can be overwritten many times. Only
+                # the last match counts.
+                if sshd_service.match(line):
+                    sshd_enabled = sshd_yes.match(line) is not None
+
+        if sshd_enabled:
+            ssh = []
+            opts = self.ssh_connection_options(users)
+            for user in opts['users']:
+                ssh.append("ssh:port=%d,user=%s" % (opts['port'], user))
+
+            if 'REMOTE_CONNECTION' not in self.meta:
+                self.meta['REMOTE_CONNECTION'] = ""
+            else:
+                self.meta['REMOTE_CONNECTION'] += " "
+
+            if len(users):
+                self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
+            else:
+                self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
+        else:
+            self.out.warn("OpenSSH Daemon is not configured to run on boot")
 
     def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
@@ -93,7 +134,11 @@ class Freebsd(Unix):
             if len(passwd) > 0 and passwd[0] == '!':
                 self.out.warn("Ignoring locked %s account." % user)
             else:
-                users.append(user)
+                # Put root in the beginning.
+                if user == 'root':
+                    users.insert(0, user)
+                else:
+                    users.append(user)
 
         return users
 

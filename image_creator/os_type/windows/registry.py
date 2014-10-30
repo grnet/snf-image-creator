@@ -170,6 +170,29 @@ class Registry(object):
 
         raise FatalError("Unknown Windows Setup State: %s" % value)
 
+    def get_rdp_settings(self):
+        """Returns Remote Desktop Settings of the image"""
+
+        settings = {}
+        with self.open_hive('SYSTEM') as hive:
+            path = '%s/Control/Terminal Server' % self.current_control_set
+            term_server = traverse(hive, path)
+
+            disabled = hive.node_get_value(term_server, "fDenyTSConnections")
+            # expecting a little endian dword
+            assert hive.value_type(disabled)[1] == 4
+            settings['disabled'] = hive.value_dword(disabled) != 0
+
+            path += "/WinStations/RDP-Tcp"
+            rdp_tcp = traverse(hive, path)
+
+            port = hive.node_get_value(rdp_tcp, "PortNumber")
+            # expecting a little endian dword
+            assert hive.value_type(port)[1] == 4
+            settings['port'] = hive.value_dword(port)
+
+        return settings
+
     def runonce(self, commands):
         """Add commands to the RunOnce registry key"""
 

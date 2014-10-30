@@ -70,6 +70,37 @@ class Unix(OSBase):
 
         return True
 
+    def ssh_connection_options(self, users):
+        """Returns a list of valid ssh connection options"""
+
+        def sshd_config():
+            """Read /etc/ssh/sshd_config and return it as a dictionary"""
+            config = {}
+            fname = '/etc/ssh/sshd_config'
+
+            if not self.image.g.is_file(fname):
+                return {}
+
+            for line in self.image.g.cat(fname).splitlines():
+                line = line.split('#')[0].strip()
+                if not len(line):
+                    continue
+                line = line.split()
+                config[line[0]] = line[1:]
+            return config
+
+        config = sshd_config()
+        try:
+            port = int(config['Port'][0])
+        except:
+            port = 22
+
+        if 'PermitRootLogin' in config and config['PermitRootLogin'] == 'no':
+            if 'root' in users:
+                users.remove('root')
+
+        return {'port': port, 'users': users}
+
     @sysprep('Removing files under /var/cache')
     def _cleanup_cache(self):
         """Remove all regular files under /var/cache"""
