@@ -80,7 +80,7 @@ class Disk(object):
         self._add_cleanup(shutil.rmtree, self.tmp)
 
     def _add_cleanup(self, job, *args):
-        """Add a new job in the cleanup list"""
+        """Add a new job in the cleanup list."""
         self._cleanup_jobs.append((job, args))
 
     def _losetup(self, fname):
@@ -93,7 +93,7 @@ class Disk(object):
         return loop
 
     def _dir_to_disk(self):
-        """Create a disk out of a directory"""
+        """Create a disk out of a directory."""
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
             image = '%s/%s.raw' % (self.tmp, uuid.uuid4().hex)
@@ -125,7 +125,7 @@ class Disk(object):
 
     @property
     def file(self):
-        """Convert the source media into a file"""
+        """Convert the source media into a file."""
 
         if self._file is not None:
             return self._file
@@ -203,8 +203,10 @@ class Disk(object):
         return image
 
     def destroy_image(self, image):
-        """Destroys an Image instance previously created by get_image method.
+        """Destroys an Image instance previously created with the get_image()
+        method.
         """
+
         self._images.remove(image)
         image.destroy()
 

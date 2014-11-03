@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts OS-specific code for Linux"""
+"""This module hosts OS-specific code for Linux."""
 
 from image_creator.os_type.unix import Unix, sysprep
 

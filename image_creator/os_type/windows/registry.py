@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This package hosts code for accessing the windows registry"""
+"""This package hosts code for manipulating the windows registry."""
 
 from image_creator.util import FatalError
 
