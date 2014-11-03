@@ -18,7 +18,7 @@
 """Module hosting the Disk class."""
 
 from image_creator.util import get_command, try_fail_repeat, free_space, \
-    FatalError, create_snapshot
+    FatalError, create_snapshot, image_info
 from image_creator.bundle_volume import BundleVolume
 from image_creator.image import Image
 
@@ -157,19 +157,21 @@ class Disk(object):
             return self.file
 
         # Examine media file
-        mode = os.stat(self.file).st_mode
+        info = image_info(self.file)
 
         self.out.output("Snapshotting media source ...", False)
 
-        # Create a qcow2 snapshot for image files
-        if not stat.S_ISBLK(mode):
+        # Create a qcow2 snapshot for image files that are not raw
+        if info['format'] != 'raw':
             snapshot = create_snapshot(self.file, self.tmp)
             self._add_cleanup(os.unlink, snapshot)
             self.out.success('done')
             return snapshot
 
-        # Create a device-mapper snapshot for block devices
-        size = int(blockdev('--getsz', self.file))
+        # Create a device-mapper snapshot for raw image files and block devices
+        mode = os.stat(self.file).st_mode
+        device = self.file if stat.S_ISBLK(mode) else self._losetup(self.file)
+        size = int(blockdev('--getsz', device))
 
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
@@ -183,7 +185,7 @@ class Disk(object):
         try:
             try:
                 os.write(tablefd, "0 %d snapshot %s %s n 8\n" %
-                         (size, self.file, cowdev))
+                         (size, device, cowdev))
             finally:
                 os.close(tablefd)
 
@@ -196,7 +198,6 @@ class Disk(object):
 
     def get_image(self, media, **kwargs):
         """Returns a newly created Image instance."""
-
         image = Image(media, self.out, **kwargs)
         self._images.append(image)
         image.enable()
