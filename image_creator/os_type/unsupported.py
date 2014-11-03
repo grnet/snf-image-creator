@@ -22,8 +22,8 @@ from image_creator.os_type import OSBase
 
 class Unsupported(OSBase):
     """OS class for unsupported OSs"""
-    def __init__(self, image, **kargs):
-        super(Unsupported, self).__init__(image, **kargs)
+    def __init__(self, image, **kwargs):
+        super(Unsupported, self).__init__(image, **kwargs)
 
     def collect_metadata(self):
         """Collect metadata about the OS"""

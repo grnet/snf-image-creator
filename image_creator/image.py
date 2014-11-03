@@ -28,16 +28,16 @@ from sendfile import sendfile
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
-    def __init__(self, device, output, **kargs):
+    def __init__(self, device, output, **kwargs):
         """Create a new Image instance"""
 
         self.device = device
         self.out = output
         self.info = image_info(device)
 
-        self.meta = kargs['meta'] if 'meta' in kargs else {}
+        self.meta = kwargs['meta'] if 'meta' in kwargs else {}
         self.sysprep_params = \
-            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+            kwargs['sysprep_params'] if 'sysprep_params' in kwargs else {}
 
         self.progress_bar = None
         self.guestfs_device = None
