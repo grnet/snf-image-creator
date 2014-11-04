@@ -198,7 +198,8 @@ class Disk(object):
 
     def get_image(self, media, **kwargs):
         """Returns a newly created Image instance."""
-        image = Image(media, self.out, **kwargs)
+        info = image_info(media)
+        image = Image(media, self.out, format=info['format'], **kwargs)
         self._images.append(image)
         image.enable()
         return image
