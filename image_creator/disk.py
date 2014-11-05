@@ -18,7 +18,7 @@
 """Module hosting the Disk class."""
 
 from image_creator.util import get_command, try_fail_repeat, free_space, \
-    FatalError, create_snapshot
+    FatalError, create_snapshot, image_info
 from image_creator.bundle_volume import BundleVolume
 from image_creator.image import Image
 
@@ -80,7 +80,7 @@ class Disk(object):
         self._add_cleanup(shutil.rmtree, self.tmp)
 
     def _add_cleanup(self, job, *args):
-        """Add a new job in the cleanup list"""
+        """Add a new job in the cleanup list."""
         self._cleanup_jobs.append((job, args))
 
     def _losetup(self, fname):
@@ -93,7 +93,7 @@ class Disk(object):
         return loop
 
     def _dir_to_disk(self):
-        """Create a disk out of a directory"""
+        """Create a disk out of a directory."""
         if self.source == '/':
             bundle = BundleVolume(self.out, self.meta)
             image = '%s/%s.raw' % (self.tmp, uuid.uuid4().hex)
@@ -125,7 +125,7 @@ class Disk(object):
 
     @property
     def file(self):
-        """Convert the source media into a file"""
+        """Convert the source media into a file."""
 
         if self._file is not None:
             return self._file
@@ -157,19 +157,21 @@ class Disk(object):
             return self.file
 
         # Examine media file
-        mode = os.stat(self.file).st_mode
+        info = image_info(self.file)
 
         self.out.output("Snapshotting media source ...", False)
 
-        # Create a qcow2 snapshot for image files
-        if not stat.S_ISBLK(mode):
+        # Create a qcow2 snapshot for image files that are not raw
+        if info['format'] != 'raw':
             snapshot = create_snapshot(self.file, self.tmp)
             self._add_cleanup(os.unlink, snapshot)
             self.out.success('done')
             return snapshot
 
-        # Create a device-mapper snapshot for block devices
-        size = int(blockdev('--getsz', self.file))
+        # Create a device-mapper snapshot for raw image files and block devices
+        mode = os.stat(self.file).st_mode
+        device = self.file if stat.S_ISBLK(mode) else self._losetup(self.file)
+        size = int(blockdev('--getsz', device))
 
         cowfd, cow = tempfile.mkstemp(dir=self.tmp)
         os.close(cowfd)
@@ -183,7 +185,7 @@ class Disk(object):
         try:
             try:
                 os.write(tablefd, "0 %d snapshot %s %s n 8\n" %
-                         (size, self.file, cowdev))
+                         (size, device, cowdev))
             finally:
                 os.close(tablefd)
 
@@ -194,17 +196,19 @@ class Disk(object):
         self.out.success('done')
         return "/dev/mapper/%s" % snapshot
 
-    def get_image(self, media, **kargs):
+    def get_image(self, media, **kwargs):
         """Returns a newly created Image instance."""
-
-        image = Image(media, self.out, **kargs)
+        info = image_info(media)
+        image = Image(media, self.out, format=info['format'], **kwargs)
         self._images.append(image)
         image.enable()
         return image
 
     def destroy_image(self, image):
-        """Destroys an Image instance previously created by get_image method.
+        """Destroys an Image instance previously created with the get_image()
+        method.
         """
+
         self._images.remove(image)
         image.destroy()
 

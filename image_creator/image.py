@@ -15,7 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from image_creator.util import FatalError, QemuNBD, image_info
+"""Module hosting the Image class."""
+
+from image_creator.util import FatalError, QemuNBD
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
@@ -28,16 +30,16 @@ from sendfile import sendfile
 class Image(object):
     """The instances of this class can create images out of block devices."""
 
-    def __init__(self, device, output, **kargs):
+    def __init__(self, device, output, **kwargs):
         """Create a new Image instance"""
 
         self.device = device
         self.out = output
-        self.info = image_info(device)
+        self.format = kwargs['format'] if 'format' in kwargs else 'raw'
 
-        self.meta = kargs['meta'] if 'meta' in kargs else {}
+        self.meta = kwargs['meta'] if 'meta' in kwargs else {}
         self.sysprep_params = \
-            kargs['sysprep_params'] if 'sysprep_params' in kargs else {}
+            kwargs['sysprep_params'] if 'sysprep_params' in kwargs else {}
 
         self.progress_bar = None
         self.guestfs_device = None
@@ -49,6 +51,10 @@ class Image(object):
 
         # This is needed if the image format is not raw
         self.nbd = QemuNBD(device)
+
+        if self.nbd.qemu_nbd is None and self.format != 'raw':
+            raise FatalError("qemu-nbd command is missing, only raw input "
+                             "media are supported")
 
     def check_guestfs_version(self, major, minor, release):
         """Checks if the version of the used libguestfs is smaller, equal or
@@ -222,11 +228,11 @@ class Image(object):
         class RawImage:
             """The RawImage context manager"""
             def __enter__(self):
-                return img.device if img.info['format'] == 'raw' else \
+                return img.device if img.format == 'raw' else \
                     img.nbd.connect(readonly)
 
             def __exit__(self, exc_type, exc_value, traceback):
-                if img.info['format'] != 'raw':
+                if img.format != 'raw':
                     img.nbd.disconnect()
 
         return RawImage()
