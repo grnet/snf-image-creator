@@ -141,7 +141,10 @@ class QemuNBD(object):
         self.device = None
         self.pattern = re.compile('^nbd\d+$')
         self.modprobe = get_command('modprobe')
-        self.qemu_nbd = get_command('qemu-nbd')
+        try:
+            self.qemu_nbd = get_command('qemu-nbd')
+        except sh.CommandNotFound:
+            self.qemu_nbd = None
 
     def _list_devices(self):
         """Returns all the NBD block devices"""
@@ -149,6 +152,9 @@ class QemuNBD(object):
 
     def connect(self, ro=True):
         """Connect the image to a free NBD device"""
+
+        assert self.qemu_nbd is not None, "qemu-nbd command not found"
+
         devs = self._list_devices()
 
         if len(devs) == 0:  # Is nbd module loaded?
