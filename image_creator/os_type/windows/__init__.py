@@ -241,8 +241,8 @@ class Windows(OSBase):
                        check=virtio_dir_check, hidden=True)
     @add_sysprep_param(
         'virtio_timeout', 'posint', 900, DESCR['virtio_timeout'])
-    def __init__(self, image, **kargs):
-        super(Windows, self).__init__(image, **kargs)
+    def __init__(self, image, **kwargs):
+        super(Windows, self).__init__(image, **kwargs)
 
         # The commit with the following message was added in
         # libguestfs 1.17.18 and was backported in version 1.16.11:

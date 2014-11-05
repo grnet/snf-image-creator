@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This module hosts Windows PowerShell scripts that need to be injected into
-the windows image"""
+the windows image."""
 
 # Just a random 16 character long token
 from image_creator.os_type.windows.vm import RANDOM_TOKEN

@@ -87,7 +87,7 @@ def sysprep(message, enabled=True, **kwargs):
 class SysprepParam(object):
     """This class represents a system preparation parameter"""
 
-    def __init__(self, type, default, description, **kargs):
+    def __init__(self, type, default, description, **kwargs):
 
         assert hasattr(self, "_check_%s" % type), "Invalid type: %s" % type
 
@@ -96,8 +96,8 @@ class SysprepParam(object):
         self.description = description
         self.value = default
         self.error = None
-        self.check = kargs['check'] if 'check' in kargs else lambda x: x
-        self.hidden = kargs['hidden'] if 'hidden' in kargs else False
+        self.check = kwargs['check'] if 'check' in kwargs else lambda x: x
+        self.hidden = kwargs['hidden'] if 'hidden' in kwargs else False
 
     def set_value(self, value):
         """Update the value of the parameter"""
@@ -160,11 +160,11 @@ class SysprepParam(object):
         raise ValueError("Invalid dirname")
 
 
-def add_sysprep_param(name, type, default, descr, **kargs):
+def add_sysprep_param(name, type, default, descr, **kwargs):
     """Decorator for __init__ that adds the definition for a system preparation
     parameter in an instance of an os_type class
     """
-    extra = kargs
+    extra = kwargs
 
     def wrapper(init):
         @wraps(init)
@@ -196,7 +196,7 @@ def del_sysprep_param(name):
 class OSBase(object):
     """Basic operating system class"""
 
-    def __init__(self, image, **kargs):
+    def __init__(self, image, **kwargs):
         self.image = image
 
         self.root = image.root
@@ -206,8 +206,8 @@ class OSBase(object):
         if not hasattr(self, 'sysprep_params'):
             self.sysprep_params = {}
 
-        if 'sysprep_params' in kargs:
-            for key, val in kargs['sysprep_params'].items():
+        if 'sysprep_params' in kwargs:
+            for key, val in kwargs['sysprep_params'].items():
                 if key not in self.sysprep_params:
                     self.out.warn("Ignoring invalid `%s' parameter." % key)
                     continue
@@ -504,7 +504,7 @@ class OSBase(object):
         """List the name of all files recursively under a directory"""
         return self.image.g.find(directory)
 
-    def _foreach_file(self, directory, action, **kargs):
+    def _foreach_file(self, directory, action, **kwargs):
         """Perform an action recursively on all files under a directory.
 
         The following options are allowed:
@@ -522,16 +522,16 @@ class OSBase(object):
             self.out.warn("Directory: `%s' does not exist!" % directory)
             return
 
-        maxdepth = None if 'maxdepth' not in kargs else kargs['maxdepth']
+        maxdepth = None if 'maxdepth' not in kwargs else kwargs['maxdepth']
         if maxdepth == 0:
             return
 
         # maxdepth -= 1
         maxdepth = None if maxdepth is None else maxdepth - 1
-        kargs['maxdepth'] = maxdepth
+        kwargs['maxdepth'] = maxdepth
 
-        exclude = None if 'exclude' not in kargs else kargs['exclude']
-        ftype = None if 'ftype' not in kargs else kargs['ftype']
+        exclude = None if 'exclude' not in kwargs else kwargs['exclude']
+        ftype = None if 'ftype' not in kwargs else kwargs['ftype']
         has_ftype = lambda x, y: y is None and True or x['ftyp'] == y
 
         for f in self.image.g.readdir(directory):
@@ -544,7 +544,7 @@ class OSBase(object):
                 continue
 
             if has_ftype(f, 'd'):
-                self._foreach_file(full_path, action, **kargs)
+                self._foreach_file(full_path, action, **kwargs)
 
             if has_ftype(f, ftype):
                 action(full_path)
