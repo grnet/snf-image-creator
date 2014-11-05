@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This package hosts code for accessing the windows registry"""
+"""This package hosts code for manipulating the windows registry."""
 
 from image_creator.util import FatalError
 
@@ -506,7 +506,7 @@ class Registry(object):
 
         return old
 
-    def _foreach_account(self, write=False, **kargs):
+    def _foreach_account(self, write=False, **kwargs):
         """Performs an action on the RID node of a user or a group in the
         registry, for every user/group found in the userlist/grouplist.
         If userlist/grouplist is empty, it performs the action on all
@@ -539,11 +539,12 @@ class Registry(object):
 
                 action(hive, name, rid_node)
 
-        userlist = kargs['userlist'] if 'userlist' in kargs else None
-        useraction = kargs['useraction'] if 'useraction' in kargs else None
+        userlist = kwargs['userlist'] if 'userlist' in kwargs else None
+        useraction = kwargs['useraction'] if 'useraction' in kwargs else None
 
-        grouplist = kargs['grouplist'] if 'grouplist' in kargs else None
-        groupaction = kargs['groupaction'] if 'groupaction' in kargs else None
+        grouplist = kwargs['grouplist'] if 'grouplist' in kwargs else None
+        groupaction = \
+            kwargs['groupaction'] if 'groupaction' in kwargs else None
 
         if userlist is not None:
             assert useraction is not None

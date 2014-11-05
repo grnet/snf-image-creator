@@ -105,18 +105,19 @@ class WizardPage(object):
     NEXT = 1
     PREV = -1
 
-    def __init__(self, name, text, **kargs):
+    def __init__(self, name, text, **kwargs):
         self.name = name
         self.answer = None
         self.text = text
-        self.print_name = kargs['print_name'] if 'print_name' in kargs \
+        self.print_name = kwargs['print_name'] if 'print_name' in kwargs \
             else " ".join(re.findall('[A-Z][^A-Z]*', name))
-        self.title = kargs['title'] if 'title' in kargs else self.print_name
-        self.default = kargs['default'] if 'default' in kargs else ""
-        self.extra = kargs['extra'] if 'extra' in kargs else None
+        self.title = kwargs['title'] if 'title' in kwargs else self.print_name
+        self.default = kwargs['default'] if 'default' in kwargs else ""
+        self.extra = kwargs['extra'] if 'extra' in kwargs else None
         self.validate = \
-            kargs['validate'] if 'validate' in kargs else lambda x: x
-        self.display = kargs['display'] if 'display' in kargs else lambda x: x
+            kwargs['validate'] if 'validate' in kwargs else lambda x: x
+        self.display = \
+            kwargs['display'] if 'display' in kwargs else lambda x: x
 
         self.dargs = {}
         self.dargs['ok_label'] = 'Next'
@@ -124,10 +125,10 @@ class WizardPage(object):
         self.dargs['width'] = PAGE_WIDTH
         self.dargs['height'] = PAGE_HEIGHT
 
-        if 'extra' in kargs:
+        if 'extra' in kwargs:
             self.dargs['extra_button'] = 1
 
-        self.extra_label = kargs['extra_label'] if 'extra_label' in kargs \
+        self.extra_label = kwargs['extra_label'] if 'extra_label' in kwargs \
             else lambda: "extra"
 
     def __str__(self):
@@ -167,9 +168,9 @@ class WizardInfoPage(WizardPage):
 
     The user-defined information is created by the info function.
     """
-    def __init__(self, name, text, info, **kargs):
+    def __init__(self, name, text, info, **kwargs):
         """Initialize the WizardInfoPage instance"""
-        super(WizardInfoPage, self).__init__(name, text, **kargs)
+        super(WizardInfoPage, self).__init__(name, text, **kwargs)
         self.info = info
 
     def show(self, dialog, title):
@@ -194,9 +195,9 @@ class WizardInfoPage(WizardPage):
 class WizardFormPage(WizardPage):
     """Represents a Form in a wizard"""
 
-    def __init__(self, name, text, fields, **kargs):
+    def __init__(self, name, text, fields, **kwargs):
         """Initialize the WizardFormPage instance"""
-        super(WizardFormPage, self).__init__(name, text, **kargs)
+        super(WizardFormPage, self).__init__(name, text, **kwargs)
         self.fields = fields
 
     def show(self, dialog, title):
@@ -227,11 +228,11 @@ class WizardPageWthChoices(WizardPage):
     the choices variable. If the choices function returns an empty list, a
     fallback function is executed if available.
     """
-    def __init__(self, name, text, choices, **kargs):
+    def __init__(self, name, text, choices, **kwargs):
         """Initialize the WizardPageWthChoices instance"""
-        super(WizardPageWthChoices, self).__init__(name, text, **kargs)
+        super(WizardPageWthChoices, self).__init__(name, text, **kwargs)
         self.choices = choices
-        self.fallback = kargs['fallback'] if 'fallback' in kargs else None
+        self.fallback = kwargs['fallback'] if 'fallback' in kwargs else None
 
 
 class WizardRadioListPage(WizardPageWthChoices):
