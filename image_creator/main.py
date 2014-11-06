@@ -51,91 +51,88 @@ def parse_options(input_args):
     usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
 
-    parser.add_option("-o", "--outfile", type="string", dest="outfile",
-                      default=None, action="callback",
-                      callback=check_writable_dir, help="dump image to FILE",
-                      metavar="FILE")
-
-    parser.add_option("-f", "--force", dest="force", default=False,
-                      action="store_true",
-                      help="overwrite output files if they exist")
-
-    parser.add_option("-s", "--silent", dest="silent", default=False,
-                      help="output only errors",
-                      action="store_true")
-
-    parser.add_option("-u", "--upload", dest="upload", type="string",
-                      default=False,
-                      help="upload the image to the cloud with name FILENAME",
-                      metavar="FILENAME")
-
-    parser.add_option("-r", "--register", dest="register", type="string",
-                      default=False,
-                      help="register the image with a cloud as IMAGENAME",
-                      metavar="IMAGENAME")
-
-    parser.add_option("-m", "--metadata", dest="metadata", default=[],
-                      help="add custom KEY=VALUE metadata to the image",
-                      action="append", metavar="KEY=VALUE")
-
-    parser.add_option("-t", "--token", dest="token", type="string",
-                      default=None, help="use this authentication token when "
-                      "uploading/registering images")
-
     parser.add_option("-a", "--authentication-url", dest="url", type="string",
                       default=None, help="use this authentication URL when "
                       "uploading/registering images")
+
+    parser.add_option("--allow-unsupported", dest="allow_unsupported",
+                      help="proceed with the image creation even if the media "
+                      "is not supported", default=False, action="store_true")
 
     parser.add_option("-c", "--cloud", dest="cloud", type="string",
                       default=None, help="use this saved cloud account to "
                       "authenticate against a cloud when "
                       "uploading/registering images")
 
-    parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
-                      help="print the enabled and disabled system preparation "
-                      "operations for this input media", action="store_true")
-
-    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
-                      help="run SYSPREP operation on the input media",
-                      action="append", metavar="SYSPREP")
-
     parser.add_option("--disable-sysprep", dest="disabled_syspreps",
                       help="prevent SYSPREP operation from running on the "
                       "input media", default=[], action="append",
                       metavar="SYSPREP")
 
+    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
+                      help="run SYSPREP operation on the input media",
+                      action="append", metavar="SYSPREP")
+
+    parser.add_option("-f", "--force", dest="force", default=False,
+                      action="store_true",
+                      help="overwrite output files if they exist")
+
     parser.add_option("--install-virtio", dest="virtio", type="string",
                       help="install VirtIO drivers hosted under DIR "
                       "(Windows only)", metavar="DIR")
-    parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
-                      default=False, action="store_true",
-                      help="print the defined system preparation parameters "
-                      "for this input media")
 
-    parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
-                      help="add KEY=VALUE system preparation parameter",
-                      action="append")
-
-    parser.add_option("--no-sysprep", dest="sysprep", default=True,
-                      help="don't perform any system preparation operation",
-                      action="store_false")
+    parser.add_option("-m", "--metadata", dest="metadata", default=[],
+                      help="add custom KEY=VALUE metadata to the image",
+                      action="append", metavar="KEY=VALUE")
 
     parser.add_option("--no-snapshot", dest="snapshot", default=True,
                       help="don't snapshot the input media. (THIS IS "
                       "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
                       action="store_false")
 
+    parser.add_option("--no-sysprep", dest="sysprep", default=True,
+                      help="don't perform any system preparation operation",
+                      action="store_false")
+
+    parser.add_option("-o", "--outfile", type="string", dest="outfile",
+                      default=None, action="callback", metavar="FILE",
+                      callback=check_writable_dir, help="dump image to FILE")
+
+    parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
+                      help="print the enabled and disabled system preparation "
+                      "operations for this input media", action="store_true")
+
+    parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
+                      default=False, action="store_true",
+                      help="print the defined system preparation parameters "
+                      "for this input media")
+
     parser.add_option("--public", dest="public", default=False,
                       help="register image with the cloud as public",
                       action="store_true")
 
-    parser.add_option("--allow-unsupported", dest="allow_unsupported",
-                      help="proceed with the image creation even if the media "
-                      "is not supported", default=False, action="store_true")
+    parser.add_option("-r", "--register", dest="register", type="string",
+                      default=False, metavar="IMAGENAME",
+                      help="register the image with a cloud as IMAGENAME")
+
+    parser.add_option("-s", "--silent", dest="silent", default=False,
+                      help="output only errors", action="store_true")
+
+    parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
+                      help="add KEY=VALUE system preparation parameter",
+                      action="append")
+
+    parser.add_option("-t", "--token", dest="token", type="string",
+                      default=None, help="use this authentication token when "
+                      "uploading/registering images")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
                       help="create large temporary image files under DIR",
                       metavar="DIR")
+
+    parser.add_option("-u", "--upload", dest="upload", type="string",
+                      default=False, metavar="FILENAME",
+                      help="upload the image to the cloud with name FILENAME")
 
     options, args = parser.parse_args(input_args)
 
