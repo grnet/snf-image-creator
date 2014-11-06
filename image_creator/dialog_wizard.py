@@ -294,7 +294,7 @@ class WizardMenuPage(WizardPageWthChoices):
 def start_wizard(session):
     """Run the image creation wizard"""
 
-    metadata = session['metadata']
+    metadata = session['image'].meta
     distro = session['image'].distro
     ostype = session['image'].ostype
 
@@ -458,7 +458,6 @@ def create_image(session, answers):
 
         update_background_title(session)
 
-        metadata.update(image.meta)
         metadata['DESCRIPTION'] = answers['ImageDescription']
 
         # MD5

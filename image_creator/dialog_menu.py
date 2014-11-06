@@ -94,8 +94,6 @@ class MetadataMonitor(object):
                 msg += '    %s: "%s" -> "%s"\n' % (k, self.old[k], v)
             msg += "\n"
 
-        self.session['metadata'].update(added)
-        self.session['metadata'].update(altered)
         d.msgbox(msg, title="Image Property Changes", width=SMALL_WIDTH)
 
 
@@ -112,8 +110,8 @@ def upload_image(session):
     while 1:
         if 'upload' in session:
             init = session['upload']
-        elif 'OS' in session['metadata']:
-            init = "%s.diskdump" % session['metadata']['OS']
+        elif 'OS' in session['image'].meta:
+            init = "%s.diskdump" % session['image'].meta['OS']
         else:
             init = ""
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
@@ -187,6 +185,7 @@ def upload_image(session):
 def register_image(session):
     """Register image with the compute service"""
     d = session["dialog"]
+    image = session['image']
 
     is_public = False
 
@@ -201,8 +200,8 @@ def register_image(session):
         return False
 
     name = ""
-    description = session['metadata']['DESCRIPTION'] if 'DESCRIPTION' in \
-        session['metadata'] else ""
+    description = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta \
+        else ""
 
     while 1:
         fields = [("Registration name:", name, 60),
@@ -232,9 +231,9 @@ def register_image(session):
         is_public = (answer == 0)
         break
 
-    session['metadata']['DESCRIPTION'] = description
+    image.meta['DESCRIPTION'] = description
     metadata = {}
-    metadata.update(session['metadata'])
+    metadata.update(image.meta)
     if 'task_metadata' in session:
         for key in session['task_metadata']:
             metadata[key] = 'yes'
@@ -452,6 +451,7 @@ def kamaki_menu(session):
 def add_property(session):
     """Add a new property to the image"""
     d = session['dialog']
+    image = session['image']
 
     regexp = re.compile('^[A-Za-z_]+$')
 
@@ -473,7 +473,7 @@ def add_property(session):
         # Image properties are case-insensitive
         name = name.upper()
 
-        if name in session['metadata']:
+        if name in image.meta:
             d.msgbox("Image property: `%s' already exists" % name, width=WIDTH)
             continue
 
@@ -492,7 +492,7 @@ def add_property(session):
 
         break
 
-    session['metadata'][name] = value
+    image.meta[name] = value
 
     return True
 
@@ -509,10 +509,11 @@ def show_properties_help(session):
 def modify_properties(session):
     """Modify an existing image property"""
     d = session['dialog']
+    image = session['image']
 
     while 1:
         choices = []
-        for (key, val) in session['metadata'].items():
+        for (key, val) in image.meta.items():
             choices.append((str(key), str(val)))
 
         if len(choices) == 0:
@@ -544,7 +545,7 @@ def modify_properties(session):
             (code, answer) = d.inputbox(
                 "Please provide a new value for `%s' image property or press "
                 "<Delete> to completely delete it." % choice,
-                init=session['metadata'][choice], width=WIDTH, extra_button=1,
+                init=image.meta[choice], width=WIDTH, extra_button=1,
                 extra_label="Delete")
             if code == d.DIALOG_OK:
                 value = answer.strip()
@@ -552,12 +553,12 @@ def modify_properties(session):
                     d.msgbox("Value cannot be empty!")
                     continue
                 else:
-                    session['metadata'][choice] = value
+                    image.meta[choice] = value
             # Delete button
             elif code == d.DIALOG_EXTRA:
                 if not d.yesno("Are you sure you want to delete `%s' image "
                                "property?" % choice, width=WIDTH):
-                    del session['metadata'][choice]
+                    del image.meta[choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
                              width=SMALL_WIDTH)
         # ADD button
@@ -592,7 +593,7 @@ def exclude_tasks(session):
             return False
 
     for (msg, task, osfamily) in CONFIGURATION_TASKS:
-        if session['metadata']['OSFAMILY'] in osfamily:
+        if image.meta['OSFAMILY'] in osfamily:
             checked = 1 if index in session['excluded_tasks'] else 0
             choices.append((str(displayed_index), msg, checked))
             mapping[displayed_index] = index

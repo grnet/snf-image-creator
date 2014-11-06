@@ -65,15 +65,6 @@ def create_image(d, media, out, tmp, snapshot):
 
         image = disk.get_image(device)
 
-        out.output("Collecting image metadata ...")
-        metadata = {}
-        for (key, value) in image.meta.items():
-            metadata[str(key)] = str(value)
-
-        for (key, value) in image.os.meta.items():
-            metadata[str(key)] = str(value)
-
-        out.success("done")
         gauge.cleanup()
         out.remove(gauge)
 
@@ -84,8 +75,7 @@ def create_image(d, media, out, tmp, snapshot):
 
         session = {"dialog": d,
                    "disk": disk,
-                   "image": image,
-                   "metadata": metadata}
+                   "image": image}
 
         if image.is_unsupported():
 

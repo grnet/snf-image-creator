@@ -227,7 +227,7 @@ class OSBase(object):
                     raise FatalError("Invalid value for sysprep parameter: "
                                      "`%s'. Reason: %s" % (key, param.error))
 
-        self.meta = {}
+        self.meta = self.image.meta
         self.shrinked = False
 
         # This will host the error if mount fails

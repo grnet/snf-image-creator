@@ -302,19 +302,16 @@ def image_creator():
         if options.sysprep:
             image.os.do_sysprep()
 
-        metadata = image.os.meta
-        metadata.update(image.meta)
-
         if image.is_unsupported():
-            metadata['EXCLUDE_ALL_TASKS'] = "yes"
+            image.meta['EXCLUDE_ALL_TASKS'] = "yes"
 
         # Add command line metadata to the collected ones...
-        metadata.update(options.metadata)
+        image.meta.update(options.metadata)
 
         checksum = image.md5()
 
         metastring = unicode(json.dumps(
-            {'properties': metadata,
+            {'properties': image.meta,
              'disk-format': 'diskdump'}, ensure_ascii=False))
 
         if options.outfile is not None:
@@ -356,7 +353,7 @@ def image_creator():
                 out.output('Registering %s image with the compute service ...'
                            % img_type, False)
                 result = kamaki.register(options.register, remote,
-                                         metadata, options.public)
+                                         image.meta, options.public)
                 out.success('done')
                 out.output("Uploading metadata file ...", False)
                 metastring = unicode(json.dumps(result, ensure_ascii=False))
