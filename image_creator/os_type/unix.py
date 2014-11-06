@@ -19,6 +19,68 @@
 
 from image_creator.os_type import OSBase, sysprep
 
+# Credits go to Wmconfig (https://www.arrishq.net/) for the biggest part of
+# this collection
+DESKTOPSESSIONS = {
+    # Put the most popular GUIs first
+    ('startkde',): 'KDE',
+    ('gnome-session', 'gnomesession'): 'GNOME',
+    ('unity',): 'Unity',
+    ('xfce4-session', 'startxfce4', 'xfwm4'): 'Xfce',
+    ('startlxde', 'lxsession'): 'LXDE',
+    ('mate-session',): 'MATE',
+    ('cinnamon', 'gnome-session-cinnamon', 'cinnamon-session'): 'Cinnamon',
+    ('enlightenment',): 'Enlightenment',
+
+    ('aewm',): 'aewm',
+    ('afterstep',): 'AfterStep',
+    ('amiwm',): 'amiwm',
+    ('awesome',): 'awesome',
+    ('blackbox',): 'Blackbox',
+    ('ctwm',): 'CTWM',
+    ('dwm',): 'dwm',
+    ('epiwm',): 'EPIwm',
+    ('fluxbox', 'startfluxbox'): 'Fluxbox',
+    ('flwm',): 'flvm',
+    ('fvwm',): 'FVWM',
+    ('fvwm2',): 'FVWM',
+    ('fvwm95',): 'FVWM95',
+    ('golem',): 'Golem',
+    ('i3',): 'i3',
+    ('icewm', 'icewm-session'): 'IceVM',
+    ('ion', 'ion2', 'ion3'): 'Ion',
+    ('jwm',): "JWM",
+    ('kahakai',): 'Kahakai',
+    ('larswm',): 'larswm',
+    ('mlvwm',): 'MLVWM',
+    ('mwm',): 'Motif Window Manager',
+    ('olvwm',): 'OLVWM',
+    ('olwm',): 'OLWM',
+    ('openbox', 'openbox-session'): 'Openbox',
+    ('particleman', ): 'ParticleMan',
+    ('pekwm',): 'PeKWM',
+    ('pwm', 'pwm2', 'pwm3'): 'PWM',
+    ('qvwm',): 'qvwm',
+    ('rasor-session',): 'Razor-qt',
+    ('ratpoison',): 'Ratpoison',
+    ('sapphire',): 'Sapphire',
+    ('sawfish',): 'Sawfish',
+    ('sithwm',): 'SithWM',
+    ('startede',): 'EDE',
+    ('startstump',): 'StumpWM',
+    ('starttrinity',): 'TDE',
+    ('twm',): 'twm',
+    ('uwm',): 'UDE',
+    ('w9wm',): 'w9wm',
+    ('wmaker',): 'WindowMaker',
+    ('wmx',): 'wmx',
+    ('wmi', 'wmii'): 'wmii',
+    ('windowlab',): 'WindowLab',
+    ('xmonad',): 'xmonad',
+}
+
+X11_EXECUTABLE = 'startx'
+
 
 class Unix(OSBase):
     """OS class for Unix"""
@@ -69,6 +131,33 @@ class Unix(OSBase):
                     self._mount_warnings.append('%s (ignored)' % msg)
 
         return True
+
+    def _do_collect_metadata(self):
+        super(Unix, self)._do_collect_metadata()
+
+        bin_prefixes = ('', '/usr', '/usr/local')
+        gui = False
+
+        paths = ['%s/bin/%s' % (p, X11_EXECUTABLE) for p in bin_prefixes]
+        for path in paths:
+            if self.image.g.is_file(path):
+                gui = True
+                break
+
+        if not gui:
+            self.meta['GUI'] = "No GUI"
+        else:
+            self.meta['GUI'] = 'Unknown'
+
+        desktop = []
+        for exe, session in DESKTOPSESSIONS.items():
+            paths = ["%s/bin/%s" % (p, e) for p in bin_prefixes for e in exe]
+            for path in paths:
+                if self.image.g.is_file(path):
+                    desktop.append(session)
+                    break
+        if gui and len(desktop) != 0:
+            self.meta['GUI'] = " | ".join(desktop)
 
     def ssh_connection_options(self, users):
         """Returns a list of valid ssh connection options"""

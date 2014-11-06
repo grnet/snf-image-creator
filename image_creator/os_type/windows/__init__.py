@@ -742,6 +742,7 @@ class Windows(OSBase):
 
         self.meta["KERNEL"] = "Windows NT %d.%d" % (major, minor)
         self.meta['SORTORDER'] += (100 * major + minor) * 100
+        self.meta['GUI'] = 'Windows'
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
