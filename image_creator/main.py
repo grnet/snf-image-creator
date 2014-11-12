@@ -98,6 +98,10 @@ def parse_options(input_args):
                       default=None, action="callback", metavar="FILE",
                       callback=check_writable_dir, help="dump image to FILE")
 
+    parser.add_option("--print-metadata", dest="print_metadata", default=False,
+                      help="print the detected image metadata",
+                      action='store_true')
+
     parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
                       help="print the enabled and disabled system preparation "
                       "operations for this input media", action="store_true")
@@ -189,9 +193,11 @@ def image_creator():
     options = parse_options(sys.argv[1:])
 
     if options.outfile is None and not options.upload and not \
-            options.print_syspreps and not options.print_sysprep_params:
-        raise FatalError("At least one of `-o', `-u', `--print-syspreps' or "
-                         "`--print-sysprep-params' must be set")
+            options.print_syspreps and not options.print_sysprep_params \
+            and not options.print_metadata:
+        raise FatalError("At least one of `-o', `-u', `--print-syspreps', "
+                         "`--print-sysprep-params' or `--print-metadata' must "
+                         "be set")
 
     if options.silent:
         out = SilentOutput()
@@ -290,6 +296,10 @@ def image_creator():
 
         if options.print_sysprep_params:
             image.os.print_sysprep_params()
+            out.output()
+
+        if options.print_metadata:
+            image.os.print_metadata()
             out.output()
 
         if options.outfile is None and not options.upload:

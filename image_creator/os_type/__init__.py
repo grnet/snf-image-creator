@@ -348,8 +348,17 @@ class OSBase(object):
 
         return self._sysprep_tasks[obj.__name__]
 
+    def print_metadata(self):
+        """Print the image metadata"""
+
+        self.out.output("Detected image metadata:")
+
+        col_width = max(len(key) for key in self.meta) + 2
+        for key, val in self.meta.items():
+            self.out.output("%s %s" % (key.ljust(col_width), val))
+
     def print_syspreps(self):
-        """Print enabled and disabled system preparation operations."""
+        """Print enabled and disabled system preparation operations"""
 
         syspreps = self.list_syspreps()
         enabled = [s for s in syspreps if self.sysprep_enabled(s)]
