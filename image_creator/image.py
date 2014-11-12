@@ -17,7 +17,7 @@
 
 """Module hosting the Image class."""
 
-from image_creator.util import FatalError, QemuNBD
+from image_creator.util import FatalError, QemuNBD, get_command
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
@@ -25,6 +25,7 @@ import re
 import guestfs
 import hashlib
 from sendfile import sendfile
+import threading
 
 
 class Image(object):
@@ -55,6 +56,7 @@ class Image(object):
         if self.nbd.qemu_nbd is None and self.format != 'raw':
             raise FatalError("qemu-nbd command is missing, only raw input "
                              "media are supported")
+        self._mount_thread = None
 
     def check_guestfs_version(self, major, minor, release):
         """Checks if the version of the used libguestfs is smaller, equal or
@@ -421,6 +423,59 @@ class Image(object):
                              ((self.size + MB - 1) // MB))
 
         return self.size
+
+    def mount(self, mpoint, readonly=False):
+        """Mount the image file system under a local directory"""
+
+        assert self._mount_thread is None, "Image is already mounted"
+
+        def do_mount():
+            """Use libguestfs's guestmount API"""
+            with self.os.mount(readonly=readonly, silent=True):
+                if self.g.mount_local(mpoint, readonly=readonly) == -1:
+                    return
+                # The thread will block in mount_local_run until the file
+                self.g.mount_local_run()
+
+        self._mount_thread = threading.Thread(target=do_mount)
+        self._mount_thread.mpoint = mpoint
+        self._mount_thread.start()
+
+    def is_mounted(self):
+        """Check if the image is mounted"""
+
+        if self._mount_thread is None:
+            return False
+
+        # Wait for 0.1 second to avoid race conditions if the thread is in an
+        # initialization state but not alive yet.
+        self._mount_thread.join(0.1)
+
+        return self._mount_thread.is_alive()
+
+    def umount(self):
+        """umount the previously mounted image file system"""
+        assert self._mount_thread is not None, "Image is not mounted"
+
+        # Maybe the image was umounted externally
+        if not self._mount_thread.is_alive():
+            self._mount_thread = None
+            return True
+
+        try:
+            get_command('umount')(self._mount_thread.mpoint)
+        except:
+            return False
+
+        # Wait for a little while. If the image is umounted, mount_local_run
+        # should have terminated
+        self._mount_thread.join(5)
+
+        if self._mount_thread.is_alive():
+            raise FatalError('Unable to join the mount thread')
+
+        self._mount_thread = None
+        return True
 
     def dump(self, outfile):
         """Dumps the content of the image into a file.

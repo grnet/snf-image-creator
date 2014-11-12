@@ -25,6 +25,7 @@ import StringIO
 import json
 import re
 import time
+import tempfile
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError, virtio_versions
@@ -898,6 +899,34 @@ def sysprep(session):
     return True
 
 
+def mount(session):
+    """Mount image on the local file system"""
+    d = session['dialog']
+    image = session['image']
+
+    mpoint = tempfile.mkdtemp()
+    try:
+        try:
+            image.mount(mpoint)
+            if not image.is_mounted():
+                d.msgbox("Mounting Failed!", title="Mount Image",
+                         width=SMALL_WIDTH)
+                return
+            d.msgbox("The image was mounted successfully. You may access its "
+                     "file system under %s. Press <OK> when you have finished "
+                     "accessing it." % mpoint, title="Mount Image",
+                     width=SMALL_WIDTH)
+        finally:
+            while 1:
+                if image.umount():
+                    break
+                d.msgbox("Umount failed. Make sure no process is using any "
+                         "files under %s and press <OK>." % mpoint,
+                         width=SMALL_WIDTH)
+    finally:
+        os.rmdir(mpoint)
+
+
 def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
@@ -907,13 +936,15 @@ def customization_menu(session):
     if hasattr(image.os, "install_virtio_drivers"):
         choices.append(("VirtIO", "Install or update the VirtIO drivers"))
     choices.extend(
-        [("Sysprep", "Run various image preparation tasks"),
+        [("Mount", "Mount image on the local file system"),
+         ("Sysprep", "Run various image preparation tasks"),
          ("Properties", "View & Modify image properties"),
          ("Exclude", "Exclude various deployment tasks from running")])
 
     default_item = 0
 
-    actions = {"VirtIO": virtio,
+    actions = {"Mount": mount,
+               "VirtIO": virtio,
                "Sysprep": sysprep,
                "Properties": modify_properties,
                "Exclude": exclude_tasks}
