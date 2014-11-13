@@ -186,28 +186,30 @@ def dialog_main(media, logfile, tmpdir, snapshot):
 
     d.setBackgroundTitle('snf-image-creator')
 
-    tmplog = None if logfile else tempfile.NamedTemporaryFile(
-        prefix='fatal-', delete=False)
-    try:
-        while True:
-            media = select_file(d, init=media, ftype="br", bundle_host=True,
-                                title="Please select an input media.")
-            if media is None:
-                if confirm_exit(
-                        d, "You canceled the media selection dialog box."):
-                    return 0
-                continue
-            break
+    # Pick input media
+    while True:
+        media = select_file(d, init=media, ftype="br", bundle_host=True,
+                            title="Please select an input media.")
+        if media is None:
+            if confirm_exit(
+                    d, "You canceled the media selection dialog box."):
+                return 0
+            continue
+        break
 
+    tmplog = None if logfile else tempfile.NamedTemporaryFile(prefix='fatal-',
+                                                              delete=False)
+    try:
         log = SimpleOutput(False, logfile if logfile else tmplog)
         while 1:
             try:
                 out = CompositeOutput([log])
                 out.output("Starting %s v%s ..." % (PROGNAME, version))
-                return create_image(d, media, out, tmpdir, snapshot)
+                ret = create_image(d, media, out, tmpdir, snapshot)
+                break
             except Reset:
                 log.output("Resetting everything ...")
-                continue
+
     except FatalError as error:
         log.error(str(error))
         msg = 'A fatal error occured. See %s for a full log.' % log.stream.name
@@ -219,6 +221,8 @@ def dialog_main(media, logfile, tmpdir, snapshot):
     finally:
         if tmplog:
             tmplog.close()
+
+    return ret
 
 
 def main():
