@@ -912,8 +912,8 @@ def mount(session):
                 d.msgbox("Mounting Failed!", title="Mount Image",
                          width=SMALL_WIDTH)
                 return
-            d.msgbox("The image was mounted successfully. You may access its "
-                     "file system under %s. Press <OK> when you have finished "
+            d.msgbox("The image was mounted successfully. You may access it "
+                     "under %s. Press <OK> when you have finished "
                      "accessing it." % mpoint, title="Mount Image",
                      width=SMALL_WIDTH)
         finally:
@@ -933,11 +933,12 @@ def customization_menu(session):
     image = session['image']
 
     choices = []
+    if image.mount_local_support:
+        choices.append(("Mount", "Mount image on the local file system"))
     if hasattr(image.os, "install_virtio_drivers"):
         choices.append(("VirtIO", "Install or update the VirtIO drivers"))
     choices.extend(
-        [("Mount", "Mount image on the local file system"),
-         ("Sysprep", "Run various image preparation tasks"),
+        [("Sysprep", "Run various image preparation tasks"),
          ("Properties", "View & Modify image properties"),
          ("Exclude", "Exclude various deployment tasks from running")])
 

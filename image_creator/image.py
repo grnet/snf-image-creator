@@ -56,7 +56,11 @@ class Image(object):
         if self.nbd.qemu_nbd is None and self.format != 'raw':
             raise FatalError("qemu-nbd command is missing, only raw input "
                              "media are supported")
-        self._mount_thread = None
+
+        # Check If MOUNT LOCAL is supported for this guestfs build
+        self.mount_local_support = hasattr(self.g, "mount_local")
+        if self.mount_local_support:
+            self._mount_thread = None
 
     def check_guestfs_version(self, major, minor, release):
         """Checks if the version of the used libguestfs is smaller, equal or
@@ -427,6 +431,9 @@ class Image(object):
     def mount(self, mpoint, readonly=False):
         """Mount the image file system under a local directory"""
 
+        assert self.mount_local_support, \
+            "MOUNT LOCAL not supported for this build of libguestfs"
+
         assert self._mount_thread is None, "Image is already mounted"
 
         def do_mount():
@@ -444,6 +451,9 @@ class Image(object):
     def is_mounted(self):
         """Check if the image is mounted"""
 
+        assert self.mount_local_support, \
+            "MOUNT LOCAL not supported for this build of libguestfs"
+
         if self._mount_thread is None:
             return False
 
@@ -455,6 +465,10 @@ class Image(object):
 
     def umount(self):
         """umount the previously mounted image file system"""
+
+        assert self.mount_local_support, \
+            "MOUNT LOCAL not supported for this build of libguestfs"
+
         assert self._mount_thread is not None, "Image is not mounted"
 
         # Maybe the image was umounted externally
