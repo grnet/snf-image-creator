@@ -463,7 +463,7 @@ class Image(object):
 
         return self._mount_thread.is_alive()
 
-    def umount(self):
+    def umount(self, lazy=False):
         """umount the previously mounted image file system"""
 
         assert self.mount_local_support, \
@@ -477,7 +477,8 @@ class Image(object):
             return True
 
         try:
-            get_command('umount')(self._mount_thread.mpoint)
+            args = (['-l'] if lazy else []) + [self._mount_thread.mpoint]
+            get_command('umount')(*args)
         except:
             return False
 
