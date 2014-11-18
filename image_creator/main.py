@@ -33,6 +33,9 @@ import StringIO
 import signal
 import json
 import textwrap
+import tempfile
+import subprocess
+import time
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -76,6 +79,14 @@ def parse_options(input_args):
     parser.add_option("-f", "--force", dest="force", default=False,
                       action="store_true",
                       help="overwrite output files if they exist")
+
+    parser.add_option("--host-run", dest="host_run", default=[],
+                      help="mount the media in the host and run a script "
+                      "against the guest media. This option may be defined "
+                      "multiple times. The script's working directory will be "
+                      "the guest's root directory. BE CAREFUL! DO NOT USE "
+                      "ABSOLUTE PATHS INSIDE THE SCRIPT! YOU MAY HARM YOUR "
+                      "SYSTEM!", metavar="SCRIPT", action="append")
 
     parser.add_option("--install-virtio", dest="virtio", type="string",
                       help="install VirtIO drivers hosted under DIR "
@@ -284,6 +295,17 @@ def image_creator():
                               "not be cleared out of sensitive data and will "
                               "not get customized during the deployment."))
 
+        if len(options.host_run) != 0 and not image.mount_local_support:
+            raise FatalError("Running scripts against the guest media is not "
+                             "supported for this build of libguestfs.")
+
+        if len(options.host_run) != 0:
+            for script in options.host_run:
+                if not os.path.isfile(script):
+                    raise FatalError("File: `%s' does not exist." % script)
+                if not os.access(script, os.X_OK):
+                    raise FatalError("File: `%s' is not executable." % script)
+
         for sysprep in options.disabled_syspreps:
             image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
@@ -308,6 +330,33 @@ def image_creator():
         if options.virtio is not None and \
                 hasattr(image.os, 'install_virtio_drivers'):
             image.os.install_virtio_drivers()
+
+        if len(options.host_run) != 0:
+            out.output("Running scripts on the input media:")
+            mpoint = tempfile.mkdtemp()
+            try:
+                image.mount(mpoint)
+                if not image.is_mounted():
+                    raise FatalError("Mounting the media on the host failed.")
+                try:
+                    size = len(options.host_run)
+                    cnt = 1
+                    for script in options.host_run:
+                        script = os.path.abspath(script)
+                        out.output(("(%d/%d)" % (cnt, size)).ljust(7), False)
+                        out.output("Running `%s'" % script)
+                        ret = subprocess.Popen([script], cwd=mpoint).wait()
+                        if ret != 0:
+                            raise FatalError("Script: `%s' failed (rc=%d)" %
+                                             (script, ret))
+                        cnt += 1
+                finally:
+                    while not image.umount():
+                        out.warn("Unable to umount the media. Retrying ...")
+                        time.sleep(1)
+                    out.output()
+            finally:
+                os.rmdir
 
         if options.sysprep:
             image.os.do_sysprep()
