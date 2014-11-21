@@ -17,7 +17,7 @@
 
 """This module hosts OS-specific code common to all Unix-like OSs."""
 
-from image_creator.os_type import OSBase, sysprep
+from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 
 # Credits go to Wmconfig (https://www.arrishq.net/) for the biggest part of
 # this collection
@@ -78,23 +78,38 @@ DESKTOPSESSIONS = {
     ('windowlab',): 'WindowLab',
     ('xmonad',): 'xmonad',
 }
-
 X11_EXECUTABLE = 'startx'
+
+SENSITIVE_USERDATA = [
+    '.history',
+    '.sh_history',
+    '.bash_history',
+    '.zsh_history',
+    '.gnupg',
+    '.ssh',
+    '.kamakirc',
+    '.kamaki.history',
+    '.kamaki.log'
+]
+
+
+def check_sensitive_userdata(value):
+    "Do not allow a zero string"
+
+    if len(value) == 0:
+        raise ValueError("Filename cannot be empty")
+
+    return value
 
 
 class Unix(OSBase):
     """OS class for Unix"""
-    sensitive_userdata = [
-        '.history',
-        '.sh_history',
-        '.bash_history',
-        '.zsh_history',
-        '.gnupg',
-        '.ssh',
-        '.kamakirc',
-        '.kamaki.history',
-        '.kamaki.log'
-    ]
+    @add_sysprep_param(
+        'sensitive_userdata', 'list:string', SENSITIVE_USERDATA,
+        'Files in the home directory of each user that should be removed',
+        check=check_sensitive_userdata)
+    def __init__(self, image, **kwargs):
+        super(Unix, self).__init__(image, **kwargs)
 
     def _mountpoints(self):
         """Return mountpoints in the correct order.
@@ -231,8 +246,9 @@ class Unix(OSBase):
         else:
             self.out.warn("Sensitive data won't be scrubbed (not supported)")
 
+        sensitive_userdata = self.sysprep_params['sensitive_userdata'].value
         for homedir in homedirs:
-            for data in self.sensitive_userdata:
+            for data in sensitive_userdata:
                 fname = "%s/%s" % (homedir, data)
                 if self.image.g.is_file(fname):
                     action(fname)
