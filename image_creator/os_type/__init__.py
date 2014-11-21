@@ -98,11 +98,11 @@ def sysprep(message, enabled=True, **kwargs):
 class SysprepParam(object):
     """This class represents a system preparation parameter"""
 
-    def __init__(self, type, default, description, **kwargs):
+    def __init__(self, name, type, default, description, **kwargs):
 
-        assert hasattr(self, "_check_%s" % type), "Invalid type: %s" % type
-
-        self.type = type
+        self.name = name
+        self.is_list = type.startswith('list:')
+        self.type = type.split(':', 1)[1] if self.is_list else type
         self.default = default
         self.description = description
         self.value = default
@@ -110,15 +110,25 @@ class SysprepParam(object):
         self.check = kwargs['check'] if 'check' in kwargs else lambda x: x
         self.hidden = kwargs['hidden'] if 'hidden' in kwargs else False
 
+        assert hasattr(self, "_check_%s" % self.type), \
+            "Invalid type: %s" % self.type
+
     def set_value(self, value):
         """Update the value of the parameter"""
 
         check_type = getattr(self, "_check_%s" % self.type)
-        try:
-            self.value = self.check(check_type(value))
-        except ValueError as e:
-            self.error = e.message
-            return False
+
+        tmp = []
+
+        for item in value if self.is_list else [value]:
+            try:
+                tmp.append(self.check(check_type(item)))
+            except ValueError as e:
+                self.error = e.message
+                return False
+
+        self.value = tmp if self.is_list else tmp[0]
+
         return True
 
     def _check_posint(self, value):
@@ -185,7 +195,7 @@ def add_sysprep_param(name, type, default, descr, **kwargs):
                 self.sysprep_params = {}
 
             self.sysprep_params[name] = \
-                SysprepParam(type, default, descr, **extra)
+                SysprepParam(name, type, default, descr, **extra)
             init(self, *args, **kwargs)
         return inner
     return wrapper
@@ -223,6 +233,19 @@ class OSBase(object):
                     self.out.warn("Ignoring invalid `%s' parameter." % key)
                     continue
                 param = self.sysprep_params[key]
+                if param.is_list:
+                    def split_in_comma(val):
+                        tmp = val.split(',')
+                        prev = ""
+                        for i in xrange(len(tmp)):
+                            item = prev + tmp[i]
+                            if item.endswith('\\'):
+                                prev = item[:-1]
+                                continue
+                            prev = ""
+                            yield item
+                    val = list(split_in_comma(val))
+
                 if not param.set_value(val):
                     raise FatalError("Invalid value for sysprep parameter: "
                                      "`%s'. Reason: %s" % (key, param.error))
@@ -401,15 +424,19 @@ class OSBase(object):
 
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = "             "
-        wrapper.width = 72
+        wrapper.width = 80
 
         for name, param in public_params:
             if param.hidden:
                 continue
-            self.out.output("NAME:        %s" % name)
-            self.out.output("VALUE:       %s" % param.value)
-            self.out.output(
-                wrapper.fill("DESCRIPTION: %s" % param.description))
+            self.out.output("NAME:".ljust(13) + name)
+            self.out.output(wrapper.fill("DESCRIPTION:".ljust(13) +
+                            "%s" % param.description))
+            self.out.output("TYPE:".ljust(13) + "%s%s" %
+                            ("list:" if param.is_list else "", param.type))
+            self.out.output("VALUE:".ljust(13) +
+                            ("\n".ljust(14).join(param.value) if param.is_list
+                             else param.value))
             self.out.output()
 
     def do_sysprep(self):

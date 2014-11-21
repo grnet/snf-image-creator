@@ -656,7 +656,8 @@ def sysprep_params(session):
             if param.hidden:
                 continue
 
-            value = str(param.value)
+            value = "|".join([str(i) for i in param.value]) if param.is_list \
+                else str(param.value)
             if len(value) == 0:
                 value = "<not_set>"
             choices.append((name, value))
