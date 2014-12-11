@@ -76,25 +76,25 @@ class GaugeOutput(Output):
         }
 
         def __init__(self, size, title, bar_type='default'):
-            self.output.size = size
+            self.parent.size = size
             self.bar_type = bar_type
-            self.output.msg = "%s ..." % title
+            self.parent.msg = "%s ..." % title
             self.goto(0)
 
         def _postfix(self):
-            return self.template[self.bar_type] % self.output.__dict__
+            return self.template[self.bar_type] % self.parent.__dict__
 
         def goto(self, dest):
             """Move progress bar to a specific position"""
-            self.output.index = dest
-            self.output.percent = self.output.index * 100 // self.output.size
-            msg = "%s %s" % (self.output.msg, self._postfix())
-            self.output.d.gauge_update(self.output.percent, msg,
+            self.parent.index = dest
+            self.parent.percent = self.parent.index * 100 // self.parent.size
+            msg = "%s %s" % (self.parent.msg, self._postfix())
+            self.parent.d.gauge_update(self.parent.percent, msg,
                                        update_text=True)
 
         def next(self):
             """Move progress bar one step forward"""
-            self.goto(self.output.index + 1)
+            self.goto(self.parent.index + 1)
 
 
 class InfoBoxOutput(Output):

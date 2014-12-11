@@ -77,7 +77,7 @@ class CompositeOutput(Output):
         def __init__(self, size, title, bar_type='default'):
             """Create a progress on each of the added output instances"""
             self._progresses = []
-            for out in self.output._outputs:
+            for out in self.parent._outputs:
                 self._progresses.append(out.Progress(size, title, bar_type))
 
         def goto(self, dest):

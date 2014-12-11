@@ -51,7 +51,7 @@ class Output(object):
     def _get_progress(self):
         """Returns a new Progress object"""
         progress = self._Progress
-        progress.output = self
+        progress.parent = self
         return progress
 
     Progress = property(_get_progress)
@@ -61,7 +61,7 @@ class Output(object):
         def __init__(self, size, title, bar_type='default'):
             self.size = size
             self.bar_type = bar_type
-            self.output.output("%s ..." % title, False)
+            self.parent.output("%s ..." % title, False)
 
         def goto(self, dest):
             """Move progress to a specific position"""
@@ -73,7 +73,7 @@ class Output(object):
 
         def success(self, result):
             """Print a msg after an action is completed successfully"""
-            self.output.success(result)
+            self.parent.success(result)
 
     def progress_generator(self, message):
         """A python generator for the progress bar class"""

@@ -114,7 +114,7 @@ class OutputWthProgress(SimpleOutput):
 
         def success(self, result):
             """Print result after progress has finished"""
-            self.output.output("\r%s ...\033[K" % self.title, False)
-            self.output.success(result)
+            self.parent.output("\r%s ...\033[K" % self.title, False)
+            self.parent.success(result)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
