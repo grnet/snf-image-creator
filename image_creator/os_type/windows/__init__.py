@@ -524,7 +524,7 @@ class Windows(OSBase):
                                   self.registry.update_uac_remote_setting, old)
 
             def if_not_sysprepped(task, *args):
-                """Only perform this if the image is not syspreped"""
+                """Only perform this if the image is not sysprepped"""
                 if not self.sysprepped:
                     task(*args)
 
