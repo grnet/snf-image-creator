@@ -144,7 +144,7 @@ def upload_image(session):
     gauge = GaugeOutput(d, "Image Upload", "Uploading ...")
     try:
         out = image.out
-        out.add(gauge)
+        out.append(gauge)
         kamaki.out = out
         try:
             if 'checksum' not in session:
@@ -243,7 +243,7 @@ def register_image(session):
     gauge = GaugeOutput(d, "Image Registration", "Registering image ...")
     try:
         out = session['image'].out
-        out.add(gauge)
+        out.append(gauge)
         try:
             try:
                 out.output("Registering %s image with the cloud ..." %
@@ -789,7 +789,7 @@ def install_virtio_drivers(session):
     title = "VirtIO Drivers Installation"
     infobox = InfoBoxOutput(d, title)
     try:
-        image.out.add(infobox)
+        image.out.append(infobox)
         try:
             image.os.install_virtio_drivers()
             infobox.finalize()
@@ -876,7 +876,7 @@ def sysprep(session):
 
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
-                image.out.add(infobox)
+                image.out.append(infobox)
                 try:
                     # The checksum is invalid. We have mounted the image rw
                     if 'checksum' in session:

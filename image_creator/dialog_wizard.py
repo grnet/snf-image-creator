@@ -445,7 +445,7 @@ def create_image(session, answers):
     image = session['image']
 
     with_progress = OutputWthProgress(True)
-    image.out.add(with_progress)
+    image.out.append(with_progress)
     try:
         image.out.clear()
 

@@ -20,7 +20,7 @@
 from image_creator.output import Output
 
 
-class CompositeOutput(Output):
+class CompositeOutput(Output, list):
     """This class can be used to composite different outputs into a single one
 
     You may create an instance of this class and then add other output
@@ -31,44 +31,36 @@ class CompositeOutput(Output):
 
     def __init__(self, outputs=[]):
         """Add initial output instances"""
-        self._outputs = outputs
-
-    def add(self, output):
-        """Add another output instance"""
-        self._outputs.append(output)
-
-    def remove(self, output):
-        """Remove an output instance"""
-        self._outputs.remove(output)
+        self.extend(outputs)
 
     def error(self, msg, new_line=True):
         """Call the error method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.error(msg, new_line)
 
     def warn(self, msg, new_line=True):
         """Call the warn method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.warn(msg, new_line)
 
     def success(self, msg, new_line=True):
         """Call the success method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.success(msg, new_line)
 
     def output(self, msg='', new_line=True):
         """Call the output method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.output(msg, new_line)
 
     def cleanup(self):
         """Call the cleanup method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.cleanup()
 
     def clear(self):
         """Call the clear method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.clear()
 
     class _Progress(object):
@@ -77,7 +69,7 @@ class CompositeOutput(Output):
         def __init__(self, size, title, bar_type='default'):
             """Create a progress on each of the added output instances"""
             self._progresses = []
-            for out in self.parent._outputs:
+            for out in self.parent:
                 self._progresses.append(out.Progress(size, title, bar_type))
 
         def goto(self, dest):

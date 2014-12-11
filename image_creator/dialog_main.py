@@ -50,7 +50,7 @@ def create_image(d, media, out, tmp, snapshot):
     d.setBackgroundTitle('snf-image-creator')
 
     gauge = GaugeOutput(d, "Initialization", "Initializing...")
-    out.add(gauge)
+    out.append(gauge)
     disk = Disk(media, out, tmp)
 
     def signal_handler(signum, frame):

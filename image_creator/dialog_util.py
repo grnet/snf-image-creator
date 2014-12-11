@@ -194,7 +194,7 @@ def extract_image(session):
         try:
             image = session['image']
             out = image.out
-            out.add(gauge)
+            out.append(gauge)
             try:
                 if "checksum" not in session:
                     session['checksum'] = image.md5()
