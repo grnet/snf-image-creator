@@ -23,6 +23,8 @@ import os
 import stat
 import re
 import json
+import shutil
+
 from image_creator.output.dialog import GaugeOutput
 from image_creator.kamaki_wrapper import Kamaki
 
@@ -59,6 +61,9 @@ def select_file(d, **kwargs):
     fname = None if "init" not in kwargs else kwargs['init']
     ftype = set(t for t in kwargs['ftype']) if 'ftype' in kwargs else set('r')
     title = kwargs['title'] if 'title' in kwargs else 'Please select a file.'
+    existing = kwargs['existing'] if 'existing' in kwargs else False
+    basedir = kwargs['basedir'] if 'basedir' in kwargs else \
+        (os.getcwd() + os.sep)
 
     bundle_host = kwargs['bundle_host'] if 'bundle_host' in kwargs else None
     extra_button = 1 if bundle_host else 0
@@ -70,13 +75,16 @@ def select_file(d, **kwargs):
     if bundle_host and fname == os.sep:
         return os.sep
 
-    default = os.getcwd() + os.sep
+    default = basedir
 
     while 1:
         if fname is not None:
             if not os.path.exists(fname):
-                d.msgbox("The file `%s' you choose does not exist." % fname,
-                         width=SMALL_WIDTH)
+                if existing:
+                    d.msgbox("The file `%s' you choose does not exist." %
+                             fname, width=SMALL_WIDTH)
+                else:
+                    return fname
             else:
                 mode = os.stat(fname).st_mode
                 for i in ftype:
@@ -84,7 +92,7 @@ def select_file(d, **kwargs):
                         return fname
 
                 if stat.S_ISDIR(mode):
-                    default = fname
+                    default = fname + os.sep
                 else:
                     d.msgbox("Invalid input.", width=SMALL_WIDTH)
 
@@ -147,13 +155,16 @@ def extract_metadata_string(session):
 def extract_image(session):
     """Dump the image to a local file"""
     d = session['dialog']
+
     dir = os.getcwd()
+
     while 1:
         if dir and dir[-1] != os.sep:
             dir = dir + os.sep
 
-        (code, path) = d.fselect(dir, 10, 50, title="Save image as...")
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        path = select_file(d, title="Save image as...", existing=False,
+                           basedir=dir)
+        if path is None:
             return False
 
         if os.path.isdir(path):
@@ -436,6 +447,21 @@ def update_sysprep_param(session, name, title=None):
         if not param.is_list or len(param.value) == 0:
             break
 
+    return True
+
+
+def copy_file(d, src, dest):
+    """Copy src file to dest"""
+
+    assert os.path.exists(src), "File: `%s' does not exist" % src
+
+    if os.path.exists(dest):
+        if d.yesno("File: `%s' exists! Are you sure you want to overwrite it?",
+                   defaultno=1, width=WIDTH):
+            return False
+
+    shutil.copyfile(src, dest)
+    d.msgbox("File: `%s' was successfully written!")
     return True
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

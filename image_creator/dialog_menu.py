@@ -34,7 +34,8 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud, update_sysprep_param
+    extract_image, add_cloud, edit_cloud, update_sysprep_param, select_file, \
+    copy_file
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -504,7 +505,7 @@ def show_properties_help(session):
 
     help_file = get_help_file("image_properties")
     assert os.path.exists(help_file)
-    d.textbox(help_file, title="Image Properties", width=70, height=40)
+    d.textbox(help_file, title="Image Properties", width=78, height=40)
 
 
 def modify_properties(session):
@@ -928,6 +929,31 @@ def mount(session):
         os.rmdir(mpoint)
 
 
+def show_log(session):
+    """Show the current execution log"""
+
+    d = session['dialog']
+    log = session['image'].out[0].stream
+
+    log.file.flush()
+
+    while 1:
+        code = d.textbox(log.name, title="Log", width=70, height=40,
+                         extra_button=1, extra_label="Save", ok_label="Close")
+        if code == d.DIALOG_EXTRA:
+            while 1:
+                path = select_file(d, title="Save log as...")
+                if path is None:
+                    break
+                if os.path.isdir(path):
+                    continue
+
+                if copy_file(d, log.name, path):
+                    break
+        else:
+            return
+
+
 def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
@@ -974,13 +1000,14 @@ def main_menu(session):
     choices = [("Customize", "Customize image & cloud deployment options"),
                ("Register", "Register image to a cloud"),
                ("Extract", "Dump image to local file system"),
+               ("Log", "Show current execution log"),
                ("Reset", "Reset everything and start over again"),
                ("Help", "Get help for using snf-image-creator")]
 
     default_item = "Customize"
 
     actions = {"Customize": customization_menu, "Register": kamaki_menu,
-               "Extract": extract_image}
+               "Extract": extract_image, "Log": show_log}
     title = "Image Creator for Synnefo (snf-image-creator v%s)" % version
     while 1:
         (code, choice) = d.menu(
@@ -1003,5 +1030,8 @@ def main_menu(session):
                      width=WIDTH, title="Help")
         elif choice in actions:
             actions[choice](session)
+
+        if len(choice):
+            default_item = choice
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
