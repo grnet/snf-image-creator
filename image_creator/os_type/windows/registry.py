@@ -401,7 +401,7 @@ class Registry(object):
 
             # Check http://pogostick.net/~pnh/ntpasswd/ for more info
             offset = struct.unpack('<I', c_val[0x28:0x2c])[0] + 0x34
-            #size = struct.unpack('<I', c_val[0x2c:0x30])[0]
+            # size = struct.unpack('<I', c_val[0x2c:0x30])[0]
             count = struct.unpack('<I', c_val[0x30:0x34])[0]
 
             # Parse the sid array and get all members
