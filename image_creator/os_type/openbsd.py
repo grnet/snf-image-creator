@@ -15,13 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts OS-specific code for NetBSD."""
+"""This module hosts OS-specific code for OpenBSD."""
 
 from image_creator.os_type.bsd import Bsd
 
 
-class Netbsd(Bsd):
-    """OS class for NetBSD"""
+class Openbsd(Bsd):
+    """OS class for OpenBSD"""
     pass
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
