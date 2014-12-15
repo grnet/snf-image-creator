@@ -63,6 +63,7 @@ class MBR(object):
             end = self.unpack_chs(self.end)
             return "%d %s %d %s %d %d" % (self.status, start, self.type, end,
                                           self.first_sector, self.sector_count)
+
         @staticmethod
         def unpack_chs(chs):
             """Unpacks a CHS address string to a tuple."""
