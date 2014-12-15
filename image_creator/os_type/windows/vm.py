@@ -150,6 +150,7 @@ class VM(object):
                 return
 
             def handler(signum, frame):
+                """Signal handler"""
                 self.process.terminate()
                 time.sleep(1)
                 if self.isalive():
@@ -197,6 +198,7 @@ class VM(object):
         """Wait for the VM to shutdown by itself"""
 
         def handler(signum, frame):
+            """Signal handler"""
             raise FatalError("VM wait timed-out.")
 
         signal.signal(signal.SIGALRM, handler)

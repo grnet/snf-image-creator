@@ -25,21 +25,25 @@ from progress.bar import Bar
 
 
 def output(msg, new_line, decorate, stream):
+    """Print a message"""
     nl = "\n" if new_line else ' '
     stream.write(decorate(msg) + nl)
 
 
 def error(msg, new_line, colored, stream):
+    """Print an error message"""
     color = red if colored else lambda x: x
     output("Error: %s" % msg, new_line, color, stream)
 
 
 def warn(msg, new_line, colored, stream):
+    """Print a warning"""
     color = yellow if colored else lambda x: x
     output("Warning: %s" % msg, new_line, color, stream)
 
 
 def success(msg, new_line, colored, stream):
+    """Print a success message"""
     color = green if colored else lambda x: x
     output(msg, new_line, color, stream)
 

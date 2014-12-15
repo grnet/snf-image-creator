@@ -131,7 +131,8 @@ class SysprepParam(object):
 
         return True
 
-    def _check_posint(self, value):
+    @staticmethod
+    def _check_posint(value):
         """Check if the value is a positive integer"""
         try:
             value = int(value)
@@ -143,11 +144,13 @@ class SysprepParam(object):
 
         return value
 
-    def _check_string(self, value):
+    @staticmethod
+    def _check_string(value):
         """Check if a value is a string"""
         return str(value)
 
-    def _check_file(self, value):
+    @staticmethod
+    def _check_file(value):
         """Check if the value is a valid filename"""
 
         value = str(value)
@@ -167,7 +170,8 @@ class SysprepParam(object):
 
         raise ValueError("Invalid filename")
 
-    def _check_dir(self, value):
+    @staticmethod
+    def _check_dir(value):
         """Check if the value is a valid directory"""
 
         value = str(value)
@@ -431,7 +435,7 @@ class OSBase(object):
                 continue
             self.out.output("NAME:".ljust(13) + name)
             self.out.output(wrapper.fill("DESCRIPTION:".ljust(13) +
-                            "%s" % param.description))
+                                         "%s" % param.description))
             self.out.output("TYPE:".ljust(13) + "%s%s" %
                             ("list:" if param.is_list else "", param.type))
             self.out.output("VALUE:".ljust(13) +
@@ -605,7 +609,6 @@ class OSBase(object):
     def _do_inspect(self):
         """helper method for inspect"""
         self.out.warn("No inspection method available")
-        pass
 
     def _do_collect_metadata(self):
         """helper method for collect_metadata"""

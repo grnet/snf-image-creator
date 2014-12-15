@@ -325,7 +325,7 @@ def delete_clouds(session):
 
     (code, to_delete) = d.checklist("Choose which cloud accounts to delete:",
                                     choices=choices, width=WIDTH)
-    to_delete = map(lambda x: x.strip('"'), to_delete)  # Needed for OpenSUSE
+    to_delete = [x.strip('"') for x in to_delete]  # Needed for OpenSUSE
 
     if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
         return False
@@ -613,7 +613,7 @@ def exclude_tasks(session):
             text=text, choices=choices, height=19, list_height=8, width=WIDTH,
             help_button=1, extra_button=1, extra_label="No Config",
             title="Exclude Configuration Tasks")
-        tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
+        tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
@@ -636,8 +636,8 @@ def exclude_tasks(session):
             for task in session['excluded_tasks']:
                 exclude_metadata.extend(CONFIGURATION_TASKS[task][1])
 
-            session['task_metadata'] = map(lambda x: "EXCLUDE_TASK_%s" % x,
-                                           exclude_metadata)
+            session['task_metadata'] = ["EXCLUDE_TASK_%s" % x
+                                        for x in exclude_metadata]
             break
 
     return True
@@ -853,7 +853,7 @@ def sysprep(session):
             choices=choices, width=70, ok_label="Run", help_button=1,
             extra_button=1, extra_label="Params")
 
-        tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
+        tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False

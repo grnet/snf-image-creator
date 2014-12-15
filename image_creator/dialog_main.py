@@ -161,6 +161,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
 
 
 def dialog_main(media, logfile, tmpdir, snapshot):
+    """Main function for the dialog-based version of the program"""
 
     # In openSUSE dialog is buggy under xterm
     if os.environ['TERM'] == 'xterm':

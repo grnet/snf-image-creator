@@ -39,6 +39,7 @@ import time
 
 
 def check_writable_dir(option, opt_str, value, parser):
+    """Check if a directory is writable"""
     dirname = os.path.dirname(value)
     name = os.path.basename(value)
     if dirname and not os.path.isdir(dirname):
@@ -51,6 +52,7 @@ def check_writable_dir(option, opt_str, value, parser):
 
 
 def parse_options(input_args):
+    """Parse input parameters"""
     usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
 
@@ -201,6 +203,7 @@ def parse_options(input_args):
 
 
 def image_creator():
+    """snf-mkimage main function"""
     options = parse_options(sys.argv[1:])
 
     if options.outfile is None and not options.upload and not \
@@ -442,6 +445,7 @@ def image_creator():
 
 
 def main():
+    """Main entry point"""
     try:
         sys.exit(image_creator())
     except FatalError as e:

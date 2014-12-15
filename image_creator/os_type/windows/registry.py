@@ -92,7 +92,7 @@ class Registry(object):
         # OpenHive class needs this since 'self' gets overwritten
         g = self.image.g
 
-        class OpenHive:
+        class OpenHive(object):
             """The OpenHive context manager"""
             def __enter__(self):
                 localfd, self.localpath = tempfile.mkstemp()
@@ -471,6 +471,7 @@ class Registry(object):
         return parent['old']
 
     def reset_account(self, rid, activate=True):
+        """Reset the password in a user account"""
 
         # This is a hack. I cannot assign a new value to nonlocal variable.
         # This is why I'm using a dict

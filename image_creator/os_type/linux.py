@@ -348,7 +348,7 @@ class Linux(Unix):
                 kernels.append(f[7:])
 
         if len(kernels):
-            kernels.sort(key=lambda x: pkg_resources.parse_version(x))
+            kernels.sort(key=pkg_resources.parse_version)
             self.meta['KERNEL'] = kernels[-1]
 
         distro = self.image.g.inspect_get_distro(self.root)
@@ -430,7 +430,7 @@ class Linux(Unix):
         # Only examine *.conf files
         if self.image.g.is_dir('/etc/init'):
             self._foreach_file('/etc/init', check_file, maxdepth=1,
-                               include='.+\.conf$')
+                               include=r'.+\.conf$')
             if len(found):
                 return True
 

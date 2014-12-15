@@ -232,7 +232,7 @@ class Image(object):
         # Self gets overwritten
         img = self
 
-        class RawImage:
+        class RawImage(object):
             """The RawImage context manager"""
             def __enter__(self):
                 return img.device if img.format == 'raw' else \
@@ -280,7 +280,7 @@ class Image(object):
 
         if is_logical(last_partition):
             # The disk contains extended and logical partitions....
-            extended = filter(is_extended, partitions)[0]
+            extended = [p for p in partitions if is_extended(p)][0]
             last_primary = [p for p in partitions if p['part_num'] <= 4][-1]
 
             # check if extended is the last primary partition
@@ -413,7 +413,7 @@ class Image(object):
 
         new_size = (end + 1) * sector_size
 
-        assert (new_size <= self.size)
+        assert new_size <= self.size
 
         if self.meta['PARTITION_TABLE'] == 'gpt':
             with self.raw_device(readonly=False) as raw:

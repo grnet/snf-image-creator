@@ -76,19 +76,19 @@ class GaugeOutput(Output):
         }
 
         def __init__(self, size, title, bar_type='default'):
+            """Initialize a _Progress instance"""
             self.parent.size = size
             self.bar_type = bar_type
             self.parent.msg = "%s ..." % title
             self.goto(0)
 
-        def _postfix(self):
-            return self.template[self.bar_type] % self.parent.__dict__
-
         def goto(self, dest):
             """Move progress bar to a specific position"""
             self.parent.index = dest
             self.parent.percent = self.parent.index * 100 // self.parent.size
-            msg = "%s %s" % (self.parent.msg, self._postfix())
+
+            postfix = self.template[self.bar_type] % self.parent.__dict__
+            msg = "%s %s" % (self.parent.msg, postfix)
             self.parent.d.gauge_update(self.parent.percent, msg,
                                        update_text=True)
 

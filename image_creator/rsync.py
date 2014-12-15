@@ -110,6 +110,7 @@ class Rsync:
 
         finally:
             def handler(signum, frame):
+                """Signal handler"""
                 run.terminate()
                 time.sleep(1)
                 run.poll()

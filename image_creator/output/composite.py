@@ -29,9 +29,12 @@ class CompositeOutput(Output, list):
     this one.
     """
 
-    def __init__(self, outputs=[]):
+    def __init__(self, outputs=None):
         """Add initial output instances"""
-        self.extend(outputs)
+        super(CompositeOutput, self).__init__()
+
+        if outputs is not None:
+            self.extend(outputs)
 
     def error(self, msg, new_line=True):
         """Call the error method of each of the output instances"""

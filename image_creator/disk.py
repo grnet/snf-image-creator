@@ -43,7 +43,7 @@ def get_tmp_dir(default=None):
 
     TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
 
-    space = map(free_space, TMP_CANDIDATES)
+    space = [free_space(t) for t in TMP_CANDIDATES]
 
     max_idx = 0
     max_val = space[0]

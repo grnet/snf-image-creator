@@ -63,8 +63,8 @@ class MBR(object):
             end = self.unpack_chs(self.end)
             return "%d %s %d %s %d %d" % (self.status, start, self.type, end,
                                           self.first_sector, self.sector_count)
-
-        def unpack_chs(self, chs):
+        @staticmethod
+        def unpack_chs(chs):
             """Unpacks a CHS address string to a tuple."""
 
             assert len(chs) == 3
@@ -76,7 +76,8 @@ class MBR(object):
 
             return (cylinder, head, sector)
 
-        def pack_chs(self, cylinder, head, sector):
+        @staticmethod
+        def pack_chs(cylinder, head, sector):
             """Packs a CHS tuple to an address string."""
 
             assert 1 <= sector <= 63
