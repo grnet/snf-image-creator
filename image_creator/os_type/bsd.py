@@ -71,6 +71,13 @@ class Bsd(Unix):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
 
+        major = self.image.g.inspect_get_major_version(self.root)
+        minor = self.image.g.inspect_get_minor_version(self.root)
+
+        self.meta['KERNEL'] = "%sBSD %d.%d" % \
+            (self.__class__.__name__[:-3], major, minor)
+        self.meta['SORTORDER'] += 100 * major + minor
+
         # Check if ssh is enabled
         sshd_enabled = self._check_enabled_sshd()
 
