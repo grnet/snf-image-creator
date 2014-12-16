@@ -17,11 +17,31 @@
 
 """This module hosts OS-specific code for OpenBSD."""
 
+import re
+
 from image_creator.os_type.bsd import Bsd
 
 
 class Openbsd(Bsd):
     """OS class for OpenBSD"""
-    pass
+
+    def _check_enabled_sshd(self):
+        """Check if the ssh daemon is enabled at boot"""
+
+        sshd_enabled = True
+        sshd_service = re.compile(r'^sshd_flags=')
+        sshd_no = re.compile(r"^sshd_flags=(['\"]?)NO\1$")
+
+        for rc_conf in ('/etc/rc.conf', '/etc/rc.conf.local'):
+            if not self.image.g.is_file(rc_conf):
+                self.out.warn("File: `%s' does not exist!" % rc_conf)
+                continue
+
+            for line in self.image.g.cat(rc_conf).splitlines():
+                line = line.split('#')[0].strip()
+                if sshd_service.match(line):
+                    sshd_enabled = sshd_no.match(line) is None
+
+        return sshd_enabled
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
