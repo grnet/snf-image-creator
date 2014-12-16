@@ -17,11 +17,31 @@
 
 """This module hosts OS-specific code for NetBSD."""
 
+import re
+
 from image_creator.os_type.bsd import Bsd
 
 
 class Netbsd(Bsd):
     """OS class for NetBSD"""
-    pass
+
+    def _check_enabled_sshd(self):
+        """Check if the ssh daemon is enabled at boot"""
+
+        sshd_enabled = False
+        sshd_service = re.compile(r'\bsshd=')
+        sshd_yes = re.compile(r"\bsshd=(['\"]?)(YES|TRUE|ON|1)\1\b")
+
+        for rc_conf in ('/etc/defaults/rc.conf', '/etc/rc.conf'):
+            if not self.image.g.is_file(rc_conf):
+                self.out.warn("File: `%s' does not exist!" % rc_conf)
+                continue
+
+            for line in self.image.g.cat(rc_conf).splitlines():
+                line = line.split('#')[0].strip()
+                if sshd_service.match(line):
+                    sshd_enabled = len(sshd_yes.findall(line)) > 0
+
+        return sshd_enabled
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
