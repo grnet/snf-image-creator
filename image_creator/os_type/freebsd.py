@@ -17,12 +17,12 @@
 
 """This module hosts OS-specific code for FreeBSD."""
 
-from image_creator.os_type.unix import Unix, sysprep
+from image_creator.os_type.bsd import Bsd, sysprep
 
 import re
 
 
-class Freebsd(Unix):
+class Freebsd(Bsd):
     """OS class for FreeBSD Unix-like operating system"""
 
     @sysprep("Cleaning up passwords & locking all user accounts")
@@ -50,24 +50,9 @@ class Freebsd(Unix):
         # Make sure no one can login on the system
         self.image.g.rm_rf('/etc/spwd.db')
 
-    def _do_collect_metadata(self):
-        """Collect metadata about the OS"""
-        super(Freebsd, self)._do_collect_metadata()
+    def _check_enabled_sshd(self):
+        """Check if the sshd is enabled at boot"""
 
-        users = self._get_passworded_users()
-
-        self.meta["USERS"] = " ".join(users)
-
-        # The original product name key is long and ugly
-        self.meta['DESCRIPTION'] = \
-            self.meta['DESCRIPTION'].split('#')[0].strip()
-
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            self.out.warn("No passworded users found!")
-            del self.meta['USERS']
-
-        # Check if ssh is enabled
         sshd_enabled = False
         sshd_service = re.compile(r'^sshd_enable=.+$')
 
@@ -87,23 +72,7 @@ class Freebsd(Unix):
                 if sshd_service.match(line):
                     sshd_enabled = sshd_yes.match(line) is not None
 
-        if sshd_enabled:
-            ssh = []
-            opts = self.ssh_connection_options(users)
-            for user in opts['users']:
-                ssh.append("ssh:port=%d,user=%s" % (opts['port'], user))
-
-            if 'REMOTE_CONNECTION' not in self.meta:
-                self.meta['REMOTE_CONNECTION'] = ""
-            else:
-                self.meta['REMOTE_CONNECTION'] += " "
-
-            if len(users):
-                self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
-            else:
-                self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
-        else:
-            self.out.warn("OpenSSH Daemon is not configured to run on boot")
+        return sshd_enabled
 
     def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
@@ -116,31 +85,6 @@ class Freebsd(Unix):
                 'On FreeBSD only GUID partition tables are supported')
         else:
             self.out.success(ptype)
-
-    def _get_passworded_users(self):
-        """Returns a list of non-locked user accounts"""
-        users = []
-        regexp = re.compile(
-            '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
-        )
-
-        for line in self.image.g.cat('/etc/master.passwd').splitlines():
-            line = line.split('#')[0]
-            match = regexp.match(line)
-            if not match:
-                continue
-
-            user, passwd = match.groups()
-            if len(passwd) > 0 and passwd[0] == '!':
-                self.out.warn("Ignoring locked %s account." % user)
-            else:
-                # Put root in the beginning.
-                if user == 'root':
-                    users.insert(0, user)
-                else:
-                    users.append(user)
-
-        return users
 
     def _do_mount(self, readonly):
         """Mount partitions in the correct order"""
