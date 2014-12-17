@@ -36,7 +36,7 @@ class Output(object):
         """Print msg after an action is completed"""
         pass
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Print normal program output"""
         pass
 
@@ -61,7 +61,7 @@ class Output(object):
         def __init__(self, size, title, bar_type='default'):
             self.size = size
             self.bar_type = bar_type
-            self.parent.output("%s ..." % title, False)
+            self.parent.info("%s ..." % title, False)
 
         def goto(self, dest):
             """Move progress to a specific position"""

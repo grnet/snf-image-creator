@@ -77,7 +77,7 @@ class Freebsd(Bsd):
     def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
 
-        self.out.output('Checking partition table type...', False)
+        self.out.info('Checking partition table type...', False)
         ptype = self.image.g.part_get_parttype(self.image.guestfs_device)
         if ptype != 'gpt':
             self.out.warn("partition table type is: `%s'" % ptype)

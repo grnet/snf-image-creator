@@ -85,7 +85,7 @@ class Image(object):
 
         self.enable_guestfs()
 
-        self.out.output('Inspecting Operating System ...', False)
+        self.out.info('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
 
         if len(roots) == 0 or len(roots) > 1:
@@ -149,7 +149,7 @@ class Image(object):
         # process has opened pipes. Since the recovery process is an optional
         # feature of libguestfs, it's better to disable it.
         if self.check_guestfs_version(1, 17, 14) >= 0:
-            self.out.output("Enabling recovery process ...", False)
+            self.out.info("Enabling recovery process ...", False)
             self.g.set_recovery_proc(1)
             self.out.success('done')
         else:
@@ -158,7 +158,7 @@ class Image(object):
         # self.g.set_trace(1)
         # self.g.set_verbose(1)
 
-        self.out.output('Launching helper VM (may take a while) ...', False)
+        self.out.info('Launching helper VM (may take a while) ...', False)
         # self.progressbar = self.out.Progress(100, "Launching helper VM",
         #                                     "percent")
         # eh = self.g.set_event_callback(self.progress_callback,
@@ -187,7 +187,7 @@ class Image(object):
             self.out.warn("Guestfs is already disabled")
             return
 
-        self.out.output("Shutting down helper VM ...", False)
+        self.out.info("Shutting down helper VM ...", False)
         self.g.sync()
         # guestfs_shutdown which is the preferred way to shutdown the backend
         # process was introduced in version 1.19.16

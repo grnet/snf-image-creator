@@ -320,13 +320,13 @@ class Linux(Unix):
     def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
 
-        self.out.output(
+        self.out.info(
             'Checking if the media contains logical volumes (LVM)...', False)
 
         has_lvm = True if len(self.image.g.lvs()) else False
 
         if has_lvm:
-            self.out.output()
+            self.out.info()
             self.image.set_unsupported('The media contains logical volumes')
         else:
             self.out.success('no')

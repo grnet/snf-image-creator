@@ -76,8 +76,8 @@ class Rsync:
         for i in self._exclude:
             cmd.extend(['--exclude', i])
 
-        self._out.output("Calculating total number of %s files ..." % slabel,
-                         False)
+        self._out.info("Calculating total number of %s files ..." % slabel,
+                       False)
 
         # If you don't specify a destination, rsync will list the source files.
         dry_run = subprocess.Popen(cmd + [src], shell=False,

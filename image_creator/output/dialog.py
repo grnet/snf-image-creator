@@ -41,7 +41,7 @@ class GaugeOutput(Output):
         flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
         fcntl.fcntl(fd, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Print msg as normal output"""
         self.msg = msg
         self.percent = 0
@@ -107,7 +107,7 @@ class InfoBoxOutput(Output):
         self.height = height
         self.d.infobox(self.msg, title=self.title)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Print msg as normal output"""
         nl = '\n' if new_line else ''
         self.msg += "%s%s" % (msg, nl)
@@ -122,11 +122,11 @@ class InfoBoxOutput(Output):
 
     def success(self, result, new_line=True):
         """Print result after an action is completed successfully"""
-        self.output(result, new_line)
+        self.info(result, new_line)
 
     def warn(self, msg, new_line=True):
         """Print a warning message"""
-        self.output("Warning: %s" % msg, new_line)
+        self.info("Warning: %s" % msg, new_line)
 
     def finalize(self):
         """Finalize the output. After this is called, the InfoboxOutput

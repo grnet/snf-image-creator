@@ -160,7 +160,7 @@ def upload_image(session):
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
                 # Upload md5sum file
-                out.output("Uploading md5sum file ...")
+                out.info("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
                               remote_path="%s.md5sum" % filename)
@@ -247,21 +247,20 @@ def register_image(session):
         out.append(gauge)
         try:
             try:
-                out.output("Registering %s image with the cloud ..." %
-                           img_type)
+                out.info("Registering %s image with the cloud ..." % img_type)
                 kamaki = Kamaki(session['account'], out)
                 result = kamaki.register(name, session['pithos_uri'], metadata,
                                          is_public)
                 out.success('done')
                 # Upload metadata file
-                out.output("Uploading metadata file ...")
+                out.info("Uploading metadata file ...")
                 metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])
                 out.success("done")
                 if is_public:
-                    out.output("Sharing metadata and md5sum files ...")
+                    out.info("Sharing metadata and md5sum files ...")
                     kamaki.share("%s.meta" % session['upload'])
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')

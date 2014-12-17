@@ -249,8 +249,6 @@ class VM(object):
                 fname = log.name
                 log.close()
 
-            # self.out.output("Command: `%s' failed (rc=%d). Reason: %s" %
-            #                 (command, rc, reason))
             raise FatalError("Command: `%s' failed (rc=%d). See: %s" %
                              (command, rc, fname))
 

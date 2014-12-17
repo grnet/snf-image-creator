@@ -205,11 +205,11 @@ def dialog_main(media, logfile, tmpdir, snapshot):
         while 1:
             try:
                 out = CompositeOutput([log])
-                out.output("Starting %s v%s ..." % (PROGNAME, version))
+                out.info("Starting %s v%s ..." % (PROGNAME, version))
                 ret = create_image(d, media, out, tmpdir, snapshot)
                 break
             except Reset:
-                log.output("Resetting everything ...")
+                log.info("Resetting everything ...")
 
     except FatalError as error:
         log.error(str(error))

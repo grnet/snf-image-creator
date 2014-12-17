@@ -51,10 +51,10 @@ class CompositeOutput(Output, list):
         for out in self:
             out.success(msg, new_line)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Call the output method of each of the output instances"""
         for out in self:
-            out.output(msg, new_line)
+            out.info(msg, new_line)
 
     def cleanup(self):
         """Call the cleanup method of each of the output instances"""

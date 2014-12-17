@@ -88,7 +88,7 @@ def sysprep(message, enabled=True, **kwargs):
         @wraps(method)
         def inner(self, print_message=True):
             if print_message:
-                self.out.output(message)
+                self.out.info(message)
             return method(self)
 
         return inner
@@ -306,21 +306,21 @@ class OSBase(object):
         if self.image.is_unsupported():
             return
 
-        self.out.output('Running OS inspection:')
+        self.out.info('Running OS inspection:')
         with self.mount(readonly=True, silent=True):
             self._do_inspect()
-        self.out.output()
+        self.out.info()
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
 
-        self.out.output('Collecting image metadata ...', False)
+        self.out.info('Collecting image metadata ...', False)
 
         with self.mount(readonly=True, silent=True):
             self._do_collect_metadata()
 
         self.out.success('done')
-        self.out.output()
+        self.out.info()
 
     def list_syspreps(self):
         """Returns a list of sysprep objects"""
@@ -378,11 +378,11 @@ class OSBase(object):
     def print_metadata(self):
         """Print the image metadata"""
 
-        self.out.output("Detected image metadata:")
+        self.out.info("Detected image metadata:")
 
         col_width = max(len(key) for key in self.meta) + 2
         for key, val in self.meta.items():
-            self.out.output("%s %s" % (key.ljust(col_width), val))
+            self.out.info("%s %s" % (key.ljust(col_width), val))
 
     def print_syspreps(self):
         """Print enabled and disabled system preparation operations"""
@@ -396,34 +396,34 @@ class OSBase(object):
         wrapper.initial_indent = '\t'
         wrapper.width = 72
 
-        self.out.output("Enabled system preparation operations:")
+        self.out.info("Enabled system preparation operations:")
         if len(enabled) == 0:
-            self.out.output("(none)")
+            self.out.info("(none)")
         else:
             for sysprep in enabled:
                 name = sysprep.__name__.replace('_', '-')[1:]
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
-                self.out.output('    %s:\n%s\n' % (name, descr))
+                self.out.info('    %s:\n%s\n' % (name, descr))
 
-        self.out.output("Disabled system preparation operations:")
+        self.out.info("Disabled system preparation operations:")
         if len(disabled) == 0:
-            self.out.output("(none)")
+            self.out.info("(none)")
         else:
             for sysprep in disabled:
                 name = sysprep.__name__.replace('_', '-')[1:]
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
-                self.out.output('    %s:\n%s\n' % (name, descr))
+                self.out.info('    %s:\n%s\n' % (name, descr))
 
     def print_sysprep_params(self):
         """Print the system preparation parameter the user may use"""
 
-        self.out.output("System preparation parameters:")
-        self.out.output()
+        self.out.info("System preparation parameters:")
+        self.out.info()
 
         public_params = [(n, p) for n, p in self.sysprep_params.items()
                          if not p.hidden]
         if len(public_params) == 0:
-            self.out.output("(none)")
+            self.out.info("(none)")
             return
 
         wrapper = textwrap.TextWrapper()
@@ -433,20 +433,20 @@ class OSBase(object):
         for name, param in public_params:
             if param.hidden:
                 continue
-            self.out.output("NAME:".ljust(13) + name)
-            self.out.output(wrapper.fill("DESCRIPTION:".ljust(13) +
-                                         "%s" % param.description))
-            self.out.output("TYPE:".ljust(13) + "%s%s" %
-                            ("list:" if param.is_list else "", param.type))
-            self.out.output("VALUE:".ljust(13) +
-                            ("\n".ljust(14).join(param.value) if param.is_list
-                             else param.value))
-            self.out.output()
+            self.out.info("NAME:".ljust(13) + name)
+            self.out.info(wrapper.fill("DESCRIPTION:".ljust(13) +
+                                       "%s" % param.description))
+            self.out.info("TYPE:".ljust(13) + "%s%s" %
+                          ("list:" if param.is_list else "", param.type))
+            self.out.info("VALUE:".ljust(13) +
+                          ("\n".ljust(14).join(param.value) if param.is_list
+                           else param.value))
+            self.out.info()
 
     def do_sysprep(self):
         """Prepare system for image creation."""
 
-        self.out.output('Preparing system for image creation:')
+        self.out.info('Preparing system for image creation:')
 
         if self.image.is_unsupported():
             self.out.warn(
@@ -458,7 +458,7 @@ class OSBase(object):
         cnt = 0
 
         def exec_sysprep(cnt, size, task):
-            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            self.out.info(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
             del self._sysprep_tasks[task.__name__]
 
@@ -471,7 +471,7 @@ class OSBase(object):
             cnt += 1
             exec_sysprep(cnt, size, task)
 
-        self.out.output()
+        self.out.info()
 
     @sysprep('Shrinking image (may take a while)', nomount=True)
     def _shrink(self):
@@ -487,7 +487,7 @@ class OSBase(object):
         """Returns a context manager for mounting an image"""
 
         parent = self
-        output = lambda msg='', nl=True: None if silent else self.out.output
+        output = lambda msg='', nl=True: None if silent else self.out.info
         success = lambda msg='', nl=True: None if silent else self.out.success
         warn = lambda msg='', nl=True: None if silent else self.out.warn
 

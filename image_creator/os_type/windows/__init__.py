@@ -271,7 +271,7 @@ class Windows(OSBase):
         self.registry = Registry(self.image)
 
         with self.mount(readonly=True, silent=True):
-            self.out.output("Checking media state ...", False)
+            self.out.info("Checking media state ...", False)
 
             # Enumerate the windows users
             (self.usernames,
@@ -453,7 +453,7 @@ class Windows(OSBase):
             self.out.warn("Not enough available space to shrink the image!")
             return
 
-        self.out.output("\tReclaiming %dMB ..." % querymax)
+        self.out.info("\tReclaiming %dMB ..." % querymax)
 
         cmd = (
             r'cmd /Q /V:ON /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
@@ -473,14 +473,14 @@ class Windows(OSBase):
 
         for line in stdout.splitlines():
             if line.find("%d" % querymax) >= 0:
-                self.out.output(" %s" % line)
+                self.out.info(" %s" % line)
 
         self.shrinked = True
 
     def do_sysprep(self):
         """Prepare system for image creation."""
 
-        self.out.output('Preparing system for image creation:')
+        self.out.info('Preparing system for image creation:')
 
         # Check if winexe is installed
         if not WinEXE.is_installed():
@@ -506,7 +506,7 @@ class Windows(OSBase):
         timeout = self.sysprep_params['boot_timeout'].value
         shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
 
-        self.out.output("Preparing media for boot ...", False)
+        self.out.info("Preparing media for boot ...", False)
 
         with self.mount(readonly=False, silent=True):
 
@@ -560,13 +560,13 @@ class Windows(OSBase):
         self.image.disable_guestfs()
         booted = False
         try:
-            self.out.output("Starting windows VM ...", False)
+            self.out.info("Starting windows VM ...", False)
             self.vm.start()
             try:
                 self.out.success("started (console on VNC display: %d)" %
                                  self.vm.display)
 
-                self.out.output("Waiting for OS to boot ...", False)
+                self.out.info("Waiting for OS to boot ...", False)
                 if not self.vm.wait_on_serial(timeout):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
@@ -577,17 +577,17 @@ class Windows(OSBase):
                 # conditions
                 time.sleep(5)
 
-                self.out.output("Checking connectivity to the VM ...", False)
+                self.out.info("Checking connectivity to the VM ...", False)
                 self._check_connectivity()
                 # self.out.success('done')
 
-                # self.out.output("Disabling automatic logon ...", False)
+                # self.out.info("Disabling automatic logon ...", False)
                 self._disable_autologon()
                 self.out.success('done')
 
                 self._exec_sysprep_tasks()
 
-                self.out.output("Waiting for windows to shut down ...", False)
+                self.out.info("Waiting for windows to shut down ...", False)
                 (_, stderr, rc) = self.vm.wait(shutdown_timeout)
                 if rc != 0 or "terminating on signal" in stderr:
                     raise FatalError("Windows VM died unexpectedly!\n\n"
@@ -601,7 +601,7 @@ class Windows(OSBase):
         finally:
             self.image.enable_guestfs()
 
-            self.out.output("Reverting media boot preparations ...", False)
+            self.out.info("Reverting media boot preparations ...", False)
             with self.mount(readonly=False, silent=True, fatal=False):
 
                 if not self.ismounted:
@@ -640,11 +640,11 @@ class Windows(OSBase):
         cnt = 0
         for task in enabled:
             cnt += 1
-            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            self.out.info(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
             del self._sysprep_tasks[task.__name__]
 
-        self.out.output("Sending shut down command ...", False)
+        self.out.info("Sending shut down command ...", False)
         if not self.sysprepped:
             self._shutdown()
         self.out.success("done")
@@ -769,10 +769,10 @@ class Windows(OSBase):
                 log.file.write("STDERR:\n%s\n" % stderr)
             finally:
                 log.close()
-            self.out.output("failed! See: `%s' for the full output" % log.name)
+            self.out.info("failed! See: `%s' for the full output" % log.name)
             if i < retries - 1:
                 wait = timeout.pop()
-                self.out.output("retrying in %d seconds ..." % wait, False)
+                self.out.info("retrying in %d seconds ..." % wait, False)
                 time.sleep(wait)
 
         raise FatalError("Connection to the Windows VM failed after %d retries"
@@ -858,8 +858,8 @@ class Windows(OSBase):
             if len(drvs) == 0:
                 del collection[drv_type]
 
-        self.out.output('Found %d valid driver%s' %
-                        (num, "s" if num != 1 else ""))
+        self.out.info('Found %d valid driver%s' %
+                      (num, "s" if num != 1 else ""))
         return collection
 
     def install_virtio_drivers(self, upgrade=True):
@@ -871,7 +871,7 @@ class Windows(OSBase):
         if not dirname:
             raise FatalError('No directory hosting the VirtIO drivers defined')
 
-        self.out.output('Installing VirtIO drivers:')
+        self.out.info('Installing VirtIO drivers:')
 
         valid_drvs = self._fetch_virtio_drivers(dirname)
         if not len(valid_drvs):
@@ -890,7 +890,7 @@ class Windows(OSBase):
                     self._cleanup('virtio')
 
         self.out.success("VirtIO drivers were successfully installed")
-        self.out.output()
+        self.out.info()
 
     def _upload_virtio_drivers(self, dirname, drvs, delete_old=True):
         """Upload the VirtIO drivers and installation scripts to the media.
@@ -1008,7 +1008,7 @@ class Windows(OSBase):
             timeout = self.sysprep_params['boot_timeout'].value
             shutdown_timeout = self.sysprep_params['shutdown_timeout'].value
             virtio_timeout = self.sysprep_params['virtio_timeout'].value
-            self.out.output("Starting Windows VM ...", False)
+            self.out.info("Starting Windows VM ...", False)
             booted = False
             try:
                 if old_windows:
@@ -1020,16 +1020,16 @@ class Windows(OSBase):
 
                 self.out.success("started (console on VNC display: %d)" %
                                  self.vm.display)
-                self.out.output("Waiting for Windows to boot ...", False)
+                self.out.info("Waiting for Windows to boot ...", False)
                 if not self.vm.wait_on_serial(timeout):
                     raise FatalError("Windows VM booting timed out!")
                 self.out.success('done')
                 booted = True
-                self.out.output("Installing new drivers ...", False)
+                self.out.info("Installing new drivers ...", False)
                 if not self.vm.wait_on_serial(virtio_timeout):
                     raise FatalError("Windows VirtIO installation timed out!")
                 self.out.success('done')
-                self.out.output('Shutting down ...', False)
+                self.out.info('Shutting down ...', False)
                 (_, stderr, rc) = self.vm.wait(shutdown_timeout)
                 if rc != 0 or "terminating on signal" in stderr:
                     raise FatalError("Windows VM died unexpectedly!\n\n"
@@ -1051,7 +1051,7 @@ class Windows(OSBase):
             # Hopefully restart in safe mode. Newer windows will not boot from
             # a viostor device unless we initially start them in safe mode
             try:
-                self.out.output('Rebooting Windows VM in safe mode ...', False)
+                self.out.info('Rebooting Windows VM in safe mode ...', False)
                 self.vm.start()
                 (_, stderr, rc) = self.vm.wait(timeout + shutdown_timeout)
                 if rc != 0 or "terminating on signal" in stderr:

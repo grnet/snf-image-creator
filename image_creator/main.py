@@ -220,8 +220,8 @@ def image_creator():
             SimpleOutput(False)
 
     title = 'snf-image-creator %s' % version
-    out.output(title)
-    out.output('=' * len(title))
+    out.info(title)
+    out.info('=' * len(title))
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root"
@@ -317,15 +317,15 @@ def image_creator():
 
         if options.print_syspreps:
             image.os.print_syspreps()
-            out.output()
+            out.info()
 
         if options.print_sysprep_params:
             image.os.print_sysprep_params()
-            out.output()
+            out.info()
 
         if options.print_metadata:
             image.os.print_metadata()
-            out.output()
+            out.info()
 
         if options.outfile is None and not options.upload:
             return 0
@@ -335,7 +335,7 @@ def image_creator():
             image.os.install_virtio_drivers()
 
         if len(options.host_run) != 0:
-            out.output("Running scripts on the input media:")
+            out.info("Running scripts on the input media:")
             mpoint = tempfile.mkdtemp()
             try:
                 image.mount(mpoint)
@@ -346,8 +346,8 @@ def image_creator():
                     cnt = 1
                     for script in options.host_run:
                         script = os.path.abspath(script)
-                        out.output(("(%d/%d)" % (cnt, size)).ljust(7), False)
-                        out.output("Running `%s'" % script)
+                        out.info(("(%d/%d)" % (cnt, size)).ljust(7), False)
+                        out.info("Running `%s'" % script)
                         ret = subprocess.Popen([script], cwd=mpoint).wait()
                         if ret != 0:
                             raise FatalError("Script: `%s' failed (rc=%d)" %
@@ -357,7 +357,7 @@ def image_creator():
                     while not image.umount():
                         out.warn("Unable to umount the media. Retrying ...")
                         time.sleep(1)
-                    out.output()
+                    out.info()
             finally:
                 os.rmdir
 
@@ -379,21 +379,21 @@ def image_creator():
         if options.outfile is not None:
             image.dump(options.outfile)
 
-            out.output('Dumping metadata file ...', False)
+            out.info('Dumping metadata file ...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
                 f.write(metastring)
             out.success('done')
 
-            out.output('Dumping md5sum file ...', False)
+            out.info('Dumping md5sum file ...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
                 f.write('%s %s\n' % (checksum,
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        out.output()
+        out.info()
         try:
             if options.upload:
-                out.output("Uploading image to the storage service:")
+                out.info("Uploading image to the storage service:")
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         remote = kamaki.upload(
@@ -401,42 +401,42 @@ def image_creator():
                             "(1/3)  Calculating block hashes",
                             "(2/3)  Uploading missing blocks")
 
-                out.output("(3/3)  Uploading md5sum file ...", False)
+                out.info("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
                               size=len(md5sumstr),
                               remote_path="%s.%s" % (options.upload, 'md5sum'))
                 out.success('done')
-                out.output()
+                out.info()
 
             if options.register:
                 img_type = 'public' if options.public else 'private'
-                out.output('Registering %s image with the compute service ...'
-                           % img_type, False)
+                out.info('Registering %s image with the compute service ...'
+                         % img_type, False)
                 result = kamaki.register(options.register, remote,
                                          image.meta, options.public)
                 out.success('done')
-                out.output("Uploading metadata file ...", False)
+                out.info("Uploading metadata file ...", False)
                 metastring = unicode(json.dumps(result, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
                 if options.public:
-                    out.output("Sharing md5sum file ...", False)
+                    out.info("Sharing md5sum file ...", False)
                     kamaki.share("%s.md5sum" % options.upload)
                     out.success('done')
-                    out.output("Sharing metadata file ...", False)
+                    out.info("Sharing metadata file ...", False)
                     kamaki.share("%s.meta" % options.upload)
                     out.success('done')
 
-                out.output()
+                out.info()
         except ClientError as e:
             raise FatalError("Service client: %d %s" % (e.status, e.message))
 
     finally:
-        out.output('cleaning up ...')
+        out.info('cleaning up ...')
         disk.cleanup()
 
     out.success("snf-image-creator exited without errors")

@@ -213,7 +213,7 @@ class BundleVolume(object):
         self.meta = meta
         self.tmp = tmp
 
-        self.out.output('Searching for root device ...', False)
+        self.out.info('Searching for root device ...', False)
         root = get_root_partition()
 
         if root.startswith("UUID=") or root.startswith("LABEL="):
@@ -389,7 +389,7 @@ class BundleVolume(object):
         # For partitions that are not mounted right now, we can simply dd them
         # into the image.
         for p in unmounted:
-            self.out.output('Cloning partition %d ... ' % p.num, False)
+            self.out.info('Cloning partition %d ... ' % p.num, False)
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
                'count=%d' % (p.end - p.start + 1), 'conv=notrunc',
                'seek=%d' % p.start, 'skip=%d' % p.start)
@@ -413,8 +413,8 @@ class BundleVolume(object):
                     '-s', 'LABEL', '-o', 'value', orig_dev[i]).stdout.strip()
                 fs = filesystem[i].fs
 
-                self.out.output('Creating %s file system on partition %d ... '
-                                % (fs, i), False)
+                self.out.info('Creating %s file system on partition %d ... '
+                              % (fs, i), False)
                 mkfs(fs, dev, uuid=uuid, label=label)
 
                 # For ext[234] enable the default mount options
@@ -520,7 +520,7 @@ class BundleVolume(object):
 
         # Check if the available space is enough to host the image
         dirname = os.path.dirname(image)
-        self.out.output("Examining available space ...", False)
+        self.out.info("Examining available space ...", False)
         if free_space(dirname) <= size:
             raise FatalError("Not enough space under %s to host the temporary "
                              "image" % dirname)
