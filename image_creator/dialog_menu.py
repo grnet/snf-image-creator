@@ -932,7 +932,7 @@ def show_log(session):
     """Show the current execution log"""
 
     d = session['dialog']
-    log = session['image'].out[0].stream
+    log = session['image'].out[0].stderr
 
     log.file.flush()
 

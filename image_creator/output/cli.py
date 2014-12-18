@@ -33,14 +33,20 @@ def write(msg, new_line, decorate, stream):
 class SilentOutput(Output):
     """Silent Output class. Only Errors are printed"""
 
-    def __init__(self, colored=True, stream=None):
-        self.colored = colored
-        self.stream = sys.stderr if stream is None else stream
+    def __init__(self, **kwargs):
+        """Initialize a SilentOutput instance"""
+        self.colored = kwargs['colored'] if 'colored' in kwargs else True
+        self.stdout = kwargs['stdout'] if 'stdout' in kwargs else sys.stdout
+        self.stderr = kwargs['stderr'] if 'stderr' in kwargs else sys.stderr
+
+    def result(self, msg, new_line=True):
+        """Print a result"""
+        write(msg, new_line, lambda x: x, self.stdout)
 
     def error(self, msg, new_line=True):
         """Print an error"""
         color = red if self.colored else lambda x: x
-        write("Error: %s" % msg, new_line, color, self.stream)
+        write("Error: %s" % msg, new_line, color, self.stderr)
 
 
 class SimpleOutput(SilentOutput):
@@ -51,21 +57,21 @@ class SimpleOutput(SilentOutput):
     def warn(self, msg, new_line=True):
         """Print a warning"""
         color = yellow if self.colored else lambda x: x
-        write("Warning: %s" % msg, new_line, color, self.stream)
+        write("Warning: %s" % msg, new_line, color, self.stderr)
 
     def success(self, msg, new_line=True):
         """Print msg after an action is completed"""
         color = green if self.colored else lambda x: x
-        write(msg, new_line, color, self.stream)
+        write(msg, new_line, color, self.stderr)
 
     def info(self, msg='', new_line=True):
         """Print msg as normal program output"""
-        write(msg, new_line, lambda x: x, self.stream)
+        write(msg, new_line, lambda x: x, self.stderr)
 
     def clear(self):
         """Clear the screen"""
-        if self.stream.isatty():
-            self.stream.write('\033[H\033[2J')
+        if self.stderr.isatty():
+            self.stderr.write('\033[H\033[2J')
 
 
 class OutputWthProgress(SimpleOutput):

@@ -201,7 +201,8 @@ def dialog_main(media, logfile, tmpdir, snapshot):
     tmplog = None if logfile else tempfile.NamedTemporaryFile(prefix='fatal-',
                                                               delete=False)
     try:
-        log = SimpleOutput(False, logfile if logfile else tmplog)
+        stream = logfile if logfile else tmplog
+        log = SimpleOutput(colored=False, stderr=stream, stdout=stream)
         while 1:
             try:
                 out = CompositeOutput([log])

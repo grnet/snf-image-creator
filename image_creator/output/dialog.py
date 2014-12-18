@@ -48,6 +48,10 @@ class GaugeOutput(Output):
         self.d.gauge_update(self.percent, self.msg, update_text=True)
         time.sleep(0.4)
 
+    def result(self, msg='', new_line=True):
+        """Print a result"""
+        self.info(msg, new_line)
+
     def success(self, result, new_line=True):
         """Print result after a successful action"""
         self.percent = 100
@@ -58,6 +62,12 @@ class GaugeOutput(Output):
     def warn(self, msg, new_line=True):
         """Print a warning"""
         self.d.gauge_update(self.percent, "%s Warning: %s" % (self.msg, msg),
+                            update_text=True)
+        time.sleep(0.4)
+
+    def error(self, msg, new_line=True):
+        """Print an error"""
+        self.d.gauge_update(self.percent, "%s Error: %s" % (self.msg, msg),
                             update_text=True)
         time.sleep(0.4)
 
@@ -120,6 +130,10 @@ class InfoBoxOutput(Output):
         self.d.infobox(display, title=self.title, height=self.height,
                        width=self.width)
 
+    def result(self, msg='', new_line=True):
+        """Print a result"""
+        self.info(msg, new_line)
+
     def success(self, result, new_line=True):
         """Print result after an action is completed successfully"""
         self.info(result, new_line)
@@ -127,6 +141,10 @@ class InfoBoxOutput(Output):
     def warn(self, msg, new_line=True):
         """Print a warning message"""
         self.info("Warning: %s" % msg, new_line)
+
+    def error(self, msg, new_line=True):
+        """Print an error message"""
+        self.info("Error: %s" % msg, new_line)
 
     def finalize(self):
         """Finalize the output. After this is called, the InfoboxOutput

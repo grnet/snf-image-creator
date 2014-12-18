@@ -40,6 +40,10 @@ class Output(object):
         """Print normal program output"""
         pass
 
+    def result(self, msg='', new_line=True):
+        """Print a result"""
+        pass
+
     def cleanup(self):
         """Cleanup this output class"""
         pass

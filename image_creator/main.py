@@ -214,10 +214,10 @@ def image_creator():
                          "be set")
 
     if options.silent:
-        out = SilentOutput()
+        out = SilentOutput(colored=sys.stderr.isatty())
     else:
-        out = OutputWthProgress(True) if sys.stderr.isatty() else \
-            SimpleOutput(False)
+        out = OutputWthProgress() if sys.stderr.isatty() else \
+            SimpleOutput(colored=False)
 
     title = 'snf-image-creator %s' % version
     out.info(title)
@@ -430,7 +430,7 @@ def image_creator():
                     out.info("Sharing metadata file ...", False)
                     kamaki.share("%s.meta" % options.upload)
                     out.success('done')
-
+                out.result(json.dumps(result, indent=4))
                 out.info()
         except ClientError as e:
             raise FatalError("Service client: %d %s" % (e.status, e.message))
@@ -449,8 +449,7 @@ def main():
     try:
         sys.exit(image_creator())
     except FatalError as e:
-        colored = sys.stderr.isatty()
-        SimpleOutput(colored).error(e)
+        SimpleOutput(colored=sys.stderr.isatty()).error(e)
         sys.exit(1)
 
 if __name__ == '__main__':
