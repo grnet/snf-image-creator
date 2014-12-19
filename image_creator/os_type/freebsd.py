@@ -17,38 +17,13 @@
 
 """This module hosts OS-specific code for FreeBSD."""
 
-from image_creator.os_type.bsd import Bsd, sysprep
+from image_creator.os_type.bsd import Bsd
 
 import re
 
 
 class Freebsd(Bsd):
     """OS class for FreeBSD Unix-like operating system"""
-
-    @sysprep("Cleaning up passwords & locking all user accounts")
-    def _cleanup_password(self):
-        """Remove all passwords and lock all user accounts"""
-
-        master_passwd = []
-
-        for line in self.image.g.cat('/etc/master.passwd').splitlines():
-
-            # Check for empty or comment lines
-            if len(line.split('#')[0]) == 0:
-                master_passwd.append(line)
-                continue
-
-            fields = line.split(':')
-            if fields[1] not in ('*', '!'):
-                fields[1] = '!'
-
-            master_passwd.append(":".join(fields))
-
-        self.image.g.write(
-            '/etc/master.passwd', "\n".join(master_passwd) + '\n')
-
-        # Make sure no one can login on the system
-        self.image.g.rm_rf('/etc/spwd.db')
 
     def _check_enabled_sshd(self):
         """Check if the sshd is enabled at boot"""
