@@ -201,7 +201,7 @@ def register_image(session):
                  "register it", width=SMALL_WIDTH)
         return False
 
-    name = ""
+    name = "" if 'registered' not in session else session['registered'].name
     description = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta \
         else ""
 
@@ -247,20 +247,23 @@ def register_image(session):
         out.append(gauge)
         try:
             try:
-                out.info("Registering %s image with the cloud ..." % img_type)
+                out.info("Registering %s image with the cloud ..." % img_type,
+                         False)
                 kamaki = Kamaki(session['account'], out)
-                result = kamaki.register(name, session['pithos_uri'], metadata,
-                                         is_public)
+                session['registered'] = kamaki.register(
+                    name, session['pithos_uri'], metadata, is_public)
                 out.success('done')
+
                 # Upload metadata file
-                out.info("Uploading metadata file ...")
-                metastring = unicode(json.dumps(result, ensure_ascii=False))
+                out.info("Uploading metadata file ...", False)
+                metastring = unicode(json.dumps(session['registered'],
+                                                indent=4, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])
                 out.success("done")
                 if is_public:
-                    out.info("Sharing metadata and md5sum files ...")
+                    out.info("Sharing metadata and md5sum files ...", False)
                     kamaki.share("%s.meta" % session['upload'])
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
@@ -352,7 +355,13 @@ def delete_clouds(session):
 def kamaki_menu(session):
     """Show kamaki related actions"""
     d = session['dialog']
-    default_item = "Cloud"
+
+    if 'registered' in session:
+        default_item = "Info"
+    elif 'upload' in session:
+        default_item = "Register"
+    else:
+        default_item = "Upload"
 
     if 'cloud' not in session:
         cloud = Kamaki.get_default_cloud_name()
@@ -377,11 +386,14 @@ def kamaki_menu(session):
         if 'upload' in session:
             choices.append(("Register", "Register image with the cloud: %s"
                             % session['upload']))
+        if 'registered' in session:
+            choices.append(("Info", "Show registration info for \"%s\"" %
+                                    session['registered']['name']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
-            width=WIDTH, choices=choices, cancel="Back", height=13,
-            menu_height=5, default_item=default_item,
+            width=WIDTH, choices=choices, cancel="Back", height=8+len(choices),
+            menu_height=len(choices), default_item=default_item,
             title="Image Registration Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
@@ -444,9 +456,45 @@ def kamaki_menu(session):
                 default_item = "Upload"
         elif choice == "Register":
             if register_image(session):
-                return True
+                default_item = "Info"
             else:
                 default_item = "Register"
+        elif choice == "Info":
+            show_info(session)
+
+
+def show_info(session):
+    """Show registration info"""
+
+    assert 'registered' in session
+    info = json.dumps(session['registered'], ensure_ascii=False, indent=4)
+
+    d = session['dialog']
+
+    while 1:
+        code = d.scrollbox(info, width=WIDTH, title="Registration info",
+                           extra_label="Save", extra_button=1,
+                           exit_label="Close")
+        if code == d.DIALOG_EXTRA:
+            path = select_file(d, title="Save registration information as...")
+            if path is None:
+                break
+            if os.path.isdir(path):
+                continue
+
+            if os.path.exists(path):
+                if d.yesno("File: `%s' already exists. Do you want to "
+                           "overwrite it?" % path, width=WIDTH, defaultno=1):
+                    continue
+
+            with open(path, 'w') as f:
+                f.write(info + '\n')
+
+            d.msgbox("File `%s was successfully written." % path,
+                     width=SMALL_WIDTH)
+            break
+        else:
+            return
 
 
 def add_property(session):

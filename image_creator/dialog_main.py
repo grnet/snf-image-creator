@@ -181,6 +181,10 @@ def dialog_main(media, logfile, tmpdir, snapshot):
     dialog._common_args_syntax["no_label"] = \
         lambda string: ("--no-label", string)
 
+    # Add exit label overwriting
+    dialog._common_args_syntax["exit_label"] = \
+        lambda string: ("--exit-label", string)
+
     # Monkey-patch pythondialog to include support for form dialog boxes
     if not hasattr(dialog, 'form'):
         d.form = types.MethodType(_dialog_form, d)
