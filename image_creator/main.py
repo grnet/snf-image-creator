@@ -418,7 +418,8 @@ def image_creator():
                                          image.meta, options.public)
                 out.success('done')
                 out.info("Uploading metadata file ...", False)
-                metastring = unicode(json.dumps(result, ensure_ascii=False))
+                metastring = unicode(json.dumps(result, ensure_ascii=False,
+                                                indent=4))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
@@ -430,7 +431,7 @@ def image_creator():
                     out.info("Sharing metadata file ...", False)
                     kamaki.share("%s.meta" % options.upload)
                     out.success('done')
-                out.result(json.dumps(result, indent=4))
+                out.result(json.dumps(result, indent=4, ensure_ascii=False))
                 out.info()
         except ClientError as e:
             raise FatalError("Service client: %d %s" % (e.status, e.message))
