@@ -24,7 +24,7 @@ import signal
 from image_creator.util import FatalError
 
 
-class Rsync:
+class Rsync(object):
     """Wrapper class for the rsync command"""
 
     def __init__(self, output):
