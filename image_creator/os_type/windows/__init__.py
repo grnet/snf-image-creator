@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """This package hosts OS-specific code common for the various Microsoft
-Windows OSs."""
+Windows OSes."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError

@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts OS-specific code common to all Unix-like OSs."""
+"""This module hosts OS-specific code common to all Unix-like OSes."""
 
 from image_creator.os_type import OSBase, sysprep, add_sysprep_param
 

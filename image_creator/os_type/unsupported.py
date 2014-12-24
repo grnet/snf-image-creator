@@ -15,13 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts code to handle unknown OSs."""
+"""This module hosts code to handle unknown OSes."""
 
 from image_creator.os_type import OSBase
 
 
 class Unsupported(OSBase):
-    """OS class for unsupported OSs"""
+    """OS class for unsupported OSes"""
     def __init__(self, image, **kwargs):
         super(Unsupported, self).__init__(image, **kwargs)
 
@@ -31,7 +31,7 @@ class Unsupported(OSBase):
 
     def _do_mount(self, readonly):
         """Mount partitions in correct order"""
-        self._mount_error = "not supported on this media"
+        self._mount_error = "not supported for this media"
         return False
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
