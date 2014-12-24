@@ -41,12 +41,16 @@ class GaugeOutput(Output):
         flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
         fcntl.fcntl(fd, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Print msg as normal output"""
         self.msg = msg
         self.percent = 0
         self.d.gauge_update(self.percent, self.msg, update_text=True)
         time.sleep(0.4)
+
+    def result(self, msg='', new_line=True):
+        """Print a result"""
+        self.info(msg, new_line)
 
     def success(self, result, new_line=True):
         """Print result after a successful action"""
@@ -58,6 +62,12 @@ class GaugeOutput(Output):
     def warn(self, msg, new_line=True):
         """Print a warning"""
         self.d.gauge_update(self.percent, "%s Warning: %s" % (self.msg, msg),
+                            update_text=True)
+        time.sleep(0.4)
+
+    def error(self, msg, new_line=True):
+        """Print an error"""
+        self.d.gauge_update(self.percent, "%s Error: %s" % (self.msg, msg),
                             update_text=True)
         time.sleep(0.4)
 
@@ -76,25 +86,25 @@ class GaugeOutput(Output):
         }
 
         def __init__(self, size, title, bar_type='default'):
-            self.output.size = size
+            """Initialize a _Progress instance"""
+            self.parent.size = size
             self.bar_type = bar_type
-            self.output.msg = "%s ..." % title
+            self.parent.msg = "%s ..." % title
             self.goto(0)
-
-        def _postfix(self):
-            return self.template[self.bar_type] % self.output.__dict__
 
         def goto(self, dest):
             """Move progress bar to a specific position"""
-            self.output.index = dest
-            self.output.percent = self.output.index * 100 // self.output.size
-            msg = "%s %s" % (self.output.msg, self._postfix())
-            self.output.d.gauge_update(self.output.percent, msg,
+            self.parent.index = dest
+            self.parent.percent = self.parent.index * 100 // self.parent.size
+
+            postfix = self.template[self.bar_type] % self.parent.__dict__
+            msg = "%s %s" % (self.parent.msg, postfix)
+            self.parent.d.gauge_update(self.parent.percent, msg,
                                        update_text=True)
 
         def next(self):
             """Move progress bar one step forward"""
-            self.goto(self.output.index + 1)
+            self.goto(self.parent.index + 1)
 
 
 class InfoBoxOutput(Output):
@@ -107,7 +117,7 @@ class InfoBoxOutput(Output):
         self.height = height
         self.d.infobox(self.msg, title=self.title)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Print msg as normal output"""
         nl = '\n' if new_line else ''
         self.msg += "%s%s" % (msg, nl)
@@ -120,13 +130,21 @@ class InfoBoxOutput(Output):
         self.d.infobox(display, title=self.title, height=self.height,
                        width=self.width)
 
+    def result(self, msg='', new_line=True):
+        """Print a result"""
+        self.info(msg, new_line)
+
     def success(self, result, new_line=True):
         """Print result after an action is completed successfully"""
-        self.output(result, new_line)
+        self.info(result, new_line)
 
     def warn(self, msg, new_line=True):
         """Print a warning message"""
-        self.output("Warning: %s" % msg, new_line)
+        self.info("Warning: %s" % msg, new_line)
+
+    def error(self, msg, new_line=True):
+        """Print an error message"""
+        self.info("Error: %s" % msg, new_line)
 
     def finalize(self):
         """Finalize the output. After this is called, the InfoboxOutput

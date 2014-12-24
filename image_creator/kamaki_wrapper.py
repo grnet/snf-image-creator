@@ -21,6 +21,7 @@ deployment.
 """
 
 import sys
+import logging
 
 from os.path import basename
 
@@ -37,6 +38,8 @@ except ImportError:
     pass
 
 try:
+    logger = logging.getLogger("kamaki.cli.config")
+    logger.setLevel(logging.ERROR)
     config = Config()
 except Exception as e:
     sys.stderr.write("Kamaki config error: %s\n" % str(e))

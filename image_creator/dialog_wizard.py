@@ -294,7 +294,7 @@ class WizardMenuPage(WizardPageWthChoices):
 def start_wizard(session):
     """Run the image creation wizard"""
 
-    metadata = session['metadata']
+    metadata = session['image'].meta
     distro = session['image'].distro
     ostype = session['image'].ostype
 
@@ -445,7 +445,7 @@ def create_image(session, answers):
     image = session['image']
 
     with_progress = OutputWthProgress(True)
-    image.out.add(with_progress)
+    image.out.append(with_progress)
     try:
         image.out.clear()
 
@@ -458,15 +458,14 @@ def create_image(session, answers):
 
         update_background_title(session)
 
-        metadata.update(image.meta)
         metadata['DESCRIPTION'] = answers['ImageDescription']
 
         # MD5
         session['checksum'] = image.md5()
 
-        image.out.output()
+        image.out.info()
         try:
-            image.out.output("Uploading image to the cloud:")
+            image.out.info("Uploading image to the cloud:")
             account = Kamaki.get_account(answers['Cloud'])
             assert account, "Cloud: %s is not valid" % answers['Cloud']
             kamaki = Kamaki(account, image.out)
@@ -479,33 +478,33 @@ def create_image(session, answers):
                                            "(1/3)  Calculating block hashes",
                                            "(2/3)  Uploading image blocks")
 
-            image.out.output("(3/3)  Uploading md5sum file ...", False)
+            image.out.info("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                           remote_path="%s.%s" % (name, 'md5sum'))
             image.out.success('done')
-            image.out.output()
+            image.out.info()
 
-            image.out.output('Registering %s image with the cloud ...' %
-                             answers['RegistrationType'].lower(), False)
+            image.out.info('Registering %s image with the cloud ...' %
+                           answers['RegistrationType'].lower(), False)
             result = kamaki.register(answers['ImageName'], remote, metadata,
                                      answers['RegistrationType'] == "Public")
             image.out.success('done')
-            image.out.output("Uploading metadata file ...", False)
+            image.out.info("Uploading metadata file ...", False)
             metastring = unicode(json.dumps(result, ensure_ascii=False))
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                           remote_path="%s.%s" % (name, 'meta'))
             image.out.success('done')
 
             if answers['RegistrationType'] == "Public":
-                image.out.output("Sharing md5sum file ...", False)
+                image.out.info("Sharing md5sum file ...", False)
                 kamaki.share("%s.md5sum" % name)
                 image.out.success('done')
-                image.out.output("Sharing metadata file ...", False)
+                image.out.info("Sharing metadata file ...", False)
                 kamaki.share("%s.meta" % name)
                 image.out.success('done')
 
-            image.out.output()
+            image.out.info()
 
         except ClientError as error:
             raise FatalError("Storage service client: %d %s" %

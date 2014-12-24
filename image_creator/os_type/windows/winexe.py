@@ -30,14 +30,16 @@ class WinexeTimeout(FatalError):
     pass
 
 
-class WinEXE:
+class WinEXE(object):
     """Wrapper class for the winexe command"""
 
     @staticmethod
     def is_installed(program='winexe'):
+        """Check if WinEXE is installed on the system"""
         return which(program) is not None
 
     def __init__(self, username, hostname, **kwargs):
+        """Initialize a WinEXE instance"""
         self._user = username
         self._host = hostname
 
@@ -100,6 +102,7 @@ class WinEXE:
                                stderr=subprocess.PIPE)
 
         def handler(signum, frame):
+            """Signal handler"""
             run.terminate()
             time.sleep(1)
             run.poll()

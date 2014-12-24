@@ -24,64 +24,54 @@ from colors import red, green, yellow
 from progress.bar import Bar
 
 
-def output(msg, new_line, decorate, stream):
+def write(msg, new_line, decorate, stream):
+    """Print a message"""
     nl = "\n" if new_line else ' '
     stream.write(decorate(msg) + nl)
 
 
-def error(msg, new_line, colored, stream):
-    color = red if colored else lambda x: x
-    output("Error: %s" % msg, new_line, color, stream)
-
-
-def warn(msg, new_line, colored, stream):
-    color = yellow if colored else lambda x: x
-    output("Warning: %s" % msg, new_line, color, stream)
-
-
-def success(msg, new_line, colored, stream):
-    color = green if colored else lambda x: x
-    output(msg, new_line, color, stream)
-
-
-def clear(stream):
-    """Clears the terminal screen."""
-    if stream.isatty():
-        stream.write('\033[H\033[2J')
-
-
 class SilentOutput(Output):
     """Silent Output class. Only Errors are printed"""
-    pass
 
+    def __init__(self, **kwargs):
+        """Initialize a SilentOutput instance"""
+        self.colored = kwargs['colored'] if 'colored' in kwargs else True
+        self.stdout = kwargs['stdout'] if 'stdout' in kwargs else sys.stdout
+        self.stderr = kwargs['stderr'] if 'stderr' in kwargs else sys.stderr
 
-class SimpleOutput(Output):
-    """Print messages but not progress bars. Progress bars are treated as
-    output messages. The user gets informed when the action begins and when it
-    ends, but no progress is shown in between."""
-    def __init__(self, colored=True, stream=None):
-        self.colored = colored
-        self.stream = sys.stderr if stream is None else stream
+    def result(self, msg, new_line=True):
+        """Print a result"""
+        write(msg, new_line, lambda x: x, self.stdout)
 
     def error(self, msg, new_line=True):
         """Print an error"""
-        error(msg, new_line, self.colored, self.stream)
+        color = red if self.colored else lambda x: x
+        write("Error: %s" % msg, new_line, color, self.stderr)
+
+
+class SimpleOutput(SilentOutput):
+    """Print messages but not progress bars. Progress bars are treated as
+    output messages. The user gets informed when the action begins and when it
+    ends, but no progress is shown in between."""
 
     def warn(self, msg, new_line=True):
         """Print a warning"""
-        warn(msg, new_line, self.colored, self.stream)
+        color = yellow if self.colored else lambda x: x
+        write("Warning: %s" % msg, new_line, color, self.stderr)
 
     def success(self, msg, new_line=True):
         """Print msg after an action is completed"""
-        success(msg, new_line, self.colored, self.stream)
+        color = green if self.colored else lambda x: x
+        write(msg, new_line, color, self.stderr)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Print msg as normal program output"""
-        output(msg, new_line, lambda x: x, self.stream)
+        write(msg, new_line, lambda x: x, self.stderr)
 
     def clear(self):
         """Clear the screen"""
-        clear(self.stream)
+        if self.stderr.isatty():
+            self.stderr.write('\033[H\033[2J')
 
 
 class OutputWthProgress(SimpleOutput):
@@ -114,7 +104,7 @@ class OutputWthProgress(SimpleOutput):
 
         def success(self, result):
             """Print result after progress has finished"""
-            self.output.output("\r%s ...\033[K" % self.title, False)
-            self.output.success(result)
+            self.parent.info("\r%s ...\033[K" % self.title, False)
+            self.parent.success(result)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

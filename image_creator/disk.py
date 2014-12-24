@@ -43,7 +43,7 @@ def get_tmp_dir(default=None):
 
     TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
 
-    space = map(free_space, TMP_CANDIDATES)
+    space = [free_space(t) for t in TMP_CANDIDATES]
 
     max_idx = 0
     max_val = space[0]
@@ -130,7 +130,7 @@ class Disk(object):
         if self._file is not None:
             return self._file
 
-        self.out.output("Examining source media `%s' ..." % self.source, False)
+        self.out.info("Examining source media `%s' ..." % self.source, False)
         mode = os.stat(self.source).st_mode
         if stat.S_ISDIR(mode):
             self.out.success('looks like a directory')
@@ -159,7 +159,7 @@ class Disk(object):
         # Examine media file
         info = image_info(self.file)
 
-        self.out.output("Snapshotting media source ...", False)
+        self.out.info("Snapshotting media source ...", False)
 
         # Create a qcow2 snapshot for image files that are not raw
         if info['format'] != 'raw':

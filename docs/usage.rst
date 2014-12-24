@@ -23,43 +23,52 @@ snf-mkimage receives the following options:
   Options:
     --version             show program's version number and exit
     -h, --help            show this help message and exit
-    -o FILE, --outfile=FILE
-                          dump image to FILE
-    -f, --force           overwrite output files if they exist
-    -s, --silent          output only errors
-    -u FILENAME, --upload=FILENAME
-                          upload the image to the cloud with name FILENAME
-    -r IMAGENAME, --register=IMAGENAME
-                          register the image with a cloud as IMAGENAME
-    -m KEY=VALUE, --metadata=KEY=VALUE
-                          add custom KEY=VALUE metadata to the image
-    -t TOKEN, --token=TOKEN
-                          use this authentication token when
-                          uploading/registering images
     -a URL, --authentication-url=URL
                           use this authentication URL when uploading/registering
                           images
+    --allow-unsupported   proceed with the image creation even if the media is
+                          not supported
     -c CLOUD, --cloud=CLOUD
                           use this saved cloud account to authenticate against a
                           cloud when uploading/registering images
-    --print-syspreps      print the enabled and disabled system preparation
-                          operations for this input media
-    --enable-sysprep=SYSPREP
-                          run SYSPREP operation on the input media
     --disable-sysprep=SYSPREP
                           prevent SYSPREP operation from running on the input
                           media
+    --enable-sysprep=SYSPREP
+                          run SYSPREP operation on the input media
+    -f, --force           overwrite output files if they exist
+    --host-run=SCRIPT     mount the media in the host and run a script against
+                          the guest media. This option may be defined multiple
+                          times. The script's working directory will be the
+                          guest's root directory. BE CAREFUL! DO NOT USE
+                          ABSOLUTE PATHS INSIDE THE SCRIPT! YOU MAY HARM YOUR
+                          SYSTEM!
     --install-virtio=DIR  install VirtIO drivers hosted under DIR (Windows only)
+    -m KEY=VALUE, --metadata=KEY=VALUE
+                          add custom KEY=VALUE metadata to the image
+    --no-snapshot         don't snapshot the input media. (THIS IS DANGEROUS AS
+                          IT WILL ALTER THE ORIGINAL MEDIA!!!)
+    --no-sysprep          don't perform any system preparation operation
+    -o FILE, --outfile=FILE
+                          dump image to FILE
+    --print-metadata      print the detected image metadata
+    --print-syspreps      print the enabled and disabled system preparation
+                          operations for this input media
     --print-sysprep-params
                           print the defined system preparation parameters for
                           this input media
+    --public              register image with the cloud as public
+    -r IMAGENAME, --register=IMAGENAME
+                          register the image with a cloud as IMAGENAME
+    -s, --silent          output only errors
     --sysprep-param=SYSPREP_PARAMS
                           add KEY=VALUE system preparation parameter
-    --no-sysprep          don't perform any system preparation operation
-    --public              register image with the cloud as public
-    --allow-unsupported   proceed with the image creation even if the media is
-                          not supported
+    -t TOKEN, --token=TOKEN
+                          use this authentication token when
+                          uploading/registering images
     --tmpdir=DIR          create large temporary image files under DIR
+    -u FILENAME, --upload=FILENAME
+                        upload the image to the cloud with name FILENAME
 
 Most input options are self-describing. If you want to save a local copy of
 the image you create, provide a filename using the *-o* option. To upload the
@@ -71,13 +80,17 @@ registration name using *-r*. All images are registered as *private*. Only the
 user that registers the image can create VM's out of it. If you want the image
 to be visible by other user too, use the *--public* option.
 
-By default, before extracting the image, snf-mkimage will perform a
-number of system preparation operations on the snapshot of the media and will
-shrink the last partition found. Both actions can be disabled by specifying
-*--no-sysprep* and *--no-shrink* respectively.
+By default, before extracting the image, snf-mkimage will perform a number of
+system preparation operations on the snapshot of the media. You can disable
+this by specifying *--no-sysprep*.
+
+You may use the *--host-run* option multiple times to define scripts that will
+run on the image's locally mounted root directory before the image
+customization is performed. Be careful when using those. The scripts run on the
+host system without any jail protection. Use only relative paths.
 
 If *--print-sysprep* is defined, the program will exit after printing a
-list of enabled and disabled system preparation operation applicable to this
+list of enabled and disabled system preparation operations applicable to this
 input media. The user can enable or disable specific *syspreps*, using
 *-{enable,disable}-sysprep* options. The user may specify those options
 multiple times.
@@ -336,11 +349,9 @@ Limitations
 Supported operating systems
 ---------------------------
 
-*snf-image-creator* can only fully function on input media hosting *Linux*,
-*FreeBSD* (tested on version 9.1) and *Windows* (Server 2008 R2 and Server
-2012) systems. The program will detect the needed metadata and you may use it
-to upload and register other *Unix* images, but you cannot use it to shrink
-them or perform system preparation operations.
+*snf-image-creator* can fully function on input media hosting *Linux*,
+*FreeBSD*, *OpenBSD*, *NetBSD* and *Windows* (Server starting from 2008R2 and
+Desktop starting from 7) systems.
 
 Logical Volumes
 ---------------

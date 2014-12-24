@@ -20,7 +20,7 @@
 from image_creator.output import Output
 
 
-class CompositeOutput(Output):
+class CompositeOutput(Output, list):
     """This class can be used to composite different outputs into a single one
 
     You may create an instance of this class and then add other output
@@ -29,70 +29,69 @@ class CompositeOutput(Output):
     this one.
     """
 
-    def __init__(self, outputs=[]):
+    def __init__(self, outputs=None):
         """Add initial output instances"""
-        self._outputs = outputs
+        super(CompositeOutput, self).__init__()
 
-    def add(self, output):
-        """Add another output instance"""
-        self._outputs.append(output)
-
-    def remove(self, output):
-        """Remove an output instance"""
-        self._outputs.remove(output)
+        if outputs is not None:
+            self.extend(outputs)
 
     def error(self, msg, new_line=True):
         """Call the error method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.error(msg, new_line)
 
     def warn(self, msg, new_line=True):
         """Call the warn method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.warn(msg, new_line)
 
     def success(self, msg, new_line=True):
         """Call the success method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.success(msg, new_line)
 
-    def output(self, msg='', new_line=True):
+    def info(self, msg='', new_line=True):
         """Call the output method of each of the output instances"""
-        for out in self._outputs:
-            out.output(msg, new_line)
+        for out in self:
+            out.info(msg, new_line)
+
+    def result(self, msg='', new_line=True):
+        """Call the output method of each of the output instances"""
+        for out in self:
+            out.result(msg, new_line)
 
     def cleanup(self):
         """Call the cleanup method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.cleanup()
 
     def clear(self):
         """Call the clear method of each of the output instances"""
-        for out in self._outputs:
+        for out in self:
             out.clear()
 
-    class _Progress(object):
+    class _Progress(list):
         """Class used to composite different Progress objects"""
 
         def __init__(self, size, title, bar_type='default'):
             """Create a progress on each of the added output instances"""
-            self._progresses = []
-            for out in self.output._outputs:
-                self._progresses.append(out.Progress(size, title, bar_type))
+            for out in self.parent:
+                self.append(out.Progress(size, title, bar_type))
 
         def goto(self, dest):
             """Call the goto method of each of the progress instances"""
-            for progress in self._progresses:
+            for progress in self:
                 progress.goto(dest)
 
         def next(self):
             """Call the next method of each of the progress instances"""
-            for progress in self._progresses:
+            for progress in self:
                 progress.next()
 
         def success(self, result):
             """Call the success method of each of the progress instances"""
-            for progress in self._progresses:
+            for progress in self:
                 progress.success(result)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

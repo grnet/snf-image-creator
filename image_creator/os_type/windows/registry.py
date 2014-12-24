@@ -92,7 +92,7 @@ class Registry(object):
         # OpenHive class needs this since 'self' gets overwritten
         g = self.image.g
 
-        class OpenHive:
+        class OpenHive(object):
             """The OpenHive context manager"""
             def __enter__(self):
                 localfd, self.localpath = tempfile.mkstemp()
@@ -135,6 +135,42 @@ class Registry(object):
 
         return self._current_control_set
 
+    def _update_dword(self, keyname, valuename, data, default, valid):
+        """Updates a registry key dword value to data.
+
+            default: The default value is the key does not exist
+            valid: a range of valid values
+
+        Returns:
+            The old value of the field
+        """
+
+        if data not in valid:
+            raise ValueError("Valid values for parameter are %r" % (valid,))
+
+        hivename, keyname = keyname.split('/', 1)
+        with self.open_hive(hivename, write=True) as hive:
+            key = traverse(hive, keyname)
+
+            value = None
+            for v in hive.node_values(key):
+                if hive.value_key(v) == valuename:
+                    value = v
+                    break
+
+            old = default
+            if value is not None:
+                old = hive.value_dword(value)
+            elif old is None:
+                raise FatalError("Value: `%s' of key: `%s/%s' is missing." %
+                                 (valuename, hivename, keyname))
+
+            if old != data:
+                hive.node_set_value(key, REG_DWORD(valuename, data))
+                hive.commit(None)
+
+        return old
+
     def get_setup_state(self):
         """Returns the stage of Windows Setup the image is in.
         The method will return an int with one of the following values:
@@ -169,6 +205,29 @@ class Registry(object):
                 ret += 1
 
         raise FatalError("Unknown Windows Setup State: %s" % value)
+
+    def get_rdp_settings(self):
+        """Returns Remote Desktop Settings of the image"""
+
+        settings = {}
+        with self.open_hive('SYSTEM') as hive:
+            path = '%s/Control/Terminal Server' % self.current_control_set
+            term_server = traverse(hive, path)
+
+            disabled = hive.node_get_value(term_server, "fDenyTSConnections")
+            # expecting a little endian dword
+            assert hive.value_type(disabled)[1] == 4
+            settings['disabled'] = hive.value_dword(disabled) != 0
+
+            path += "/WinStations/RDP-Tcp"
+            rdp_tcp = traverse(hive, path)
+
+            port = hive.node_get_value(rdp_tcp, "PortNumber")
+            # expecting a little endian dword
+            assert hive.value_type(port)[1] == 4
+            settings['port'] = hive.value_dword(port)
+
+        return settings
 
     def runonce(self, commands):
         """Add commands to the RunOnce registry key"""
@@ -255,33 +314,13 @@ class Registry(object):
         For more info see here: http://support.microsoft.com/kb/951016
 
         Returns:
-            True if the key is changed
-            False if the key is unchanged
+            The old value of the field
         """
 
-        if value not in (0, 1):
-            raise ValueError("Valid values for value parameter are 0 and 1")
+        key = 'SOFTWARE/Microsoft/Windows/CurrentVersion/Policies/System'
+        valuename = 'LocalAccountTokenFilterPolicy'
 
-        with self.open_hive('SOFTWARE', write=True) as hive:
-            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
-            system = traverse(hive, path)
-
-            policy = None
-            for val in hive.node_values(system):
-                if hive.value_key(val) == "LocalAccountTokenFilterPolicy":
-                    policy = val
-
-            if policy is not None:
-                if value == hive.value_dword(policy):
-                    return False
-            elif value == 0:
-                return False
-
-            hive.node_set_value(
-                system, REG_DWORD("LocalAccountTokenFilterPolicy", value))
-            hive.commit(None)
-
-        return True
+        return self._update_dword(key, valuename, value, 0, (0, 1))
 
     def update_uac(self, value):
         """Enable or disable the User Account Control by changing the value of
@@ -291,32 +330,49 @@ class Registry(object):
         value = 0 will disable the UAC
 
         Returns:
-            True if the key is changed
-            False if the key is unchanged
+            The old value of the field
         """
 
-        if value not in (0, 1):
-            raise ValueError("Valid values for value parameter are 0 and 1")
+        key = 'SOFTWARE/Microsoft/Windows/CurrentVersion/Policies/System'
+        valuename = 'EnableLUA'
 
-        with self.open_hive('SOFTWARE', write=True) as hive:
-            path = 'Microsoft/Windows/CurrentVersion/Policies/System'
-            system = traverse(hive, path)
+        return self._update_dword(key, valuename, value, 1, (0, 1))
 
-            enablelua = None
-            for val in hive.node_values(system):
-                if hive.value_key(val) == 'EnableLUA':
-                    enablelua = val
+    def update_noautoupdate(self, value):
+        """Enable or disable Automatic Updates by changing the NoAutoUpdate
+        value of the "Auto Update" registry key.
 
-            if enablelua is not None:
-                if value == hive.value_dword(enablelua):
-                    return False
-            elif value == 1:
-                return False
+        value = 0 will enable Automatic Updates (Default)
+        value = 1 will disable Automatic Updates
 
-            hive.node_set_value(system, REG_DWORD('EnableLUA', value))
-            hive.commit(None)
+        Returns:
+            The old value of the field
+        """
 
-        return True
+        key = 'SOFTWARE' \
+            '/Microsoft/Windows/CurrentVersion/WindowsUpdate/Auto Update'
+        valuename = 'NoAutoUpdate'
+
+        return self._update_dword(key, valuename, value, 0, (0, 1))
+
+    def update_auoptions(self, value):
+        """Updates the AUOptions value of the "Auto Update" registry key.
+
+        value = 1 will disabled Automatic Updates
+        value = 2 will notify of download and installation
+        value = 3 will automatically download and notify of installation
+        value = 4 will automatically download and schedule installation
+
+        Returns:
+            The old value of the field
+        """
+
+        key = 'SOFTWARE' \
+            '/Microsoft/Windows/CurrentVersion/WindowsUpdate/Auto Update'
+        valuename = 'AUOptions'
+
+        return self._update_dword(key, valuename, value, None,
+                                  tuple(range(1, 5)))
 
     def enum_users(self):
         """Returns:
@@ -345,7 +401,7 @@ class Registry(object):
 
             # Check http://pogostick.net/~pnh/ntpasswd/ for more info
             offset = struct.unpack('<I', c_val[0x28:0x2c])[0] + 0x34
-            #size = struct.unpack('<I', c_val[0x2c:0x30])[0]
+            # size = struct.unpack('<I', c_val[0x2c:0x30])[0]
             count = struct.unpack('<I', c_val[0x30:0x34])[0]
 
             # Parse the sid array and get all members
@@ -415,6 +471,7 @@ class Registry(object):
         return parent['old']
 
     def reset_account(self, rid, activate=True):
+        """Reset the password in a user account"""
 
         # This is a hack. I cannot assign a new value to nonlocal variable.
         # This is why I'm using a dict
