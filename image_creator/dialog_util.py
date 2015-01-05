@@ -23,6 +23,8 @@ import os
 import stat
 import re
 import json
+import shutil
+
 from image_creator.output.dialog import GaugeOutput
 from image_creator.kamaki_wrapper import Kamaki
 
@@ -59,6 +61,9 @@ def select_file(d, **kwargs):
     fname = None if "init" not in kwargs else kwargs['init']
     ftype = set(t for t in kwargs['ftype']) if 'ftype' in kwargs else set('r')
     title = kwargs['title'] if 'title' in kwargs else 'Please select a file.'
+    existing = kwargs['existing'] if 'existing' in kwargs else False
+    basedir = kwargs['basedir'] if 'basedir' in kwargs else \
+        (os.getcwd() + os.sep)
 
     bundle_host = kwargs['bundle_host'] if 'bundle_host' in kwargs else None
     extra_button = 1 if bundle_host else 0
@@ -70,13 +75,16 @@ def select_file(d, **kwargs):
     if bundle_host and fname == os.sep:
         return os.sep
 
-    default = os.getcwd() + os.sep
+    default = basedir
 
     while 1:
         if fname is not None:
             if not os.path.exists(fname):
-                d.msgbox("The file `%s' you choose does not exist." % fname,
-                         width=SMALL_WIDTH)
+                if existing:
+                    d.msgbox("The file `%s' you choose does not exist." %
+                             fname, width=SMALL_WIDTH)
+                else:
+                    return fname
             else:
                 mode = os.stat(fname).st_mode
                 for i in ftype:
@@ -84,7 +92,7 @@ def select_file(d, **kwargs):
                         return fname
 
                 if stat.S_ISDIR(mode):
-                    default = fname
+                    default = fname + os.sep
                 else:
                     d.msgbox("Invalid input.", width=SMALL_WIDTH)
 
@@ -135,7 +143,7 @@ class Reset(Exception):
 def extract_metadata_string(session):
     """Convert image metadata to text"""
     metadata = {}
-    metadata.update(session['metadata'])
+    metadata.update(session['image'].meta)
     if 'task_metadata' in session:
         for key in session['task_metadata']:
             metadata[key] = 'yes'
@@ -147,13 +155,16 @@ def extract_metadata_string(session):
 def extract_image(session):
     """Dump the image to a local file"""
     d = session['dialog']
+
     dir = os.getcwd()
+
     while 1:
         if dir and dir[-1] != os.sep:
             dir = dir + os.sep
 
-        (code, path) = d.fselect(dir, 10, 50, title="Save image as...")
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        path = select_file(d, title="Save image as...", existing=False,
+                           basedir=dir)
+        if path is None:
             return False
 
         if os.path.isdir(path):
@@ -194,7 +205,7 @@ def extract_image(session):
         try:
             image = session['image']
             out = image.out
-            out.add(gauge)
+            out.append(gauge)
             try:
                 if "checksum" not in session:
                     session['checksum'] = image.md5()
@@ -203,13 +214,13 @@ def extract_image(session):
                 image.dump(path)
 
                 # Extract metadata file
-                out.output("Extracting metadata file ...")
+                out.info("Extracting metadata file ...", False)
                 with open('%s.meta' % path, 'w') as f:
                     f.write(extract_metadata_string(session))
                 out.success('done')
 
                 # Extract md5sum file
-                out.output("Extracting md5sum file ...")
+                out.info("Extracting md5sum file ...", False)
                 md5str = "%s %s\n" % (session['checksum'], name)
                 with open('%s.md5sum' % path, 'w') as f:
                     f.write(md5str)
@@ -334,41 +345,123 @@ def edit_cloud(session, name):
     return True
 
 
+def _get_sysprep_param_value(session, param, default, title=None,
+                             delete=False):
+    """Get the value of a sysprep parameter"""
+    d = session['dialog']
+
+    if param.type in ("file", "dir"):
+        if not title:
+            title = "Please select a %s to use for the `%s' parameter" % \
+                ('file' if param.type == 'file' else 'directory', param.name)
+        ftype = "br" if param.type == 'file' else 'd'
+
+        value = select_file(d, ftype=ftype, title=title)
+    else:
+        if not title:
+            title = ("Please provide a new value for configuration parameter: "
+                     "`%s' or press <Delete> to completely delete it." %
+                     param.name)
+        (code, answer) = d.inputbox(title, width=WIDTH, init=str(default),
+                                    extra_button=int(delete),
+                                    extra_label="Delete")
+
+        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            return (None, False)
+        if code == d.DIALOG_EXTRA:
+            return ("", True)
+
+        value = answer.strip()
+
+    return (value, False)
+
+
 def update_sysprep_param(session, name, title=None):
     """Modify the value of a sysprep parameter"""
+
     d = session['dialog']
     image = session['image']
 
     param = image.os.sysprep_params[name]
 
+    default_item = 1
     while 1:
-        if param.type in ("file", "dir"):
-            if not title:
-                title = "Please select a %s to use for the `%s' parameter" % \
-                    ('file' if param.type == 'file' else 'directory', name)
-            ftype = "br" if param.type == 'file' else 'd'
+        value = []
+        for i in param.value:
+            value.append(i)
+        if param.is_list:
+            choices = [(str(i+1), str(value[i])) for i in xrange(len(value))]
+            if len(choices) == 0:
+                action = 'add'
+                default_value = ""
+            else:
+                (code, choice) = d.menu(
+                    "Please press <Edit> to edit or remove a value or <Add> "
+                    "to add a new one. Press <Back> to go back.", height=18,
+                    width=WIDTH, choices=choices, menu_height=10,
+                    ok_label="Edit", extra_button=1, extra_label="Add",
+                    cancel="Back", default_item=str(default_item), title=name)
 
-            value = select_file(d, ftype=ftype, title=title)
-            if value is None:
-                return False
+                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                    return True
+                elif code == d.DIALOG_EXTRA:
+                    action = 'add'
+                    default_value = ""
+                elif code == d.DIALOG_OK:
+                    action = 'edit'
+                    choice = int(choice)
+                    default_value = choices[choice-1][1]
+                    default_item = choice
         else:
-            if not title:
-                title = "Please provide a new value for configuration " \
-                        "parameter: `%s'" % name
-            (code, answer) = d.inputbox(
-                title, width=WIDTH, init=str(param.value))
+            default_value = param.value
+            action = 'edit'
 
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        (new_value, delete) = _get_sysprep_param_value(
+            session, param, default_value, title,
+            delete=(param.is_list and action == 'edit'))
+
+        if new_value is None:
+            if not param.is_list or len(param.value) == 0:
                 return False
+            continue
 
-            value = answer.strip()
+        if param.is_list:
+            if action == 'add':
+                value = value + [new_value]
+            if action == 'edit':
+                if delete:
+                    del value[choice-1]
+                else:
+                    value[choice-1] = new_value
 
         if param.set_value(value) is False:
             d.msgbox("Error: %s" % param.error, width=WIDTH)
             param.error = None
             continue
-        break
+        elif param.is_list:
+            if action == 'add':
+                default_item = len(param.value)
+            elif delete:
+                default_item = (default_item - 1) if default_item > 1 else 1
 
+        if not param.is_list or len(param.value) == 0:
+            break
+
+    return True
+
+
+def copy_file(d, src, dest):
+    """Copy src file to dest"""
+
+    assert os.path.exists(src), "File: `%s' does not exist" % src
+
+    if os.path.exists(dest):
+        if d.yesno("File: `%s' exists! Are you sure you want to overwrite it?",
+                   defaultno=1, width=WIDTH):
+            return False
+
+    shutil.copyfile(src, dest)
+    d.msgbox("File: `%s' was successfully written!")
     return True
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

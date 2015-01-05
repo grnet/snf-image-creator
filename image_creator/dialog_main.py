@@ -24,16 +24,15 @@ user is asked if he wants to use the program in expert or wizard mode.
 import dialog
 import sys
 import os
-import textwrap
 import signal
 import optparse
 import types
 import termios
 import traceback
+import tempfile
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError
-from image_creator.output import Output
 from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput
 from image_creator.output.composite import CompositeOutput
@@ -51,7 +50,7 @@ def create_image(d, media, out, tmp, snapshot):
     d.setBackgroundTitle('snf-image-creator')
 
     gauge = GaugeOutput(d, "Initialization", "Initializing...")
-    out.add(gauge)
+    out.append(gauge)
     disk = Disk(media, out, tmp)
 
     def signal_handler(signum, frame):
@@ -66,15 +65,6 @@ def create_image(d, media, out, tmp, snapshot):
 
         image = disk.get_image(device)
 
-        out.output("Collecting image metadata ...")
-        metadata = {}
-        for (key, value) in image.meta.items():
-            metadata[str(key)] = str(value)
-
-        for (key, value) in image.os.meta.items():
-            metadata[str(key)] = str(value)
-
-        out.success("done")
         gauge.cleanup()
         out.remove(gauge)
 
@@ -85,8 +75,7 @@ def create_image(d, media, out, tmp, snapshot):
 
         session = {"dialog": d,
                    "disk": disk,
-                   "image": image,
-                   "metadata": metadata}
+                   "image": image}
 
         if image.is_unsupported():
 
@@ -172,6 +161,7 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
 
 
 def dialog_main(media, logfile, tmpdir, snapshot):
+    """Main function for the dialog-based version of the program"""
 
     # In openSUSE dialog is buggy under xterm
     if os.environ['TERM'] == 'xterm':
@@ -191,36 +181,54 @@ def dialog_main(media, logfile, tmpdir, snapshot):
     dialog._common_args_syntax["no_label"] = \
         lambda string: ("--no-label", string)
 
+    # Add exit label overwriting
+    dialog._common_args_syntax["exit_label"] = \
+        lambda string: ("--exit-label", string)
+
     # Monkey-patch pythondialog to include support for form dialog boxes
     if not hasattr(dialog, 'form'):
         d.form = types.MethodType(_dialog_form, d)
 
     d.setBackgroundTitle('snf-image-creator')
 
-    try:
-        while True:
-            media = select_file(d, init=media, ftype="br", bundle_host=True,
-                                title="Please select an input media.")
-            if media is None:
-                if confirm_exit(
-                        d, "You canceled the media selection dialog box."):
-                    return 0
-                continue
-            break
+    # Pick input media
+    while True:
+        media = select_file(d, init=media, ftype="br", bundle_host=True,
+                            title="Please select an input media.")
+        if media is None:
+            if confirm_exit(
+                    d, "You canceled the media selection dialog box."):
+                return 0
+            continue
+        break
 
-        log = SimpleOutput(False, logfile) if logfile is not None else Output()
+    tmplog = None if logfile else tempfile.NamedTemporaryFile(prefix='fatal-',
+                                                              delete=False)
+    try:
+        stream = logfile if logfile else tmplog
+        log = SimpleOutput(colored=False, stderr=stream, stdout=stream)
         while 1:
             try:
                 out = CompositeOutput([log])
-                out.output("Starting %s v%s ..." % (PROGNAME, version))
-                return create_image(d, media, out, tmpdir, snapshot)
+                out.info("Starting %s v%s ..." % (PROGNAME, version))
+                ret = create_image(d, media, out, tmpdir, snapshot)
+                break
             except Reset:
-                log.output("Resetting everything ...")
-                continue
+                log.info("Resetting everything ...")
+
     except FatalError as error:
-        msg = textwrap.fill(str(error), width=WIDTH-4)
+        log.error(str(error))
+        msg = 'A fatal error occured. See %s for a full log.' % log.stderr.name
         d.infobox(msg, width=WIDTH, title="Fatal Error")
         return 1
+    else:
+        if tmplog:
+            os.unlink(tmplog.name)
+    finally:
+        if tmplog:
+            tmplog.close()
+
+    return ret
 
 
 def main():

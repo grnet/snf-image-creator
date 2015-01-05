@@ -26,6 +26,17 @@ import re
 from collections import namedtuple
 from functools import wraps
 
+OSTYPE_ORDER = {
+    "windows": 8,
+    "linux": 7,
+    "freebsd": 6,
+    "netbsd": 5,
+    "openbsd": 4,
+    "hurd": 3,
+    "dos": 2,
+    "minix": 1
+}
+
 
 def os_cls(distro, osfamily):
     """Given the distro name and the osfamily, return the appropriate OSBase
@@ -77,7 +88,7 @@ def sysprep(message, enabled=True, **kwargs):
         @wraps(method)
         def inner(self, print_message=True):
             if print_message:
-                self.out.output(message)
+                self.out.info(message)
             return method(self)
 
         return inner
@@ -87,11 +98,11 @@ def sysprep(message, enabled=True, **kwargs):
 class SysprepParam(object):
     """This class represents a system preparation parameter"""
 
-    def __init__(self, type, default, description, **kwargs):
+    def __init__(self, name, type, default, description, **kwargs):
 
-        assert hasattr(self, "_check_%s" % type), "Invalid type: %s" % type
-
-        self.type = type
+        self.name = name
+        self.is_list = type.startswith('list:')
+        self.type = type.split(':', 1)[1] if self.is_list else type
         self.default = default
         self.description = description
         self.value = default
@@ -99,18 +110,29 @@ class SysprepParam(object):
         self.check = kwargs['check'] if 'check' in kwargs else lambda x: x
         self.hidden = kwargs['hidden'] if 'hidden' in kwargs else False
 
+        assert hasattr(self, "_check_%s" % self.type), \
+            "Invalid type: %s" % self.type
+
     def set_value(self, value):
         """Update the value of the parameter"""
 
         check_type = getattr(self, "_check_%s" % self.type)
-        try:
-            self.value = self.check(check_type(value))
-        except ValueError as e:
-            self.error = e.message
-            return False
+
+        tmp = []
+
+        for item in value if self.is_list else [value]:
+            try:
+                tmp.append(self.check(check_type(item)))
+            except ValueError as e:
+                self.error = e.message
+                return False
+
+        self.value = tmp if self.is_list else tmp[0]
+
         return True
 
-    def _check_posint(self, value):
+    @staticmethod
+    def _check_posint(value):
         """Check if the value is a positive integer"""
         try:
             value = int(value)
@@ -122,11 +144,13 @@ class SysprepParam(object):
 
         return value
 
-    def _check_string(self, value):
+    @staticmethod
+    def _check_string(value):
         """Check if a value is a string"""
         return str(value)
 
-    def _check_file(self, value):
+    @staticmethod
+    def _check_file(value):
         """Check if the value is a valid filename"""
 
         value = str(value)
@@ -146,7 +170,8 @@ class SysprepParam(object):
 
         raise ValueError("Invalid filename")
 
-    def _check_dir(self, value):
+    @staticmethod
+    def _check_dir(value):
         """Check if the value is a valid directory"""
 
         value = str(value)
@@ -174,7 +199,7 @@ def add_sysprep_param(name, type, default, descr, **kwargs):
                 self.sysprep_params = {}
 
             self.sysprep_params[name] = \
-                SysprepParam(type, default, descr, **extra)
+                SysprepParam(name, type, default, descr, **extra)
             init(self, *args, **kwargs)
         return inner
     return wrapper
@@ -212,11 +237,24 @@ class OSBase(object):
                     self.out.warn("Ignoring invalid `%s' parameter." % key)
                     continue
                 param = self.sysprep_params[key]
+                if param.is_list:
+                    def split_in_comma(val):
+                        tmp = val.split(',')
+                        prev = ""
+                        for i in xrange(len(tmp)):
+                            item = prev + tmp[i]
+                            if item.endswith('\\'):
+                                prev = item[:-1]
+                                continue
+                            prev = ""
+                            yield item
+                    val = list(split_in_comma(val))
+
                 if not param.set_value(val):
                     raise FatalError("Invalid value for sysprep parameter: "
                                      "`%s'. Reason: %s" % (key, param.error))
 
-        self.meta = {}
+        self.meta = self.image.meta
         self.shrinked = False
 
         # This will host the error if mount fails
@@ -268,21 +306,21 @@ class OSBase(object):
         if self.image.is_unsupported():
             return
 
-        self.out.output('Running OS inspection:')
+        self.out.info('Running OS inspection:')
         with self.mount(readonly=True, silent=True):
             self._do_inspect()
-        self.out.output()
+        self.out.info()
 
     def collect_metadata(self):
         """Collect metadata about the OS"""
 
-        self.out.output('Collecting image metadata ...', False)
+        self.out.info('Collecting image metadata ...', False)
 
         with self.mount(readonly=True, silent=True):
             self._do_collect_metadata()
 
         self.out.success('done')
-        self.out.output()
+        self.out.info()
 
     def list_syspreps(self):
         """Returns a list of sysprep objects"""
@@ -337,8 +375,17 @@ class OSBase(object):
 
         return self._sysprep_tasks[obj.__name__]
 
+    def print_metadata(self):
+        """Print the image metadata"""
+
+        self.out.info("Detected image metadata:")
+
+        col_width = max(len(key) for key in self.meta) + 2
+        for key, val in self.meta.items():
+            self.out.info("%s %s" % (key.ljust(col_width), val))
+
     def print_syspreps(self):
-        """Print enabled and disabled system preparation operations."""
+        """Print enabled and disabled system preparation operations"""
 
         syspreps = self.list_syspreps()
         enabled = [s for s in syspreps if self.sysprep_enabled(s)]
@@ -349,53 +396,57 @@ class OSBase(object):
         wrapper.initial_indent = '\t'
         wrapper.width = 72
 
-        self.out.output("Enabled system preparation operations:")
+        self.out.info("Enabled system preparation operations:")
         if len(enabled) == 0:
-            self.out.output("(none)")
+            self.out.info("(none)")
         else:
             for sysprep in enabled:
                 name = sysprep.__name__.replace('_', '-')[1:]
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
-                self.out.output('    %s:\n%s\n' % (name, descr))
+                self.out.info('    %s:\n%s\n' % (name, descr))
 
-        self.out.output("Disabled system preparation operations:")
+        self.out.info("Disabled system preparation operations:")
         if len(disabled) == 0:
-            self.out.output("(none)")
+            self.out.info("(none)")
         else:
             for sysprep in disabled:
                 name = sysprep.__name__.replace('_', '-')[1:]
                 descr = wrapper.fill(textwrap.dedent(sysprep.__doc__))
-                self.out.output('    %s:\n%s\n' % (name, descr))
+                self.out.info('    %s:\n%s\n' % (name, descr))
 
     def print_sysprep_params(self):
         """Print the system preparation parameter the user may use"""
 
-        self.out.output("System preparation parameters:")
-        self.out.output()
+        self.out.info("System preparation parameters:")
+        self.out.info()
 
         public_params = [(n, p) for n, p in self.sysprep_params.items()
                          if not p.hidden]
         if len(public_params) == 0:
-            self.out.output("(none)")
+            self.out.info("(none)")
             return
 
         wrapper = textwrap.TextWrapper()
         wrapper.subsequent_indent = "             "
-        wrapper.width = 72
+        wrapper.width = 80
 
         for name, param in public_params:
             if param.hidden:
                 continue
-            self.out.output("NAME:        %s" % name)
-            self.out.output("VALUE:       %s" % param.value)
-            self.out.output(
-                wrapper.fill("DESCRIPTION: %s" % param.description))
-            self.out.output()
+            self.out.info("NAME:".ljust(13) + name)
+            self.out.info(wrapper.fill("DESCRIPTION:".ljust(13) +
+                                       "%s" % param.description))
+            self.out.info("TYPE:".ljust(13) + "%s%s" %
+                          ("list:" if param.is_list else "", param.type))
+            self.out.info("VALUE:".ljust(13) +
+                          ("\n".ljust(14).join(param.value) if param.is_list
+                           else param.value))
+            self.out.info()
 
     def do_sysprep(self):
         """Prepare system for image creation."""
 
-        self.out.output('Preparing system for image creation:')
+        self.out.info('Preparing system for image creation:')
 
         if self.image.is_unsupported():
             self.out.warn(
@@ -407,7 +458,7 @@ class OSBase(object):
         cnt = 0
 
         def exec_sysprep(cnt, size, task):
-            self.out.output(('(%d/%d)' % (cnt, size)).ljust(7), False)
+            self.out.info(('(%d/%d)' % (cnt, size)).ljust(7), False)
             task()
             del self._sysprep_tasks[task.__name__]
 
@@ -420,7 +471,7 @@ class OSBase(object):
             cnt += 1
             exec_sysprep(cnt, size, task)
 
-        self.out.output()
+        self.out.info()
 
     @sysprep('Shrinking image (may take a while)', nomount=True)
     def _shrink(self):
@@ -436,7 +487,7 @@ class OSBase(object):
         """Returns a context manager for mounting an image"""
 
         parent = self
-        output = lambda msg='', nl=True: None if silent else self.out.output
+        output = lambda msg='', nl=True: None if silent else self.out.info
         success = lambda msg='', nl=True: None if silent else self.out.success
         warn = lambda msg='', nl=True: None if silent else self.out.warn
 
@@ -517,6 +568,8 @@ class OSBase(object):
           http://libguestfs.org/guestfs.3.html#guestfs_readdir
 
         * exclude: Exclude all files that follow this pattern.
+
+        * include: Only include files that follow this pattern.
         """
         if not self.image.g.is_dir(directory):
             self.out.warn("Directory: `%s' does not exist!" % directory)
@@ -531,6 +584,7 @@ class OSBase(object):
         kwargs['maxdepth'] = maxdepth
 
         exclude = None if 'exclude' not in kwargs else kwargs['exclude']
+        include = None if 'include' not in kwargs else kwargs['include']
         ftype = None if 'ftype' not in kwargs else kwargs['ftype']
         has_ftype = lambda x, y: y is None and True or x['ftyp'] == y
 
@@ -543,6 +597,9 @@ class OSBase(object):
             if exclude and re.match(exclude, full_path):
                 continue
 
+            if include and not re.match(include, full_path):
+                continue
+
             if has_ftype(f, 'd'):
                 self._foreach_file(full_path, action, **kwargs)
 
@@ -552,7 +609,6 @@ class OSBase(object):
     def _do_inspect(self):
         """helper method for inspect"""
         self.out.warn("No inspection method available")
-        pass
 
     def _do_collect_metadata(self):
         """helper method for collect_metadata"""
@@ -564,12 +620,17 @@ class OSBase(object):
             self.out.warn("Unable to identify the partition number from root "
                           "partition: %s" % self.root)
 
-        self.meta['OSFAMILY'] = self.image.g.inspect_get_type(self.root)
-        self.meta['OS'] = self.image.g.inspect_get_distro(self.root)
-        if self.meta['OS'] == "unknown":
-            self.meta['OS'] = self.meta['OSFAMILY']
-        self.meta['DESCRIPTION'] = \
-            self.image.g.inspect_get_product_name(self.root)
+        osfamily = self.image.g.inspect_get_type(self.root)
+        distro = self.image.g.inspect_get_distro(self.root)
+        name = self.image.g.inspect_get_product_name(self.root)
+
+        self.meta['OSFAMILY'] = osfamily
+        self.meta['OS'] = distro if distro != "unknown" else osfamily
+        self.meta['DESCRIPTION'] = name
+        try:
+            self.meta['SORTORDER'] = 1000000 * OSTYPE_ORDER[osfamily]
+        except KeyError:
+            self.meta['SORTORDER'] = 0
 
     def _do_mount(self, readonly):
         """helper method for mount"""

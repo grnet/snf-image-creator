@@ -32,4 +32,16 @@ class Slackware(Linux):
         self._foreach_file('/var/log', self.image.g.truncate, ftype='r',
                            exclude='/var/log/packages')
 
+    def is_enabled(self, service):
+        """Check if a service is enabled to start on boot"""
+
+        name = '/etc/rc.d/%s' % service
+        # In slackware a service will be executed during boot if the
+        # execute bit is set for the root
+        if self.image.g.is_file(name):
+            return self.image.g.stat(name)['mode'] & 0400
+
+        self.out.warn('Service %s not found on the media' % service)
+        return False
+
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

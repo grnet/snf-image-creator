@@ -25,17 +25,33 @@ setup(
     version=image_creator.__version__,
     description='Command line tool for creating images',
     long_description=open('README.md').read(),
-    url='https://code.grnet.gr/projects/snf-image-creator',
-    author="Synnefo development team",
-    author_email="synnefo-devel@googlegroups.com",
-    license='BSD',
+    url='https://github.com/grnet/snf-image',
+    download_url='https://pypi.python.org/pypi/snf_image_creator',
+    author='Synnefo development team',
+    author_email='synnefo-devel@googlegroups.com',
+    maintainer='Synnefo development team',
+    maintainer_email='synnefo-devel@googlegroups.com',
+    license='GNU GPLv3',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['sh', 'ansicolors', 'progress>=1.0.2'],
+    install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'kamaki>=0.9'],
+    # Unresolvable dependencies:
+    #   pysendfile|py-sendfile, hivex, guestfs, parted, rsync,
     entry_points={
         'console_scripts': [
                 'snf-mkimage = image_creator.main:main',
                 'snf-image-creator = image_creator.dialog_main:main']
-    }
+    },
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Environment :: Console',
+        'Environment :: Console :: Curses',
+        'Intended Audience :: Developers',
+        'Intended Audience :: System Administrators',
+        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python :: 2.6',
+        'Programming Language :: Python :: 2.7'],
+    keywords = 'cloud IaaS OS images'
 )
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

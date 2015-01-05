@@ -92,6 +92,118 @@ def mkfs(fs, device, uuid=None, label=None):
         UUID_UPDATE[fs](device, uuid)
 
 
+def read_fstable(f):
+    """Use this generator to iterate over the lines of an fstab file"""
+
+    if not os.path.isfile(f):
+        raise FatalError("Unable to open: `%s'. File is missing." % f)
+
+    FileSystemTableEntry = namedtuple('FileSystemTableEntry',
+                                      'dev mpoint fs opts freq passno')
+    with open(f) as table:
+        for line in iter(table):
+            entry = line.split('#')[0].strip().split()
+            if len(entry) != 6:
+                continue
+            yield FileSystemTableEntry(*entry)
+
+
+def get_root_partition():
+    """Return the fstab entry associated with the root file system"""
+    for entry in read_fstable('/etc/fstab'):
+        if entry.mpoint == '/':
+            return entry.dev
+
+    raise FatalError("Unable to find root device in /etc/fstab")
+
+
+def is_mpoint(path):
+    """Check if a directory is currently a mount point"""
+    for entry in read_fstable('/proc/mounts'):
+        if entry.mpoint == path:
+            return True
+    return False
+
+
+def get_mount_options(device):
+    """Return the mount entry associated with a mounted device"""
+    for entry in read_fstable('/proc/mounts'):
+        if not entry.dev.startswith('/'):
+            continue
+
+        if os.path.realpath(entry.dev) == os.path.realpath(device):
+            return entry
+
+    return None
+
+
+def get_partitions(disk):
+    """Returns a list with the partitions of the provided disk"""
+    Partition = namedtuple('Partition', 'num start end type fs')
+
+    partitions = []
+    for p in disk.partitions:
+        num = p.number
+        start = p.geometry.start
+        end = p.geometry.end
+        ptype = p.type
+        fs = p.fileSystem.type if p.fileSystem is not None else ''
+        partitions.append(Partition(num, start, end, ptype, fs))
+
+    return partitions
+
+
+def map_partition(dev, num, start, end):
+    """Map a partition into a block device using the device mapper"""
+    name = os.path.basename(dev) + "_" + uuid.uuid4().hex
+    tablefd, table = tempfile.mkstemp()
+    try:
+        try:
+            size = end - start + 1
+            os.write(tablefd, "0 %d linear %s %d" % (size, dev, start))
+        finally:
+            os.close(tablefd)
+        dmsetup('create', "%sp%d" % (name, num), table)
+    finally:
+        os.unlink(table)
+
+    return "/dev/mapper/%sp%d" % (name, num)
+
+
+def unmap_partition(dev):
+    """Unmap a previously mapped partition"""
+    if not os.path.exists(dev):
+        return
+
+    try_fail_repeat(dmsetup, 'remove', dev.split('/dev/mapper/')[1])
+
+
+def mount_all(target, devs):
+    """Mount a list of file systems in mount points relative to target"""
+    devs.sort(key=lambda d: d[1])
+    for dev, mpoint, options in devs:
+        absmpoint = os.path.abspath(target + mpoint)
+        if not os.path.exists(absmpoint):
+            os.makedirs(absmpoint)
+
+        if len(options) > 0:
+            mount(dev, absmpoint, '-o', ",".join(options))
+        else:
+            mount(dev, absmpoint)
+
+
+def umount_all(target):
+    """Umount all file systems that are mounted under the target directory"""
+    mpoints = []
+    for entry in read_fstable('/proc/mounts'):
+        if entry.mpoint.startswith(os.path.abspath(target)):
+            mpoints.append(entry.mpoint)
+
+    mpoints.sort()
+    for mpoint in reversed(mpoints):
+        try_fail_repeat(umount, mpoint)
+
+
 class BundleVolume(object):
     """This class can be used to create an image out of the running system"""
 
@@ -101,8 +213,8 @@ class BundleVolume(object):
         self.meta = meta
         self.tmp = tmp
 
-        self.out.output('Searching for root device ...', False)
-        root = self._get_root_partition()
+        self.out.info('Searching for root device ...', False)
+        root = get_root_partition()
 
         if root.startswith("UUID=") or root.startswith("LABEL="):
             root = findfs(root).stdout.strip()
@@ -115,47 +227,6 @@ class BundleVolume(object):
         disk_file = re.split('[0-9]', root)[0]
         device = parted.Device(disk_file)
         self.disk = parted.Disk(device)
-
-    def _read_fstable(self, f):
-        """Use this generator to iterate over the lines of and fstab file"""
-
-        if not os.path.isfile(f):
-            raise FatalError("Unable to open: `%s'. File is missing." % f)
-
-        FileSystemTableEntry = namedtuple('FileSystemTableEntry',
-                                          'dev mpoint fs opts freq passno')
-        with open(f) as table:
-            for line in iter(table):
-                entry = line.split('#')[0].strip().split()
-                if len(entry) != 6:
-                    continue
-                yield FileSystemTableEntry(*entry)
-
-    def _get_root_partition(self):
-        """Return the fstab entry associated with the root file system"""
-        for entry in self._read_fstable('/etc/fstab'):
-            if entry.mpoint == '/':
-                return entry.dev
-
-        raise FatalError("Unable to find root device in /etc/fstab")
-
-    def _is_mpoint(self, path):
-        """Check if a directory is currently a mount point"""
-        for entry in self._read_fstable('/proc/mounts'):
-            if entry.mpoint == path:
-                return True
-        return False
-
-    def _get_mount_options(self, device):
-        """Return the mount entry associated with a mounted device"""
-        for entry in self._read_fstable('/proc/mounts'):
-            if not entry.dev.startswith('/'):
-                continue
-
-            if os.path.realpath(entry.dev) == os.path.realpath(device):
-                return entry
-
-        return None
 
     def _create_partition_table(self, image):
         """Copy the partition table of the host system into the image"""
@@ -192,21 +263,6 @@ class BundleVolume(object):
                'seek=%d' % start, 'skip=%d' % start)
             start = logical[i].geometry.end + 1
 
-    def _get_partitions(self, disk):
-        """Returns a list with the partitions of the provided disk"""
-        Partition = namedtuple('Partition', 'num start end type fs')
-
-        partitions = []
-        for p in disk.partitions:
-            num = p.number
-            start = p.geometry.start
-            end = p.geometry.end
-            ptype = p.type
-            fs = p.fileSystem.type if p.fileSystem is not None else ''
-            partitions.append(Partition(num, start, end, ptype, fs))
-
-        return partitions
-
     def _shrink_partitions(self, image):
         """Remove the last partition of the image if it is a swap partition and
         shrink the partition before that. Make sure it can still host all the
@@ -217,7 +273,7 @@ class BundleVolume(object):
         is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
         is_logical = lambda p: p.type == parted.PARTITION_LOGICAL
 
-        partitions = self._get_partitions(self.disk)
+        partitions = get_partitions(self.disk)
 
         last = partitions[-1]
         new_end = last.end
@@ -241,7 +297,7 @@ class BundleVolume(object):
 
             new_end = last.end
 
-        mount_options = self._get_mount_options(
+        mount_options = get_mount_options(
             self.disk.getPartitionBySector(last.start).path)
         if mount_options is not None:
             stat = os.statvfs(mount_options.mpoint)
@@ -276,55 +332,7 @@ class BundleVolume(object):
                 # Fix the extended partition
                 image_disk.minimizeExtendedPartition()
 
-        return (new_end, self._get_partitions(image_disk))
-
-    def _map_partition(self, dev, num, start, end):
-        """Map a partition into a block device using the device mapper"""
-        name = os.path.basename(dev) + "_" + uuid.uuid4().hex
-        tablefd, table = tempfile.mkstemp()
-        try:
-            try:
-                size = end - start + 1
-                os.write(tablefd, "0 %d linear %s %d" % (size, dev, start))
-            finally:
-                os.close(tablefd)
-            dmsetup('create', "%sp%d" % (name, num), table)
-        finally:
-            os.unlink(table)
-
-        return "/dev/mapper/%sp%d" % (name, num)
-
-    def _unmap_partition(self, dev):
-        """Unmap a previously mapped partition"""
-        if not os.path.exists(dev):
-            return
-
-        try_fail_repeat(dmsetup, 'remove', dev.split('/dev/mapper/')[1])
-
-    def _mount(self, target, devs):
-        """Mount a list of file systems in mount points relative to target"""
-        devs.sort(key=lambda d: d[1])
-        for dev, mpoint, options in devs:
-            absmpoint = os.path.abspath(target + mpoint)
-            if not os.path.exists(absmpoint):
-                os.makedirs(absmpoint)
-
-            if len(options) > 0:
-                mount(dev, absmpoint, '-o', ",".join(options))
-            else:
-                mount(dev, absmpoint)
-
-    def _umount_all(self, target):
-        """Umount all file systems that are mounted under the target directory
-        """
-        mpoints = []
-        for entry in self._read_fstable('/proc/mounts'):
-            if entry.mpoint.startswith(os.path.abspath(target)):
-                mpoints.append(entry.mpoint)
-
-        mpoints.sort()
-        for mpoint in reversed(mpoints):
-            try_fail_repeat(umount, mpoint)
+        return (new_end, get_partitions(image_disk))
 
     def _to_exclude(self):
         """Find which directories to exclude during the image copy. This is
@@ -335,7 +343,7 @@ class BundleVolume(object):
         if self.tmp is not None:
             excluded.append(self.tmp)
         local_filesystems = MKFS_OPTS.keys() + ['rootfs']
-        for entry in self._read_fstable('/proc/mounts'):
+        for entry in read_fstable('/proc/mounts'):
             if entry.fs in local_filesystems:
                 continue
 
@@ -343,8 +351,7 @@ class BundleVolume(object):
             if mpoint in excluded:
                 continue
 
-            descendants = filter(
-                lambda p: p.startswith(mpoint + '/'), excluded)
+            descendants = [e for e in excluded if e.startswith(mpoint + '/')]
             if len(descendants):
                 for d in descendants:
                     excluded.remove(d)
@@ -373,16 +380,16 @@ class BundleVolume(object):
         filesystem = {}
         orig_dev = {}
         for p in self.disk.partitions:
-            filesystem[p.number] = self._get_mount_options(p.path)
+            filesystem[p.number] = get_mount_options(p.path)
             orig_dev[p.number] = p.path
 
-        unmounted = filter(lambda p: filesystem[p.num] is None, partitions)
-        mounted = filter(lambda p: filesystem[p.num] is not None, partitions)
+        unmounted = [p for p in partitions if filesystem[p.num] is None]
+        mounted = [p for p in partitions if filesystem[p.num] is not None]
 
         # For partitions that are not mounted right now, we can simply dd them
         # into the image.
         for p in unmounted:
-            self.out.output('Cloning partition %d ... ' % p.num, False)
+            self.out.info('Cloning partition %d ... ' % p.num, False)
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
                'count=%d' % (p.end - p.start + 1), 'conv=notrunc',
                'seek=%d' % p.start, 'skip=%d' % p.start)
@@ -395,7 +402,7 @@ class BundleVolume(object):
         try:
             for p in mounted:
                 i = p.num
-                mapped[i] = self._map_partition(loop, i, p.start, p.end)
+                mapped[i] = map_partition(loop, i, p.start, p.end)
 
             new_uuid = {}
             # Create the file systems
@@ -406,8 +413,8 @@ class BundleVolume(object):
                     '-s', 'LABEL', '-o', 'value', orig_dev[i]).stdout.strip()
                 fs = filesystem[i].fs
 
-                self.out.output('Creating %s file system on partition %d ... '
-                                % (fs, i), False)
+                self.out.info('Creating %s file system on partition %d ... '
+                              % (fs, i), False)
                 mkfs(fs, dev, uuid=uuid, label=label)
 
                 # For ext[234] enable the default mount options
@@ -436,7 +443,7 @@ class BundleVolume(object):
                         opts.append(opt)
                 devs.append((mapped[i], mpoint, opts))
             try:
-                self._mount(target, devs)
+                mount_all(target, devs)
 
                 excluded = self._to_exclude()
 
@@ -461,7 +468,7 @@ class BundleVolume(object):
                 # /tmp and /var/tmp are special cases. We exclude then even if
                 # they aren't mount points. Restore their permissions.
                 for excl in ('/tmp', '/var/tmp'):
-                    if self._is_mpoint(excl):
+                    if is_mpoint(excl):
                         os.chmod(target + excl, 041777)
                         os.chown(target + excl, 0, 0)
                     else:
@@ -470,11 +477,11 @@ class BundleVolume(object):
                         os.chown(target + excl, stat.st_uid, stat.st_gid)
 
             finally:
-                self._umount_all(target)
+                umount_all(target)
                 os.rmdir(target)
         finally:
             for dev in mapped.values():
-                self._unmap_partition(dev)
+                unmap_partition(dev)
             losetup('-d', loop)
 
     def create_image(self, image):
@@ -513,7 +520,7 @@ class BundleVolume(object):
 
         # Check if the available space is enough to host the image
         dirname = os.path.dirname(image)
-        self.out.output("Examining available space ...", False)
+        self.out.info("Examining available space ...", False)
         if free_space(dirname) <= size:
             raise FatalError("Not enough space under %s to host the temporary "
                              "image" % dirname)

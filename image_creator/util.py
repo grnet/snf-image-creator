@@ -35,8 +35,9 @@ class FatalError(Exception):
 def get_command(command):
     """Return a file system binary command"""
     def find_sbin_command(command, exception):
+        """Checks if a command is hosted under one of the sbin directories"""
         search_paths = ['/usr/local/sbin', '/usr/sbin', '/sbin']
-        for fullpath in map(lambda x: "%s/%s" % (x, command), search_paths):
+        for fullpath in ["%s/%s" % (x, command) for x in search_paths]:
             if os.path.exists(fullpath) and os.access(fullpath, os.X_OK):
                 return sh.Command(fullpath)
         raise exception
@@ -139,7 +140,7 @@ class QemuNBD(object):
         """Initialize an instance"""
         self.image = image
         self.device = None
-        self.pattern = re.compile('^nbd\d+$')
+        self.pattern = re.compile(r'^nbd\d+$')
         self.modprobe = get_command('modprobe')
         try:
             self.qemu_nbd = get_command('qemu-nbd')

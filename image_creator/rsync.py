@@ -24,7 +24,7 @@ import signal
 from image_creator.util import FatalError
 
 
-class Rsync:
+class Rsync(object):
     """Wrapper class for the rsync command"""
 
     def __init__(self, output):
@@ -76,8 +76,8 @@ class Rsync:
         for i in self._exclude:
             cmd.extend(['--exclude', i])
 
-        self._out.output("Calculating total number of %s files ..." % slabel,
-                         False)
+        self._out.info("Calculating total number of %s files ..." % slabel,
+                       False)
 
         # If you don't specify a destination, rsync will list the source files.
         dry_run = subprocess.Popen(cmd + [src], shell=False,
@@ -110,6 +110,7 @@ class Rsync:
 
         finally:
             def handler(signum, frame):
+                """Signal handler"""
                 run.terminate()
                 time.sleep(1)
                 run.poll()
