@@ -48,7 +48,7 @@ Add the apt-dev GPG key to the list of trusted keys:
 
 .. code-block:: console
 
-   # curl https://dev.grnet.gr/files/apt-grnetdev.pub | apt-key add -
+   # wget --no-check-certificate  -qO-  http://dev.grnet.gr/files/apt-grnetdev.pub | apt-key add -
 
 And resynchronize the package index files from their sources:
 

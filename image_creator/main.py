@@ -33,9 +33,13 @@ import StringIO
 import signal
 import json
 import textwrap
+import tempfile
+import subprocess
+import time
 
 
 def check_writable_dir(option, opt_str, value, parser):
+    """Check if a directory is writable"""
     dirname = os.path.dirname(value)
     name = os.path.basename(value)
     if dirname and not os.path.isdir(dirname):
@@ -48,94 +52,104 @@ def check_writable_dir(option, opt_str, value, parser):
 
 
 def parse_options(input_args):
+    """Parse input parameters"""
     usage = "Usage: %prog [options] <input_media>"
     parser = optparse.OptionParser(version=version, usage=usage)
-
-    parser.add_option("-o", "--outfile", type="string", dest="outfile",
-                      default=None, action="callback",
-                      callback=check_writable_dir, help="dump image to FILE",
-                      metavar="FILE")
-
-    parser.add_option("-f", "--force", dest="force", default=False,
-                      action="store_true",
-                      help="overwrite output files if they exist")
-
-    parser.add_option("-s", "--silent", dest="silent", default=False,
-                      help="output only errors",
-                      action="store_true")
-
-    parser.add_option("-u", "--upload", dest="upload", type="string",
-                      default=False,
-                      help="upload the image to the cloud with name FILENAME",
-                      metavar="FILENAME")
-
-    parser.add_option("-r", "--register", dest="register", type="string",
-                      default=False,
-                      help="register the image with a cloud as IMAGENAME",
-                      metavar="IMAGENAME")
-
-    parser.add_option("-m", "--metadata", dest="metadata", default=[],
-                      help="add custom KEY=VALUE metadata to the image",
-                      action="append", metavar="KEY=VALUE")
-
-    parser.add_option("-t", "--token", dest="token", type="string",
-                      default=None, help="use this authentication token when "
-                      "uploading/registering images")
 
     parser.add_option("-a", "--authentication-url", dest="url", type="string",
                       default=None, help="use this authentication URL when "
                       "uploading/registering images")
+
+    parser.add_option("--allow-unsupported", dest="allow_unsupported",
+                      help="proceed with the image creation even if the media "
+                      "is not supported", default=False, action="store_true")
 
     parser.add_option("-c", "--cloud", dest="cloud", type="string",
                       default=None, help="use this saved cloud account to "
                       "authenticate against a cloud when "
                       "uploading/registering images")
 
-    parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
-                      help="print the enabled and disabled system preparation "
-                      "operations for this input media", action="store_true")
-
-    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
-                      help="run SYSPREP operation on the input media",
-                      action="append", metavar="SYSPREP")
-
     parser.add_option("--disable-sysprep", dest="disabled_syspreps",
                       help="prevent SYSPREP operation from running on the "
                       "input media", default=[], action="append",
                       metavar="SYSPREP")
 
+    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
+                      help="run SYSPREP operation on the input media",
+                      action="append", metavar="SYSPREP")
+
+    parser.add_option("-f", "--force", dest="force", default=False,
+                      action="store_true",
+                      help="overwrite output files if they exist")
+
+    parser.add_option("--host-run", dest="host_run", default=[],
+                      help="mount the media in the host and run a script "
+                      "against the guest media. This option may be defined "
+                      "multiple times. The script's working directory will be "
+                      "the guest's root directory. BE CAREFUL! DO NOT USE "
+                      "ABSOLUTE PATHS INSIDE THE SCRIPT! YOU MAY HARM YOUR "
+                      "SYSTEM!", metavar="SCRIPT", action="append")
+
     parser.add_option("--install-virtio", dest="virtio", type="string",
                       help="install VirtIO drivers hosted under DIR "
                       "(Windows only)", metavar="DIR")
-    parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
-                      default=False, action="store_true",
-                      help="print the defined system preparation parameters "
-                      "for this input media")
 
-    parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
-                      help="add KEY=VALUE system preparation parameter",
-                      action="append")
-
-    parser.add_option("--no-sysprep", dest="sysprep", default=True,
-                      help="don't perform any system preparation operation",
-                      action="store_false")
+    parser.add_option("-m", "--metadata", dest="metadata", default=[],
+                      help="add custom KEY=VALUE metadata to the image",
+                      action="append", metavar="KEY=VALUE")
 
     parser.add_option("--no-snapshot", dest="snapshot", default=True,
                       help="don't snapshot the input media. (THIS IS "
                       "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
                       action="store_false")
 
+    parser.add_option("--no-sysprep", dest="sysprep", default=True,
+                      help="don't perform any system preparation operation",
+                      action="store_false")
+
+    parser.add_option("-o", "--outfile", type="string", dest="outfile",
+                      default=None, action="callback", metavar="FILE",
+                      callback=check_writable_dir, help="dump image to FILE")
+
+    parser.add_option("--print-metadata", dest="print_metadata", default=False,
+                      help="print the detected image metadata",
+                      action='store_true')
+
+    parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
+                      help="print the enabled and disabled system preparation "
+                      "operations for this input media", action="store_true")
+
+    parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
+                      default=False, action="store_true",
+                      help="print the defined system preparation parameters "
+                      "for this input media")
+
     parser.add_option("--public", dest="public", default=False,
                       help="register image with the cloud as public",
                       action="store_true")
 
-    parser.add_option("--allow-unsupported", dest="allow_unsupported",
-                      help="proceed with the image creation even if the media "
-                      "is not supported", default=False, action="store_true")
+    parser.add_option("-r", "--register", dest="register", type="string",
+                      default=False, metavar="IMAGENAME",
+                      help="register the image with a cloud as IMAGENAME")
+
+    parser.add_option("-s", "--silent", dest="silent", default=False,
+                      help="output only errors", action="store_true")
+
+    parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
+                      help="add KEY=VALUE system preparation parameter",
+                      action="append")
+
+    parser.add_option("-t", "--token", dest="token", type="string",
+                      default=None, help="use this authentication token when "
+                      "uploading/registering images")
 
     parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
                       help="create large temporary image files under DIR",
                       metavar="DIR")
+
+    parser.add_option("-u", "--upload", dest="upload", type="string",
+                      default=False, metavar="FILENAME",
+                      help="upload the image to the cloud with name FILENAME")
 
     options, args = parser.parse_args(input_args)
 
@@ -189,22 +203,25 @@ def parse_options(input_args):
 
 
 def image_creator():
+    """snf-mkimage main function"""
     options = parse_options(sys.argv[1:])
 
     if options.outfile is None and not options.upload and not \
-            options.print_syspreps and not options.print_sysprep_params:
-        raise FatalError("At least one of `-o', `-u', `--print-syspreps' or "
-                         "`--print-sysprep-params' must be set")
+            options.print_syspreps and not options.print_sysprep_params \
+            and not options.print_metadata:
+        raise FatalError("At least one of `-o', `-u', `--print-syspreps', "
+                         "`--print-sysprep-params' or `--print-metadata' must "
+                         "be set")
 
     if options.silent:
-        out = SilentOutput()
+        out = SilentOutput(colored=sys.stderr.isatty())
     else:
-        out = OutputWthProgress(True) if sys.stderr.isatty() else \
-            SimpleOutput(False)
+        out = OutputWthProgress() if sys.stderr.isatty() else \
+            SimpleOutput(colored=False)
 
     title = 'snf-image-creator %s' % version
-    out.output(title)
-    out.output('=' * len(title))
+    out.info(title)
+    out.info('=' * len(title))
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root"
@@ -281,6 +298,17 @@ def image_creator():
                               "not be cleared out of sensitive data and will "
                               "not get customized during the deployment."))
 
+        if len(options.host_run) != 0 and not image.mount_local_support:
+            raise FatalError("Running scripts against the guest media is not "
+                             "supported for this build of libguestfs.")
+
+        if len(options.host_run) != 0:
+            for script in options.host_run:
+                if not os.path.isfile(script):
+                    raise FatalError("File: `%s' does not exist." % script)
+                if not os.access(script, os.X_OK):
+                    raise FatalError("File: `%s' is not executable." % script)
+
         for sysprep in options.disabled_syspreps:
             image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
 
@@ -289,11 +317,15 @@ def image_creator():
 
         if options.print_syspreps:
             image.os.print_syspreps()
-            out.output()
+            out.info()
 
         if options.print_sysprep_params:
             image.os.print_sysprep_params()
-            out.output()
+            out.info()
+
+        if options.print_metadata:
+            image.os.print_metadata()
+            out.info()
 
         if options.outfile is None and not options.upload:
             return 0
@@ -302,42 +334,66 @@ def image_creator():
                 hasattr(image.os, 'install_virtio_drivers'):
             image.os.install_virtio_drivers()
 
+        if len(options.host_run) != 0:
+            out.info("Running scripts on the input media:")
+            mpoint = tempfile.mkdtemp()
+            try:
+                image.mount(mpoint)
+                if not image.is_mounted():
+                    raise FatalError("Mounting the media on the host failed.")
+                try:
+                    size = len(options.host_run)
+                    cnt = 1
+                    for script in options.host_run:
+                        script = os.path.abspath(script)
+                        out.info(("(%d/%d)" % (cnt, size)).ljust(7), False)
+                        out.info("Running `%s'" % script)
+                        ret = subprocess.Popen([script], cwd=mpoint).wait()
+                        if ret != 0:
+                            raise FatalError("Script: `%s' failed (rc=%d)" %
+                                             (script, ret))
+                        cnt += 1
+                finally:
+                    while not image.umount():
+                        out.warn("Unable to umount the media. Retrying ...")
+                        time.sleep(1)
+                    out.info()
+            finally:
+                os.rmdir
+
         if options.sysprep:
             image.os.do_sysprep()
 
-        metadata = image.os.meta
-        metadata.update(image.meta)
-
         if image.is_unsupported():
-            metadata['EXCLUDE_ALL_TASKS'] = "yes"
+            image.meta['EXCLUDE_ALL_TASKS'] = "yes"
 
         # Add command line metadata to the collected ones...
-        metadata.update(options.metadata)
+        image.meta.update(options.metadata)
 
         checksum = image.md5()
 
         metastring = unicode(json.dumps(
-            {'properties': metadata,
+            {'properties': image.meta,
              'disk-format': 'diskdump'}, ensure_ascii=False))
 
         if options.outfile is not None:
             image.dump(options.outfile)
 
-            out.output('Dumping metadata file ...', False)
+            out.info('Dumping metadata file ...', False)
             with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
                 f.write(metastring)
             out.success('done')
 
-            out.output('Dumping md5sum file ...', False)
+            out.info('Dumping md5sum file ...', False)
             with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
                 f.write('%s %s\n' % (checksum,
                                      os.path.basename(options.outfile)))
             out.success('done')
 
-        out.output()
+        out.info()
         try:
             if options.upload:
-                out.output("Uploading image to the storage service:")
+                out.info("Uploading image to the storage service:")
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         remote = kamaki.upload(
@@ -345,42 +401,43 @@ def image_creator():
                             "(1/3)  Calculating block hashes",
                             "(2/3)  Uploading missing blocks")
 
-                out.output("(3/3)  Uploading md5sum file ...", False)
+                out.info("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
                                          os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
                               size=len(md5sumstr),
                               remote_path="%s.%s" % (options.upload, 'md5sum'))
                 out.success('done')
-                out.output()
+                out.info()
 
             if options.register:
                 img_type = 'public' if options.public else 'private'
-                out.output('Registering %s image with the compute service ...'
-                           % img_type, False)
+                out.info('Registering %s image with the compute service ...'
+                         % img_type, False)
                 result = kamaki.register(options.register, remote,
-                                         metadata, options.public)
+                                         image.meta, options.public)
                 out.success('done')
-                out.output("Uploading metadata file ...", False)
-                metastring = unicode(json.dumps(result, ensure_ascii=False))
+                out.info("Uploading metadata file ...", False)
+                metastring = unicode(json.dumps(result, ensure_ascii=False,
+                                                indent=4))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'))
                 out.success('done')
                 if options.public:
-                    out.output("Sharing md5sum file ...", False)
+                    out.info("Sharing md5sum file ...", False)
                     kamaki.share("%s.md5sum" % options.upload)
                     out.success('done')
-                    out.output("Sharing metadata file ...", False)
+                    out.info("Sharing metadata file ...", False)
                     kamaki.share("%s.meta" % options.upload)
                     out.success('done')
-
-                out.output()
+                out.result(json.dumps(result, indent=4, ensure_ascii=False))
+                out.info()
         except ClientError as e:
             raise FatalError("Service client: %d %s" % (e.status, e.message))
 
     finally:
-        out.output('cleaning up ...')
+        out.info('cleaning up ...')
         disk.cleanup()
 
     out.success("snf-image-creator exited without errors")
@@ -389,11 +446,11 @@ def image_creator():
 
 
 def main():
+    """Main entry point"""
     try:
         sys.exit(image_creator())
     except FatalError as e:
-        colored = sys.stderr.isatty()
-        SimpleOutput(colored).error(e)
+        SimpleOutput(colored=sys.stderr.isatty()).error(e)
         sys.exit(1)
 
 if __name__ == '__main__':

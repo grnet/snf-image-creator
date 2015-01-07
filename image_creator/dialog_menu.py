@@ -25,6 +25,7 @@ import StringIO
 import json
 import re
 import time
+import tempfile
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError, virtio_versions
@@ -33,7 +34,8 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
-    extract_image, add_cloud, edit_cloud, update_sysprep_param
+    extract_image, add_cloud, edit_cloud, update_sysprep_param, select_file, \
+    copy_file
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"],
@@ -94,8 +96,6 @@ class MetadataMonitor(object):
                 msg += '    %s: "%s" -> "%s"\n' % (k, self.old[k], v)
             msg += "\n"
 
-        self.session['metadata'].update(added)
-        self.session['metadata'].update(altered)
         d.msgbox(msg, title="Image Property Changes", width=SMALL_WIDTH)
 
 
@@ -112,8 +112,8 @@ def upload_image(session):
     while 1:
         if 'upload' in session:
             init = session['upload']
-        elif 'OS' in session['metadata']:
-            init = "%s.diskdump" % session['metadata']['OS']
+        elif 'OS' in session['image'].meta:
+            init = "%s.diskdump" % session['image'].meta['OS']
         else:
             init = ""
         (code, answer) = d.inputbox("Please provide a filename:", init=init,
@@ -145,7 +145,7 @@ def upload_image(session):
     gauge = GaugeOutput(d, "Image Upload", "Uploading ...")
     try:
         out = image.out
-        out.add(gauge)
+        out.append(gauge)
         kamaki.out = out
         try:
             if 'checksum' not in session:
@@ -160,7 +160,7 @@ def upload_image(session):
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
                 # Upload md5sum file
-                out.output("Uploading md5sum file ...")
+                out.info("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
                               remote_path="%s.md5sum" % filename)
@@ -187,6 +187,7 @@ def upload_image(session):
 def register_image(session):
     """Register image with the compute service"""
     d = session["dialog"]
+    image = session['image']
 
     is_public = False
 
@@ -200,9 +201,9 @@ def register_image(session):
                  "register it", width=SMALL_WIDTH)
         return False
 
-    name = ""
-    description = session['metadata']['DESCRIPTION'] if 'DESCRIPTION' in \
-        session['metadata'] else ""
+    name = "" if 'registered' not in session else session['registered'].name
+    description = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta \
+        else ""
 
     while 1:
         fields = [("Registration name:", name, 60),
@@ -232,9 +233,9 @@ def register_image(session):
         is_public = (answer == 0)
         break
 
-    session['metadata']['DESCRIPTION'] = description
+    image.meta['DESCRIPTION'] = description
     metadata = {}
-    metadata.update(session['metadata'])
+    metadata.update(image.meta)
     if 'task_metadata' in session:
         for key in session['task_metadata']:
             metadata[key] = 'yes'
@@ -243,24 +244,26 @@ def register_image(session):
     gauge = GaugeOutput(d, "Image Registration", "Registering image ...")
     try:
         out = session['image'].out
-        out.add(gauge)
+        out.append(gauge)
         try:
             try:
-                out.output("Registering %s image with the cloud ..." %
-                           img_type)
+                out.info("Registering %s image with the cloud ..." % img_type,
+                         False)
                 kamaki = Kamaki(session['account'], out)
-                result = kamaki.register(name, session['pithos_uri'], metadata,
-                                         is_public)
+                session['registered'] = kamaki.register(
+                    name, session['pithos_uri'], metadata, is_public)
                 out.success('done')
+
                 # Upload metadata file
-                out.output("Uploading metadata file ...")
-                metastring = unicode(json.dumps(result, ensure_ascii=False))
+                out.info("Uploading metadata file ...", False)
+                metastring = unicode(json.dumps(session['registered'],
+                                                indent=4, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % session['upload'])
                 out.success("done")
                 if is_public:
-                    out.output("Sharing metadata and md5sum files ...")
+                    out.info("Sharing metadata and md5sum files ...", False)
                     kamaki.share("%s.meta" % session['upload'])
                     kamaki.share("%s.md5sum" % session['upload'])
                     out.success('done')
@@ -324,7 +327,7 @@ def delete_clouds(session):
 
     (code, to_delete) = d.checklist("Choose which cloud accounts to delete:",
                                     choices=choices, width=WIDTH)
-    to_delete = map(lambda x: x.strip('"'), to_delete)  # Needed for OpenSUSE
+    to_delete = [x.strip('"') for x in to_delete]  # Needed for OpenSUSE
 
     if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
         return False
@@ -352,7 +355,13 @@ def delete_clouds(session):
 def kamaki_menu(session):
     """Show kamaki related actions"""
     d = session['dialog']
-    default_item = "Cloud"
+
+    if 'registered' in session:
+        default_item = "Info"
+    elif 'upload' in session:
+        default_item = "Register"
+    else:
+        default_item = "Upload"
 
     if 'cloud' not in session:
         cloud = Kamaki.get_default_cloud_name()
@@ -377,11 +386,14 @@ def kamaki_menu(session):
         if 'upload' in session:
             choices.append(("Register", "Register image with the cloud: %s"
                             % session['upload']))
+        if 'registered' in session:
+            choices.append(("Info", "Show registration info for \"%s\"" %
+                                    session['registered']['name']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
-            width=WIDTH, choices=choices, cancel="Back", height=13,
-            menu_height=5, default_item=default_item,
+            width=WIDTH, choices=choices, cancel="Back", height=8+len(choices),
+            menu_height=len(choices), default_item=default_item,
             title="Image Registration Menu")
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
@@ -444,14 +456,51 @@ def kamaki_menu(session):
                 default_item = "Upload"
         elif choice == "Register":
             if register_image(session):
-                return True
+                default_item = "Info"
             else:
                 default_item = "Register"
+        elif choice == "Info":
+            show_info(session)
+
+
+def show_info(session):
+    """Show registration info"""
+
+    assert 'registered' in session
+    info = json.dumps(session['registered'], ensure_ascii=False, indent=4)
+
+    d = session['dialog']
+
+    while 1:
+        code = d.scrollbox(info, width=WIDTH, title="Registration info",
+                           extra_label="Save", extra_button=1,
+                           exit_label="Close")
+        if code == d.DIALOG_EXTRA:
+            path = select_file(d, title="Save registration information as...")
+            if path is None:
+                break
+            if os.path.isdir(path):
+                continue
+
+            if os.path.exists(path):
+                if d.yesno("File: `%s' already exists. Do you want to "
+                           "overwrite it?" % path, width=WIDTH, defaultno=1):
+                    continue
+
+            with open(path, 'w') as f:
+                f.write(info + '\n')
+
+            d.msgbox("File `%s was successfully written." % path,
+                     width=SMALL_WIDTH)
+            break
+        else:
+            return
 
 
 def add_property(session):
     """Add a new property to the image"""
     d = session['dialog']
+    image = session['image']
 
     regexp = re.compile('^[A-Za-z_]+$')
 
@@ -473,7 +522,7 @@ def add_property(session):
         # Image properties are case-insensitive
         name = name.upper()
 
-        if name in session['metadata']:
+        if name in image.meta:
             d.msgbox("Image property: `%s' already exists" % name, width=WIDTH)
             continue
 
@@ -492,7 +541,7 @@ def add_property(session):
 
         break
 
-    session['metadata'][name] = value
+    image.meta[name] = value
 
     return True
 
@@ -503,16 +552,17 @@ def show_properties_help(session):
 
     help_file = get_help_file("image_properties")
     assert os.path.exists(help_file)
-    d.textbox(help_file, title="Image Properties", width=70, height=40)
+    d.textbox(help_file, title="Image Properties", width=78, height=40)
 
 
 def modify_properties(session):
     """Modify an existing image property"""
     d = session['dialog']
+    image = session['image']
 
     while 1:
         choices = []
-        for (key, val) in session['metadata'].items():
+        for (key, val) in image.meta.items():
             choices.append((str(key), str(val)))
 
         if len(choices) == 0:
@@ -544,7 +594,7 @@ def modify_properties(session):
             (code, answer) = d.inputbox(
                 "Please provide a new value for `%s' image property or press "
                 "<Delete> to completely delete it." % choice,
-                init=session['metadata'][choice], width=WIDTH, extra_button=1,
+                init=image.meta[choice], width=WIDTH, extra_button=1,
                 extra_label="Delete")
             if code == d.DIALOG_OK:
                 value = answer.strip()
@@ -552,12 +602,12 @@ def modify_properties(session):
                     d.msgbox("Value cannot be empty!")
                     continue
                 else:
-                    session['metadata'][choice] = value
+                    image.meta[choice] = value
             # Delete button
             elif code == d.DIALOG_EXTRA:
                 if not d.yesno("Are you sure you want to delete `%s' image "
                                "property?" % choice, width=WIDTH):
-                    del session['metadata'][choice]
+                    del image.meta[choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
                              width=SMALL_WIDTH)
         # ADD button
@@ -592,7 +642,7 @@ def exclude_tasks(session):
             return False
 
     for (msg, task, osfamily) in CONFIGURATION_TASKS:
-        if session['metadata']['OSFAMILY'] in osfamily:
+        if image.meta['OSFAMILY'] in osfamily:
             checked = 1 if index in session['excluded_tasks'] else 0
             choices.append((str(displayed_index), msg, checked))
             mapping[displayed_index] = index
@@ -610,7 +660,7 @@ def exclude_tasks(session):
             text=text, choices=choices, height=19, list_height=8, width=WIDTH,
             help_button=1, extra_button=1, extra_label="No Config",
             title="Exclude Configuration Tasks")
-        tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
+        tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
@@ -633,8 +683,8 @@ def exclude_tasks(session):
             for task in session['excluded_tasks']:
                 exclude_metadata.extend(CONFIGURATION_TASKS[task][1])
 
-            session['task_metadata'] = map(lambda x: "EXCLUDE_TASK_%s" % x,
-                                           exclude_metadata)
+            session['task_metadata'] = ["EXCLUDE_TASK_%s" % x
+                                        for x in exclude_metadata]
             break
 
     return True
@@ -654,7 +704,8 @@ def sysprep_params(session):
             if param.hidden:
                 continue
 
-            value = str(param.value)
+            value = "|".join([str(i) for i in param.value]) if param.is_list \
+                else str(param.value)
             if len(value) == 0:
                 value = "<not_set>"
             choices.append((name, value))
@@ -786,7 +837,7 @@ def install_virtio_drivers(session):
     title = "VirtIO Drivers Installation"
     infobox = InfoBoxOutput(d, title)
     try:
-        image.out.add(infobox)
+        image.out.append(infobox)
         try:
             image.os.install_virtio_drivers()
             infobox.finalize()
@@ -849,7 +900,7 @@ def sysprep(session):
             choices=choices, width=70, ok_label="Run", help_button=1,
             extra_button=1, extra_label="Params")
 
-        tags = map(lambda x: x.strip('"'), tags)  # Needed for OpenSUSE
+        tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
@@ -873,7 +924,7 @@ def sysprep(session):
 
             infobox = InfoBoxOutput(d, "Image Configuration")
             try:
-                image.out.add(infobox)
+                image.out.append(infobox)
                 try:
                     # The checksum is invalid. We have mounted the image rw
                     if 'checksum' in session:
@@ -897,12 +948,67 @@ def sysprep(session):
     return True
 
 
+def mount(session):
+    """Mount image on the local file system"""
+    d = session['dialog']
+    image = session['image']
+
+    mpoint = tempfile.mkdtemp()
+    try:
+        try:
+            image.mount(mpoint)
+            if not image.is_mounted():
+                d.msgbox("Mounting Failed!", title="Mount Image",
+                         width=SMALL_WIDTH)
+                return
+            d.msgbox("The image was mounted successfully. You may access it "
+                     "under %s. Press <OK> when you have finished "
+                     "accessing it." % mpoint, title="Mount Image",
+                     width=SMALL_WIDTH)
+        finally:
+            while 1:
+                if image.umount():
+                    break
+                d.msgbox("Umount failed. Make sure no process is using any "
+                         "files under %s and press <OK>." % mpoint,
+                         width=SMALL_WIDTH)
+    finally:
+        os.rmdir(mpoint)
+
+
+def show_log(session):
+    """Show the current execution log"""
+
+    d = session['dialog']
+    log = session['image'].out[0].stderr
+
+    log.file.flush()
+
+    while 1:
+        code = d.textbox(log.name, title="Log", width=70, height=40,
+                         extra_button=1, extra_label="Save", ok_label="Close")
+        if code == d.DIALOG_EXTRA:
+            while 1:
+                path = select_file(d, title="Save log as...")
+                if path is None:
+                    break
+                if os.path.isdir(path):
+                    continue
+
+                if copy_file(d, log.name, path):
+                    break
+        else:
+            return
+
+
 def customization_menu(session):
     """Show image customization menu"""
     d = session['dialog']
     image = session['image']
 
     choices = []
+    if image.mount_local_support:
+        choices.append(("Mount", "Mount image on the local file system"))
     if hasattr(image.os, "install_virtio_drivers"):
         choices.append(("VirtIO", "Install or update the VirtIO drivers"))
     choices.extend(
@@ -912,7 +1018,8 @@ def customization_menu(session):
 
     default_item = 0
 
-    actions = {"VirtIO": virtio,
+    actions = {"Mount": mount,
+               "VirtIO": virtio,
                "Sysprep": sysprep,
                "Properties": modify_properties,
                "Exclude": exclude_tasks}
@@ -940,13 +1047,14 @@ def main_menu(session):
     choices = [("Customize", "Customize image & cloud deployment options"),
                ("Register", "Register image to a cloud"),
                ("Extract", "Dump image to local file system"),
+               ("Log", "Show current execution log"),
                ("Reset", "Reset everything and start over again"),
                ("Help", "Get help for using snf-image-creator")]
 
     default_item = "Customize"
 
     actions = {"Customize": customization_menu, "Register": kamaki_menu,
-               "Extract": extract_image}
+               "Extract": extract_image, "Log": show_log}
     title = "Image Creator for Synnefo (snf-image-creator v%s)" % version
     while 1:
         (code, choice) = d.menu(
@@ -969,5 +1077,8 @@ def main_menu(session):
                      width=WIDTH, title="Help")
         elif choice in actions:
             actions[choice](session)
+
+        if len(choice):
+            default_item = choice
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

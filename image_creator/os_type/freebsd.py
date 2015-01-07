@@ -17,57 +17,42 @@
 
 """This module hosts OS-specific code for FreeBSD."""
 
-from image_creator.os_type.unix import Unix, sysprep
+from image_creator.os_type.bsd import Bsd
 
 import re
 
 
-class Freebsd(Unix):
+class Freebsd(Bsd):
     """OS class for FreeBSD Unix-like operating system"""
 
-    @sysprep("Cleaning up passwords & locking all user accounts")
-    def _cleanup_password(self):
-        """Remove all passwords and lock all user accounts"""
+    def _check_enabled_sshd(self):
+        """Check if the sshd is enabled at boot"""
 
-        master_passwd = []
+        sshd_enabled = False
+        sshd_service = re.compile(r'^sshd_enable=.+$')
 
-        for line in self.image.g.cat('/etc/master.passwd').splitlines():
-
-            # Check for empty or comment lines
-            if len(line.split('#')[0]) == 0:
-                master_passwd.append(line)
+        # Freebsd has a checkyesno() functions that tests the service variable
+        # against all those different values in a case insensitive manner!!!
+        sshd_yes = re.compile(r"^sshd_enable=(['\"]?)(YES|TRUE|ON|1)\1$",
+                              re.IGNORECASE)
+        for rc_conf in ('/etc/rc.conf', '/etc/rc.conf.local'):
+            if not self.image.g.is_file(rc_conf):
                 continue
 
-            fields = line.split(':')
-            if fields[1] not in ('*', '!'):
-                fields[1] = '!'
+            for line in self.image.g.cat(rc_conf).splitlines():
+                line = line.split('#')[0].strip()
+                # Be paranoid. Don't stop examining lines after a match. This
+                # is a shell variable and can be overwritten many times. Only
+                # the last match counts.
+                if sshd_service.match(line):
+                    sshd_enabled = sshd_yes.match(line) is not None
 
-            master_passwd.append(":".join(fields))
-
-        self.image.g.write(
-            '/etc/master.passwd', "\n".join(master_passwd) + '\n')
-
-        # Make sure no one can login on the system
-        self.image.g.rm_rf('/etc/spwd.db')
-
-    def _do_collect_metadata(self):
-        """Collect metadata about the OS"""
-        super(Freebsd, self)._do_collect_metadata()
-        self.meta["USERS"] = " ".join(self._get_passworded_users())
-
-        # The original product name key is long and ugly
-        self.meta['DESCRIPTION'] = \
-            self.meta['DESCRIPTION'].split('#')[0].strip()
-
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            self.out.warn("No passworded users found!")
-            del self.meta['USERS']
+        return sshd_enabled
 
     def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
 
-        self.out.output('Checking partition table type...', False)
+        self.out.info('Checking partition table type...', False)
         ptype = self.image.g.part_get_parttype(self.image.guestfs_device)
         if ptype != 'gpt':
             self.out.warn("partition table type is: `%s'" % ptype)
@@ -75,27 +60,6 @@ class Freebsd(Unix):
                 'On FreeBSD only GUID partition tables are supported')
         else:
             self.out.success(ptype)
-
-    def _get_passworded_users(self):
-        """Returns a list of non-locked user accounts"""
-        users = []
-        regexp = re.compile(
-            '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
-        )
-
-        for line in self.image.g.cat('/etc/master.passwd').splitlines():
-            line = line.split('#')[0]
-            match = regexp.match(line)
-            if not match:
-                continue
-
-            user, passwd = match.groups()
-            if len(passwd) > 0 and passwd[0] == '!':
-                self.out.warn("Ignoring locked %s account." % user)
-            else:
-                users.append(user)
-
-        return users
 
     def _do_mount(self, readonly):
         """Mount partitions in the correct order"""

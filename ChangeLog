@@ -1,5 +1,22 @@
+2015-01-05, v0.8
+	* Support locally mounting the image on the host system
+	* Add option for running user defined scripts in the image's root after
+	  locally mounting it, in the non-interactive version of the program
+	* Fully support OpenBSD and NetBSD images (libguestfs >= 1.29.4)
+	* Allow the user to save the current execution log in the dialog-based
+	  version of the program
+	* Output the server answer in stdout after successfully registering an
+	  image with a synnefo deployment in the non-interactive version of the
+	  program
+	* Add a menu entry after "Register" to show the server's answer in the
+	  dialog-based version of the program after a successful registration
+	* Automatically detect and assign SORTORDER, GUI and KERNEL metadata
+	* Fix bugs
+
 2014-11-04, v0.7.4
 	* Handle cases where qemu-nbd command is missing
+	* Create REMOTE_CONNECTION property. Can be used by cyclades to
+	  determine the way to remotely connect to a VM created by this image
 
 2014-10-21, v0.7.3
 	* Instruct kamaki to ignore the ssl certificates (kamaki >= 0.13rc5).

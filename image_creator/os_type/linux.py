@@ -21,6 +21,40 @@ from image_creator.os_type.unix import Unix, sysprep
 
 import re
 import time
+import pkg_resources
+
+X2GO_DESKTOPSESSIONS = {
+    'CINNAMON': 'cinnamon',
+    'KDE': 'startkde',
+    'GNOME': 'gnome-session',
+    'MATE': 'mate-session',
+    'XFCE': 'xfce4-session',
+    'LXDE': 'startlxde',
+    'TRINITY': 'starttrinity',
+    'UNITY': 'unity',
+}
+
+X2GO_EXECUTABLE = "x2goruncommand"
+
+DISTRO_ORDER = {
+    "ubuntu": 80,
+    "linuxmint": 75,
+    "debian": 70,
+    "rhel": 60,
+    "fedora": 58,
+    "centos": 55,
+    "scientificlinux": 50,
+    "sles": 45,
+    "opensuse": 44,
+    "archlinux": 40,
+    "gentoo": 35,
+    "slackware": 30,
+    "oraclelinux": 28,
+    "mageia": 20,
+    "mandriva": 19,
+    "cirros": 15,
+    "pardus": 10
+}
 
 
 class Linux(Unix):
@@ -286,13 +320,13 @@ class Linux(Unix):
     def _do_inspect(self):
         """Run various diagnostics to check if media is supported"""
 
-        self.out.output(
+        self.out.info(
             'Checking if the media contains logical volumes (LVM)...', False)
 
         has_lvm = True if len(self.image.g.lvs()) else False
 
         if has_lvm:
-            self.out.output()
+            self.out.info()
             self.image.set_unsupported('The media contains logical volumes')
         else:
             self.out.success('no')
@@ -300,12 +334,122 @@ class Linux(Unix):
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Linux, self)._do_collect_metadata()
-        self.meta["USERS"] = " ".join(self._get_passworded_users())
+        users = self._get_passworded_users()
+        self.meta["USERS"] = " ".join(users)
 
         # Delete the USERS metadata if empty
         if not len(self.meta['USERS']):
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
+
+        kernels = []
+        for f in self.image.g.ls('/boot'):
+            if f.startswith('config-'):
+                kernels.append(f[7:])
+
+        if len(kernels):
+            kernels.sort(key=pkg_resources.parse_version)
+            self.meta['KERNEL'] = kernels[-1]
+
+        distro = self.image.g.inspect_get_distro(self.root)
+        major = self.image.g.inspect_get_major_version(self.root)
+        if major > 99:
+            major = 99
+        minor = self.image.g.inspect_get_minor_version(self.root)
+        if minor > 99:
+            minor = 99
+        try:
+            self.meta['SORTORDER'] += \
+                10000 * DISTRO_ORDER[distro] + 100 * major + minor
+        except KeyError:
+            pass
+
+        if self.is_enabled('sshd'):
+            ssh = []
+            opts = self.ssh_connection_options(users)
+            for user in opts['users']:
+                ssh.append("ssh:port=%d,user=%s" % (opts['port'], user))
+
+            if 'REMOTE_CONNECTION' not in self.meta:
+                self.meta['REMOTE_CONNECTION'] = ""
+            else:
+                self.meta['REMOTE_CONNECTION'] += " "
+
+            if len(ssh):
+                self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
+            else:
+                self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
+
+            # Check if x2go is installed
+            x2go_installed = False
+            desktops = set()
+            for path in ('/bin', '/usr/bin', '/usr/local/bin'):
+                if self.image.g.is_file("%s/%s" % (path, X2GO_EXECUTABLE)):
+                    x2go_installed = True
+                for name, exe in X2GO_DESKTOPSESSIONS.items():
+                    if self.image.g.is_file("%s/%s" % (path, exe)):
+                        desktops.add(name)
+
+            if x2go_installed:
+                self.meta['REMOTE_CONNECTION'] += " "
+                if len(desktops) == 0:
+                    self.meta['REMOTE_CONNECTION'] += "x2go"
+                else:
+                    self.meta['REMOTE_CONNECTION'] += \
+                        " ".join(["x2go:session=%s" % d for d in desktops])
+        else:
+            self.out.warn("OpenSSH Daemon is not configured to run on boot")
+
+    def is_enabled(self, service):
+        """Check if a service is enabled to run on boot"""
+
+        systemd_services = '/etc/systemd/system/multi-user.target.wants'
+        exec_start = re.compile(r'^\s*ExecStart=.+bin/%s\s?' % service)
+        if self.image.g.is_dir(systemd_services):
+            for entry in self.image.g.readdir(systemd_services):
+                if entry['ftyp'] not in ('l', 'f'):
+                    continue
+                service_file = "%s/%s" % (systemd_services, entry['name'])
+                for line in self.image.g.cat(service_file).splitlines():
+                    if exec_start.search(line):
+                        return True
+
+        found = set()
+
+        def check_file(path):
+            regexp = re.compile(r"[/=\s'\"]%s('\")?\s" % service)
+            for line in self.image.g.cat(path).splitlines():
+                line = line.split('#', 1)[0].strip()
+                if len(line) == 0:
+                    continue
+                if regexp.search(line):
+                    found.add(path)
+                    return
+
+        # Check upstart config files under /etc/init
+        # Only examine *.conf files
+        if self.image.g.is_dir('/etc/init'):
+            self._foreach_file('/etc/init', check_file, maxdepth=1,
+                               include=r'.+\.conf$')
+            if len(found):
+                return True
+
+        # Check scripts under /etc/rc[1-5].d/ and /etc/rc.d/rc[1-5].d/
+        for conf in ["/etc/%src%d.d" % (d, i) for i in xrange(1, 6)
+                     for d in ('', 'rc.d/')]:
+            try:
+                for entry in self.image.g.readdir(conf):
+                    if entry['ftyp'] not in ('l', 'f'):
+                        continue
+                    check_file("%s/%s" % (conf, entry['name']))
+
+                    if len(found):
+                        return True
+
+            except RuntimeError:
+                continue
+
+        return False
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
