@@ -218,7 +218,7 @@ def dialog_main(media, logfile, tmpdir, snapshot):
 
     except FatalError as error:
         log.error(str(error))
-        msg = 'A fatal error occured. See %s for a full log.' % log.stream.name
+        msg = 'A fatal error occured. See %s for a full log.' % log.stderr.name
         d.infobox(msg, width=WIDTH, title="Fatal Error")
         return 1
     else:
