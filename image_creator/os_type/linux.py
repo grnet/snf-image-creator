@@ -236,6 +236,38 @@ class Linux(Unix):
         # convert all devices in grub1 to persistent
         self._persistent_grub1(persistent_root)
 
+    @sysprep('Disabling IPv6 privacy extensions',
+             display='Disable IPv6 privacy enxtensions')
+    def _disable_ipv6_privacy_extensions(self):
+        """Disable IPv6 privacy extensions"""
+
+        file_path = '/files/etc/sysctl.conf/net.ipv6.conf.%s.use_tempaddr'
+        dir_path = '/files/etc/sysctl.d/*/net.ipv6.conf.%s.use_tempaddr'
+
+        self.image.g.aug_init('/', 0)
+        try:
+            default = self.image.g.aug_match(file_path % 'default') + \
+                self.image.g.aug_match(dir_path % 'default')
+
+            all = self.image.g.aug_match(file_path % 'all') + \
+                self.image.g.aug_match(dir_path % 'all')
+
+            if len(default) == 0:
+                self.image.g.aug_set(file_path % 'default', '0')
+            else:
+                for token in default:
+                    self.image.g.aug_set(token, '0')
+
+            if len(all) == 0:
+                self.image.g.aug_set(file_path % 'all', '0')
+            else:
+                for token in all:
+                    self.image.g.aug_set(token, '0')
+
+        finally:
+            self.image.g.aug_save()
+            self.image.g.aug_close()
+
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent
         ones in GRUB1 configuration files.
