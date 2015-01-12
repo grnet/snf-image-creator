@@ -341,8 +341,6 @@ class OSBase(object):
 
     def get_sysprep_by_name(self, name):
         """Returns the sysprep object with the given name"""
-        error_msg = "Syprep operation %s does not exist for %s" % \
-                    (name, self.__class__.__name__)
 
         method_name = '_' + name.replace('-', '_')
 
@@ -352,7 +350,7 @@ class OSBase(object):
             if hasattr(method, '_sysprep'):
                 return method
 
-        raise FatalError(error_msg)
+        return None
 
     def enable_sysprep(self, obj):
         """Enable a system preparation operation"""

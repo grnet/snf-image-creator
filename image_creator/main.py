@@ -309,11 +309,21 @@ def image_creator():
                 if not os.access(script, os.X_OK):
                     raise FatalError("File: `%s' is not executable." % script)
 
-        for sysprep in options.disabled_syspreps:
-            image.os.disable_sysprep(image.os.get_sysprep_by_name(sysprep))
+        for name in options.disabled_syspreps:
+            sysprep = image.os.get_sysprep_by_name(name)
+            if sysprep is not None:
+                image.os.disable_sysprep(sysprep)
+            else:
+                out.warn("Sysprep: `%s' does not exist. Can't disable it." %
+                         name)
 
-        for sysprep in options.enabled_syspreps:
-            image.os.enable_sysprep(image.os.get_sysprep_by_name(sysprep))
+        for name in options.enabled_syspreps:
+            sysprep = image.os.get_sysprep_by_name(name)
+            if sysprep is not None:
+                image.os.enable_sysprep(sysprep)
+            else:
+                out.warn("Sysprep: `%s' does not exist. Can't enable it." %
+                         name)
 
         if options.print_syspreps:
             image.os.print_syspreps()
