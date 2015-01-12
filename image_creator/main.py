@@ -182,7 +182,7 @@ def parse_options(input_args):
         except ValueError:
             raise FatalError("Metadata option: `%s' is not in KEY=VALUE "
                              "format." % m)
-        meta[key] = value
+        meta[key.upper()] = value
     options.metadata = meta
 
     sysprep_params = {}
