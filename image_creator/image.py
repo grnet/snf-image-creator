@@ -21,8 +21,12 @@ from image_creator.util import FatalError, QemuNBD, get_command
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
-import re
+import os
+# Make sure libguestfs runs qemu directly to launch an appliance.
+os.environ['LIBGUESTFS_BACKEND'] = 'direct'
 import guestfs
+
+import re
 import hashlib
 from sendfile import sendfile
 import threading
