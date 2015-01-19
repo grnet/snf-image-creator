@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,11 @@
 
 from image_creator.os_type.unix import Unix, sysprep
 
+import os
 import re
 import time
 import pkg_resources
+import tempfile
 
 X2GO_DESKTOPSESSIONS = {
     'CINNAMON': 'cinnamon',
@@ -233,8 +235,11 @@ class Linux(Unix):
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
 
-        # convert all devices in grub1 to persistent
+        # convert root device in grub1 to persistent
         self._persistent_grub1(persistent_root)
+
+        # convert root device in syslinux to persistent
+        self._persistent_syslinux(persistent_root)
 
     @sysprep('Disabling IPv6 privacy extensions',
              display='Disable IPv6 privacy enxtensions')
@@ -293,6 +298,34 @@ class Linux(Unix):
         finally:
             self.image.g.aug_save()
             self.image.g.aug_close()
+
+    def _persistent_syslinux(self, new_root):
+        """Replace non-persistent root device name occurrences with persistent
+        ones in the syslinux configuration files.
+        """
+
+        config = '/boot/syslinux/syslinux.cfg'
+        append_regexp = re.compile(
+            r'\s*APPEND\s+.*\broot=/dev/[hsv]d[a-z][1-9]*\b', re.IGNORECASE)
+
+        if not self.image.g.is_file(config):
+            return
+
+        # There is no augeas lense for syslinux :-(
+        tmpfd, tmp = tempfile.mkstemp()
+        try:
+            for line in self.image.g.cat(config).splitlines():
+                if append_regexp.match(line):
+                    line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
+                                  'root=%s' % new_root, line)
+                os.write(tmpfd, line + '\n')
+            os.close(tmpfd)
+            tmpfd = None
+            self.image.g.upload(tmp, config)
+        finally:
+            if tmpfd is not None:
+                os.close(tmpfd)
+            os.unlink(tmp)
 
     def _persistent_fstab(self):
         """Replaces non-persistent device name occurrences in /etc/fstab with
