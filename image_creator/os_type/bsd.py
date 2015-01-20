@@ -101,6 +101,12 @@ class Bsd(Unix):
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
+
+        if not self.g.is_file('/etc/master.passwd'):
+            self.out.warn("Unable to collect user info. "
+                          "File: `/etc/master.passwd' is missing!")
+            return []
+
         users = []
         regexp = re.compile(
             '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'

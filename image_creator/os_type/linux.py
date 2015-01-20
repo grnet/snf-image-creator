@@ -569,6 +569,12 @@ class Linux(Unix):
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
+
+        if not self.image.g.is_file('/etc/shadow'):
+            self.out.warn(
+                "Unable to collect user info. File: `/etc/shadow' is missing!")
+            return []
+
         users = []
         regexp = re.compile(r'(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
 
