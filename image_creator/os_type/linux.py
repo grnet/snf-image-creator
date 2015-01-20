@@ -17,7 +17,7 @@
 
 """This module hosts OS-specific code for Linux."""
 
-from image_creator.os_type.unix import Unix, sysprep
+from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
 import os
 import re
@@ -61,6 +61,8 @@ DISTRO_ORDER = {
 
 class Linux(Unix):
     """OS class for Linux"""
+    @add_sysprep_param(
+        'bootmenu_timeout', 'posint', 10, "Boot menu timeout in seconds")
     def __init__(self, image, **kwargs):
         super(Linux, self).__init__(image, **kwargs)
         self._uuid = dict()
@@ -226,6 +228,55 @@ class Linux(Unix):
 
         self.image.g.write('/etc/fstab', new_fstab)
 
+    @sysprep('Change boot menu timeout to %(bootmenu_timeout)s seconds')
+    def _change_bootmenu_timeout(self):
+        """Change the boot menu timeout to the one specified by the namesake
+        system preparation parameter.
+        """
+
+        timeout = self.sysprep_params['bootmenu_timeout'].value
+
+        if self.image.g.is_file('/etc/default/grub'):
+            self.image.g.aug_init('/', 0)
+            try:
+                self.image.g.aug_set('/files/etc/default/grub/GRUB_TIMEOUT',
+                                     str(timeout))
+            finally:
+                self.image.g.aug_save()
+                self.image.g.aug_close()
+
+        def replace_timeout(remote, regexp, timeout):
+            """Replace the timeout value from a config file"""
+            tmpfd, tmp = tempfile.mkstemp()
+            try:
+                for line in self.image.g.cat(remote).splitlines():
+                    if regexp.match(line):
+                        line = re.sub('\d+', str(timeout), line)
+                    os.write(tmpfd, line + '\n')
+                os.close(tmpfd)
+                tmpfd = None
+                self.image.g.upload(tmp, remote)
+            finally:
+                if tmpfd is not None:
+                    os.close(tmpfd)
+                os.unlink(tmp)
+
+        grub1_config = '/boot/grub/menu.lst'
+        grub2_config = '/boot/grub/grub.cfg'
+        syslinux_config = '/boot/syslinux/syslinux.cfg'
+
+        if self.image.g.is_file(grub1_config):
+            regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
+            replace_timeout(grub1_config, regexp, timeout)
+        elif self.image.g.is_file(grub2_config):
+            regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
+            replace_timeout(grub2_config, regexp, timeout)
+
+        if self.image.g.is_file(syslinux_config):
+            regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
+            # In syslinux the timeout unit is 0.1 seconds
+            replace_timeout(syslinux_config, regexp, timeout * 10)
+
     @sysprep('Replacing fstab & grub non-persistent device references')
     def _use_persistent_block_device_names(self):
         """Scan fstab & grub configuration files and replace all non-persistent
@@ -244,7 +295,7 @@ class Linux(Unix):
     @sysprep('Disabling IPv6 privacy extensions',
              display='Disable IPv6 privacy enxtensions')
     def _disable_ipv6_privacy_extensions(self):
-        """Disable IPv6 privacy extensions"""
+        """Disable IPv6 privacy extensions."""
 
         file_path = '/files/etc/sysctl.conf/net.ipv6.conf.%s.use_tempaddr'
         dir_path = '/files/etc/sysctl.d/*/net.ipv6.conf.%s.use_tempaddr'

@@ -88,7 +88,7 @@ def sysprep(message, enabled=True, **kwargs):
         @wraps(method)
         def inner(self, print_message=True):
             if print_message:
-                self.out.info(message)
+                self.out.info(message % self.sysprep_params)
             return method(self)
 
         return inner
@@ -112,6 +112,10 @@ class SysprepParam(object):
 
         assert hasattr(self, "_check_%s" % self.type), \
             "Invalid type: %s" % self.type
+
+    def __str__(self):
+        """Return the value as a string"""
+        return str(self.value)
 
     def set_value(self, value):
         """Update the value of the parameter"""
