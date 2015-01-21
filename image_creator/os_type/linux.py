@@ -72,49 +72,54 @@ class Linux(Unix):
     def _remove_user_accounts(self):
         """Remove all user accounts with id greater than 1000"""
 
-        if 'USERS' not in self.meta:
-            return
+        removed_users = {}
 
         # Remove users from /etc/passwd
-        passwd = []
-        removed_users = {}
-        metadata_users = self.meta['USERS'].split()
-        for line in self.image.g.cat('/etc/passwd').splitlines():
-            fields = line.split(':')
-            if int(fields[2]) > 1000:
-                removed_users[fields[0]] = fields
-                # remove it from the USERS metadata too
-                if fields[0] in metadata_users:
-                    metadata_users.remove(fields[0])
-            else:
-                passwd.append(':'.join(fields))
+        if self.image.g.is_file('/etc/passwd'):
+            passwd = []
+            metadata_users = self.meta['USERS'].split()
+            for line in self.image.g.cat('/etc/passwd').splitlines():
+                fields = line.split(':')
+                if int(fields[2]) > 1000:
+                    removed_users[fields[0]] = fields
+                    # remove it from the USERS metadata too
+                    if fields[0] in metadata_users:
+                        metadata_users.remove(fields[0])
+                else:
+                    passwd.append(':'.join(fields))
 
-        self.meta['USERS'] = " ".join(metadata_users)
+            self.meta['USERS'] = " ".join(metadata_users)
 
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            del self.meta['USERS']
+            # Delete the USERS metadata if empty
+            if not len(self.meta['USERS']):
+                del self.meta['USERS']
 
-        self.image.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
+            self.image.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
+        else:
+            self.out.warn("File: `/etc/passwd' is missing. "
+                          "No users were deleted")
+            return
 
-        # Remove the corresponding /etc/shadow entries
-        shadow = []
-        for line in self.image.g.cat('/etc/shadow').splitlines():
-            fields = line.split(':')
-            if fields[0] not in removed_users:
-                shadow.append(':'.join(fields))
+        if self.image.g.is_file('/etc/shadow'):
+            # Remove the corresponding /etc/shadow entries
+            shadow = []
+            for line in self.image.g.cat('/etc/shadow').splitlines():
+                fields = line.split(':')
+                if fields[0] not in removed_users:
+                    shadow.append(':'.join(fields))
+            self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
+        else:
+            self.out.warn("File: `/etc/shadow' is missing.")
 
-        self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
-
-        # Remove the corresponding /etc/group entries
-        group = []
-        for line in self.image.g.cat('/etc/group').splitlines():
-            fields = line.split(':')
-            # Remove groups tha have the same name as the removed users
-            if fields[0] not in removed_users:
-                group.append(':'.join(fields))
-
-        self.image.g.write('/etc/group', '\n'.join(group) + '\n')
+        if self.image.g.is_file('/etc/group'):
+            # Remove the corresponding /etc/group entries
+            group = []
+            for line in self.image.g.cat('/etc/group').splitlines():
+                fields = line.split(':')
+                # Remove groups tha have the same name as the removed users
+                if fields[0] not in removed_users:
+                    group.append(':'.join(fields))
+            self.image.g.write('/etc/group', '\n'.join(group) + '\n')
 
         # Remove home directories
         for home in [field[5] for field in removed_users.values()]:
@@ -215,6 +220,10 @@ class Linux(Unix):
         swap partition is not the last partition in the disk or if you are not
         going to shrink the image you should probably disable this.
         """
+
+        if not self.image.g.is_file('/etc/fstab'):
+            self.out.warn("File: `/etc/fstab' is missing. No entry removed!")
+            return
 
         new_fstab = ""
         fstab = self.image.g.cat('/etc/fstab')

@@ -29,6 +29,11 @@ class Bsd(Unix):
     def _cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
 
+        if not self.image.g.is_file('/etc/master.passwd'):
+            self.out.warn(
+                "File: `/etc/master.passwd' is missing. Nothing to do!")
+            return
+
         master_passwd = []
 
         for line in self.image.g.cat('/etc/master.passwd').splitlines():
