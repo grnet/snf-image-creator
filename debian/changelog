@@ -1,3 +1,9 @@
+snf-image-creator (0.8.1-1~precise) precise; urgency=low
+
+  * New upstream version
+
+ -- Nikos Skalkotos <skalkoto@grnet.gr>  Thu, 05 Feb 2015 12:36:12 +0200
+
 snf-image-creator (0.8-3~precise) precise; urgency=low
 
   * Fix pydist-overrides
