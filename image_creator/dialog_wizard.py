@@ -444,7 +444,7 @@ def create_image(session, answers):
     """Create an image using the information collected by the wizard"""
     image = session['image']
 
-    with_progress = OutputWthProgress(True)
+    with_progress = OutputWthProgress()
     image.out.append(with_progress)
     try:
         image.out.clear()
