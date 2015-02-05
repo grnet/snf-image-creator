@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -444,7 +444,7 @@ def create_image(session, answers):
     """Create an image using the information collected by the wizard"""
     image = session['image']
 
-    with_progress = OutputWthProgress(True)
+    with_progress = OutputWthProgress()
     image.out.append(with_progress)
     try:
         image.out.clear()
