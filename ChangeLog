@@ -1,3 +1,6 @@
+2015-02-05, v0.8.1
+	* Fix a bug in the wizard that terminated the program unexpectedly
+
 2015-01-05, v0.8
 	* Support locally mounting the image on the host system
 	* Add option for running user defined scripts in the image's root after
