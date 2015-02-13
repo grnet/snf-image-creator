@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -48,24 +48,24 @@ class GaugeOutput(Output):
         self.d.gauge_update(self.percent, self.msg, update_text=True)
         time.sleep(0.4)
 
-    def result(self, msg='', new_line=True):
+    def result(self, msg=''):
         """Print a result"""
-        self.info(msg, new_line)
+        self.info(msg)
 
-    def success(self, result, new_line=True):
+    def success(self, result):
         """Print result after a successful action"""
         self.percent = 100
         self.d.gauge_update(self.percent, "%s %s" % (self.msg, result),
                             update_text=True)
         time.sleep(0.4)
 
-    def warn(self, msg, new_line=True):
+    def warn(self, msg):
         """Print a warning"""
         self.d.gauge_update(self.percent, "%s Warning: %s" % (self.msg, msg),
                             update_text=True)
         time.sleep(0.4)
 
-    def error(self, msg, new_line=True):
+    def error(self, msg):
         """Print an error"""
         self.d.gauge_update(self.percent, "%s Error: %s" % (self.msg, msg),
                             update_text=True)
@@ -130,21 +130,21 @@ class InfoBoxOutput(Output):
         self.d.infobox(display, title=self.title, height=self.height,
                        width=self.width)
 
-    def result(self, msg='', new_line=True):
+    def result(self, msg=''):
         """Print a result"""
-        self.info(msg, new_line)
+        self.info(msg)
 
-    def success(self, result, new_line=True):
+    def success(self, result):
         """Print result after an action is completed successfully"""
-        self.info(result, new_line)
+        self.info(result)
 
-    def warn(self, msg, new_line=True):
+    def warn(self, msg):
         """Print a warning message"""
-        self.info("Warning: %s" % msg, new_line)
+        self.info("Warning: %s" % msg)
 
-    def error(self, msg, new_line=True):
+    def error(self, msg):
         """Print an error message"""
-        self.info("Error: %s" % msg, new_line)
+        self.info("Error: %s" % msg)
 
     def finalize(self):
         """Finalize the output. After this is called, the InfoboxOutput
