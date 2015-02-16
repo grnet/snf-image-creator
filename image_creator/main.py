@@ -163,30 +163,29 @@ def parse_options(input_args):
 
     options.source = args[0]
     if not os.path.exists(options.source):
-        raise FatalError("Input media `%s' is not accessible" % options.source)
+        parser.error("Input media `%s' is not accessible" % options.source)
 
     if options.register and not options.upload:
-        raise FatalError("You also need to set -u when -r option is set")
+        parser.error("You also need to set -u when -r option is set")
 
     if options.upload and (options.token is None or options.url is None) and \
             options.cloud is None:
 
-        err = "You need to either specify an authentication URL and token " \
-              "pair or an available cloud name."
-
-        raise FatalError("Image uploading cannot be performed. %s" % err)
+        parser.error("Image uploading cannot be performed. You need to either "
+                     "specify an authentication URL and token pair or an "
+                     "available cloud name.")
 
     if options.tmp is not None and not os.path.isdir(options.tmp):
-        raise FatalError("The directory `%s' specified with --tmpdir is not "
-                         "valid" % options.tmp)
+        parser.error("The directory `%s' specified with --tmpdir is not valid"
+                     % options.tmp)
 
     meta = {}
     for m in options.metadata:
         try:
             key, value = m.split('=', 1)
         except ValueError:
-            raise FatalError("Metadata option: `%s' is not in KEY=VALUE "
-                             "format." % m)
+            parser.error("Metadata option: `%s' is not in KEY=VALUE format." %
+                         m)
         meta[key.upper()] = value
     options.metadata = meta
 
@@ -195,52 +194,37 @@ def parse_options(input_args):
         try:
             key, value = p.split('=', 1)
         except ValueError:
-            raise FatalError("Sysprep parameter option: `%s' is not in "
-                             "KEY=VALUE format." % p)
+            parser.error("Sysprep parameter option: `%s' is not in KEY=VALUE "
+                         "format." % p)
         sysprep_params[key] = value
 
     if options.virtio is not None:
         sysprep_params['virtio'] = options.virtio
-
     options.sysprep_params = sysprep_params
-
-    return options
-
-
-def image_creator():
-    """snf-mkimage main function"""
-    options = parse_options(sys.argv[1:])
 
     if options.outfile is None and not options.upload and not \
             options.print_syspreps and not options.print_sysprep_params \
             and not options.print_metadata:
-        raise FatalError("At least one of `-o', `-u', `--print-syspreps', "
-                         "`--print-sysprep-params' or `--print-metadata' must "
-                         "be set")
-
-    if options.silent:
-        out = SilentOutput(colored=sys.stderr.isatty())
-    else:
-        out = OutputWthProgress() if sys.stderr.isatty() else \
-            SimpleOutput(colored=False)
-
-    title = 'snf-image-creator %s' % version
-    out.info(title)
-    out.info('=' * len(title))
-
-    if options.syslog:
-        out = CompositeOutput([out, SyslogOutput()])
-
-    if os.geteuid() != 0:
-        raise FatalError("You must run %s as root"
-                         % os.path.basename(sys.argv[0]))
+        parser.error("At least one of `-o', `-u', `--print-syspreps', "
+                     "`--print-sysprep-params' or `--print-metadata' must be "
+                     "set")
 
     if not options.force and options.outfile is not None:
         for extension in ('', '.meta', '.md5sum'):
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
-                raise FatalError("Output file `%s' exists "
-                                 "(use --force to overwrite it)." % filename)
+                parser.error("Output file `%s' exists (use --force to "
+                             "overwrite it)." % filename)
+
+    return options
+
+
+def image_creator(options, out):
+    """snf-mkimage main function"""
+
+    if os.geteuid() != 0:
+        raise FatalError("You must run %s as root"
+                         % os.path.basename(sys.argv[0]))
 
     # Check if the authentication info is valid. The earlier the better
     if options.token is not None and options.url is not None:
@@ -465,10 +449,25 @@ def image_creator():
 
 def main():
     """Main entry point"""
+    options = parse_options(sys.argv[1:])
+
+    if options.silent:
+        out = SilentOutput(colored=sys.stderr.isatty())
+    else:
+        out = OutputWthProgress() if sys.stderr.isatty() else \
+            SimpleOutput(colored=False)
+
+    if options.syslog:
+        out = CompositeOutput([out, SyslogOutput()])
+
+    title = 'snf-image-creator %s' % version
+    out.info(title)
+    out.info('=' * len(title))
+
     try:
-        sys.exit(image_creator())
+        sys.exit(image_creator(options, out))
     except FatalError as e:
-        SimpleOutput(colored=sys.stderr.isatty()).error(e)
+        out.error(e)
         sys.exit(1)
 
 if __name__ == '__main__':
