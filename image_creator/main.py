@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@ from image_creator.disk import Disk
 from image_creator.util import FatalError
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
+from image_creator.output.composite import CompositeOutput
+from image_creator.output.syslog import SyslogOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError
 import sys
 import os
@@ -135,6 +137,9 @@ def parse_options(input_args):
     parser.add_option("-s", "--silent", dest="silent", default=False,
                       help="output only errors", action="store_true")
 
+    parser.add_option('--syslog', dest="syslog", default=False,
+                      help="log to syslog", action="store_true")
+
     parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
                       help="add KEY=VALUE system preparation parameter",
                       action="append")
@@ -222,6 +227,9 @@ def image_creator():
     title = 'snf-image-creator %s' % version
     out.info(title)
     out.info('=' * len(title))
+
+    if options.syslog:
+        out = CompositeOutput([out, SyslogOutput()])
 
     if os.geteuid() != 0:
         raise FatalError("You must run %s as root"

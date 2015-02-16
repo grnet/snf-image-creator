@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@ from image_creator.util import FatalError
 from image_creator.output.cli import SimpleOutput
 from image_creator.output.dialog import GaugeOutput
 from image_creator.output.composite import CompositeOutput
+from image_creator.output.syslog import SyslogOutput
 from image_creator.disk import Disk
 from image_creator.dialog_wizard import start_wizard
 from image_creator.dialog_menu import main_menu
@@ -160,8 +161,13 @@ def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
     return (code, output.splitlines())
 
 
-def dialog_main(media, logfile, tmpdir, snapshot):
+def dialog_main(media, **kwargs):
     """Main function for the dialog-based version of the program"""
+
+    tmpdir = kwargs['tmpdir'] if 'tmpdir' in kwargs else None
+    snapshot = kwargs['snapshot'] if 'snapshot' in kwargs else True
+    logfile = kwargs['logfile'] if 'logfile' in kwargs else None
+    syslog = kwargs['syslog'] if 'syslog' in kwargs else False
 
     # In openSUSE dialog is buggy under xterm
     if os.environ['TERM'] == 'xterm':
@@ -204,20 +210,26 @@ def dialog_main(media, logfile, tmpdir, snapshot):
 
     tmplog = None if logfile else tempfile.NamedTemporaryFile(prefix='fatal-',
                                                               delete=False)
+
+    logs = []
     try:
         stream = logfile if logfile else tmplog
-        log = SimpleOutput(colored=False, stderr=stream, stdout=stream)
+        logs.append(SimpleOutput(colored=False, stderr=stream, stdout=stream))
+        if syslog:
+            logs.append(SyslogOutput())
+
         while 1:
             try:
-                out = CompositeOutput([log])
+                out = CompositeOutput(logs)
                 out.info("Starting %s v%s ..." % (PROGNAME, version))
                 ret = create_image(d, media, out, tmpdir, snapshot)
                 break
             except Reset:
-                log.info("Resetting everything ...")
-
+                for log in logs:
+                    log.info("Resetting everything ...")
     except FatalError as error:
-        log.error(str(error))
+        for log in logs:
+            log.error(str(error))
         msg = 'A fatal error occured. See %s for a full log.' % log.stderr.name
         d.infobox(msg, width=WIDTH, title="Fatal Error")
         return 1
@@ -246,6 +258,8 @@ def main():
                       help="don't snapshot the input media. (THIS IS "
                       "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
                       action="store_false")
+    parser.add_option("--syslog", dest="syslog", default=False,
+                      help="log to syslog", action="store_true")
     parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
                       help="create large temporary image files under DIR",
                       metavar="DIR")
@@ -271,7 +285,8 @@ def main():
         # Save the terminal attributes
         attr = termios.tcgetattr(sys.stdin.fileno())
         try:
-            ret = dialog_main(media, logfile, opts.tmp, opts.snapshot)
+            ret = dialog_main(media, logfile=logfile, tmpdir=opts.tmp,
+                              snapshot=opts.snapshot, syslog=opts.syslog)
         finally:
             # Restore the terminal attributes. If an error occurs make sure
             # that the terminal turns back to normal.
