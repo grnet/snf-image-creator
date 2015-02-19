@@ -21,7 +21,6 @@ from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
 import os
 import re
-import time
 import pkg_resources
 import tempfile
 
@@ -63,6 +62,9 @@ class Linux(Unix):
     """OS class for Linux"""
     @add_sysprep_param(
         'bootmenu_timeout', 'posint', 10, "Boot menu timeout in seconds")
+    @add_sysprep_param(
+        'powerbtn_action', 'string', '/sbin/shutdown -h now',
+        "The action that should be executed if the power button is pressed")
     def __init__(self, image, **kwargs):
         super(Linux, self).__init__(image, **kwargs)
         self._uuid = dict()
@@ -150,8 +152,7 @@ class Linux(Unix):
         system without checking if a GUI is running.
         """
 
-        powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
-                          'shutdown -h now "Power button pressed"\n'
+        powerbtn_action = self.sysprep_params['powerbtn_action'].value
 
         events_dir = '/etc/acpi/events'
         if not self.image.g.is_dir(events_dir):
@@ -164,40 +165,36 @@ class Linux(Unix):
             if events_file['ftyp'] != 'r':
                 continue
 
+            event = -1
+            action = -1
             fullpath = "%s/%s" % (events_dir, events_file['name'])
-            event = ""
-            action = ""
-            for line in self.image.g.cat(fullpath).splitlines():
-                match = event_exp.match(line)
-                if match:
-                    event = match.group(1)
-                    continue
-                match = action_exp.match(line)
-                if match:
-                    action = match.group(1)
-                    continue
+            content = self.image.g.cat(fullpath).splitlines()
+            for i in xrange(len(content)):
+                if event_exp.match(content[i]):
+                    event = i
+                elif action_exp.match(content[i]):
+                    action = i
 
-            if event.strip() in ("button[ /]power", "button/power.*"):
-                if action:
-                    if not self.image.g.is_file(action):
-                        self.out.warn("Acpid action file: %s does not exist" %
-                                      action)
-                        return
-                    self.image.g.copy_file_to_file(
-                        action, "%s.orig.snf-image-creator-%d" %
-                        (action, time.time()))
-                    self.image.g.write(action, powerbtn_action)
+            if event == -1:
+                continue
+
+            if action == -1:
+                self.out.warn("Corrupted acpid event file: `%'" % fullpath)
+                continue
+
+            entry = content[event].split('=')[1].strip()
+            if entry in ("button[ /]power", "button/power.*"):
+                    content[action] = "action=%s" % powerbtn_action
+                    self.image.g.write(
+                        fullpath, "\n".join(content) +
+                        '\n\n### Edited by snf-image-creator ###\n')
                     return
-                else:
-                    self.out.warn("Acpid event file %s does not contain and "
-                                  "action")
-                    return
-            elif event.strip() == ".*":
+            elif entry == ".*":
                 self.out.warn("Found action `.*'. Don't know how to handle "
                               "this. Please edit `%s' image file manually to "
                               "make the system immediately shutdown when an "
                               "power button ACPI event occurs." %
-                              action.strip().split()[0])
+                              content[action].split('=')[1].strip())
                 return
 
         self.out.warn("No acpi power button event found!")
