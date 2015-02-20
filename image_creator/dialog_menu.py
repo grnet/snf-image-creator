@@ -647,6 +647,10 @@ def exclude_tasks(session):
             displayed_index += 1
         index += 1
 
+    if len(choices) == 0:
+        d.msgbox("No configuration tasks available", width=WIDTH)
+        return True
+
     while 1:
         text = "Please choose which configuration tasks you would like to " \
                "prevent from running during image deployment. " \
