@@ -49,6 +49,7 @@ CONFIGURATION_TASKS = [
      lambda x: x == "linux"),
     ("Hostname/Computer Name assignment", ["AssignHostname"], lambda x: True),
     ("Password change", ["ChangePassword"], lambda x: True),
+    ("Network configuration", ["ConfigureNetwork"], lambda x: x != 'windows'),
     ("File injection", ["EnforcePersonality"], lambda x: True)
 ]
 
