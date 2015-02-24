@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,8 +21,12 @@ from image_creator.util import FatalError, QemuNBD, get_command
 from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
-import re
+import os
+# Make sure libguestfs runs qemu directly to launch an appliance.
+os.environ['LIBGUESTFS_BACKEND'] = 'direct'
 import guestfs
+
+import re
 import hashlib
 from sendfile import sendfile
 import threading
@@ -357,10 +361,17 @@ class Image(object):
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
 
-        if self.check_guestfs_version(1, 15, 17) >= 0:
-            self.g.e2fsck(part_dev, forceall=1)
-        else:
-            self.g.e2fsck_f(part_dev)
+        try:
+            if self.check_guestfs_version(1, 15, 17) >= 0:
+                self.g.e2fsck(part_dev, forceall=1)
+            else:
+                self.g.e2fsck_f(part_dev)
+        except RuntimeError as e:
+            # There is a bug in some versions of libguestfs and a RuntimeError
+            # is thrown although the command has successfully corrected the
+            # found file system errors.
+            if e.message.find('***** FILE SYSTEM WAS MODIFIED *****') == -1:
+                raise
 
         self.g.resize2fs_M(part_dev)
 

@@ -29,6 +29,11 @@ class Bsd(Unix):
     def _cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
 
+        if not self.image.g.is_file('/etc/master.passwd'):
+            self.out.warn(
+                "File: `/etc/master.passwd' is missing. Nothing to do!")
+            return
+
         master_passwd = []
 
         for line in self.image.g.cat('/etc/master.passwd').splitlines():
@@ -101,6 +106,12 @@ class Bsd(Unix):
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
+
+        if not self.g.is_file('/etc/master.passwd'):
+            self.out.warn("Unable to collect user info. "
+                          "File: `/etc/master.passwd' is missing!")
+            return []
+
         users = []
         regexp = re.compile(
             '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'

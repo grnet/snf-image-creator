@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,15 +24,15 @@ of the various parts of the image-creator package.
 
 class Output(object):
     """A class for printing program output"""
-    def error(self, msg, new_line=True):
+    def error(self, msg):
         """Print an error"""
         pass
 
-    def warn(self, msg, new_line=True):
+    def warn(self, msg):
         """Print a warning"""
         pass
 
-    def success(self, msg, new_line=True):
+    def success(self, msg):
         """Print msg after an action is completed"""
         pass
 
@@ -40,7 +40,7 @@ class Output(object):
         """Print normal program output"""
         pass
 
-    def result(self, msg='', new_line=True):
+    def result(self, msg=''):
         """Print a result"""
         pass
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,14 +39,14 @@ class SilentOutput(Output):
         self.stdout = kwargs['stdout'] if 'stdout' in kwargs else sys.stdout
         self.stderr = kwargs['stderr'] if 'stderr' in kwargs else sys.stderr
 
-    def result(self, msg, new_line=True):
+    def result(self, msg):
         """Print a result"""
-        write(msg, new_line, lambda x: x, self.stdout)
+        write(msg, True, lambda x: x, self.stdout)
 
-    def error(self, msg, new_line=True):
+    def error(self, msg):
         """Print an error"""
         color = red if self.colored else lambda x: x
-        write("Error: %s" % msg, new_line, color, self.stderr)
+        write("Error: %s" % msg, True, color, self.stderr)
 
 
 class SimpleOutput(SilentOutput):
@@ -54,15 +54,15 @@ class SimpleOutput(SilentOutput):
     output messages. The user gets informed when the action begins and when it
     ends, but no progress is shown in between."""
 
-    def warn(self, msg, new_line=True):
+    def warn(self, msg):
         """Print a warning"""
         color = yellow if self.colored else lambda x: x
-        write("Warning: %s" % msg, new_line, color, self.stderr)
+        write("Warning: %s" % msg, True, color, self.stderr)
 
-    def success(self, msg, new_line=True):
+    def success(self, msg):
         """Print msg after an action is completed"""
         color = green if self.colored else lambda x: x
-        write(msg, new_line, color, self.stderr)
+        write(msg, True, color, self.stderr)
 
     def info(self, msg='', new_line=True):
         """Print msg as normal program output"""

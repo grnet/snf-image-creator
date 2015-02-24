@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -48,6 +48,8 @@ def os_cls(distro, osfamily):
 
     distro = canonicalize(distro)
     osfamily = canonicalize(osfamily)
+    if distro == 'unknown':
+        distro = osfamily
 
     try:
         module = __import__("image_creator.os_type.%s" % distro,
@@ -88,7 +90,7 @@ def sysprep(message, enabled=True, **kwargs):
         @wraps(method)
         def inner(self, print_message=True):
             if print_message:
-                self.out.info(message)
+                self.out.info(message % self.sysprep_params)
             return method(self)
 
         return inner
@@ -112,6 +114,10 @@ class SysprepParam(object):
 
         assert hasattr(self, "_check_%s" % self.type), \
             "Invalid type: %s" % self.type
+
+    def __str__(self):
+        """Return the value as a string"""
+        return str(self.value)
 
     def set_value(self, value):
         """Update the value of the parameter"""
@@ -341,8 +347,6 @@ class OSBase(object):
 
     def get_sysprep_by_name(self, name):
         """Returns the sysprep object with the given name"""
-        error_msg = "Syprep operation %s does not exist for %s" % \
-                    (name, self.__class__.__name__)
 
         method_name = '_' + name.replace('-', '_')
 
@@ -352,7 +356,7 @@ class OSBase(object):
             if hasattr(method, '_sysprep'):
                 return method
 
-        raise FatalError(error_msg)
+        return None
 
     def enable_sysprep(self, obj):
         """Enable a system preparation operation"""
