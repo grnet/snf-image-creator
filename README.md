@@ -18,11 +18,19 @@ Please see the [official Synnefo site](http://www.synnefo.org) and the
 [latest snf-image-creator docs](http://www.synnefo.org/docs/snf-image-creator/latest/index.html)
 for more information.
 
+Contact
+-------
+
+For questions or bug reports you can contact the Synnefo team at the following
+mailing lists:
+
+        Users list: synnefo@googlegroups.com
+        Developers list: synnefo-devel@googlegroups.com
 
 Copyright and license
 =====================
 
-Copyright (C) 2011-2014 GRNET S.A.
+Copyright (C) 2011-2015 GRNET S.A.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
