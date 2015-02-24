@@ -1,3 +1,10 @@
+2015-02-24, v0.9rc1
+	* Add Linux syspreps for disabling the IPv6 privacy extensions and for
+	  changing the boot timeout
+	* Add support for syslinux
+	* Add support for outputting to syslog
+	* Fix bugs
+
 2015-02-05, v0.8.1
 	* Fix a bug in the wizard that terminated the program unexpectedly
 
