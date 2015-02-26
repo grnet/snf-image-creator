@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -863,7 +863,7 @@ class Windows(OSBase):
         return collection
 
     def install_virtio_drivers(self, upgrade=True):
-        """Install new VirtIO drivers in the input media. If upgrade is True,
+        """Install new VirtIO drivers on the input media. If upgrade is True,
         then the old drivers found in the media will be removed.
         """
 
@@ -878,9 +878,37 @@ class Windows(OSBase):
             self.out.warn('No suitable driver found to install!')
             return
 
+        remove = []
+        certs = []
+        install = []
+        add = []
+        # Check which drivers we need to install, which to add to the database
+        # and which to remove.
+        for dtype in valid_drvs:
+            versions = [v['DriverVer'] for k, v in valid_drvs[dtype].items()]
+            certs.extend([v['CatalogFile'] for k, v in
+                          valid_drvs[dtype].items() if 'CatalogFile' in v])
+            installed = [(k, v['DriverVer']) for k, v in
+                         self.virtio_state[dtype].items()]
+            found = [d[0] for d in installed if d[1] in versions]
+            not_found = [d[0] for d in installed if d[1] not in versions]
+
+            for drvr in found:
+                details = self.virtio_state[dtype][drvr]
+                self.out.warn('%s driver with version %s is already installed!'
+                              % (dtype, details['DriverVer']))
+            if upgrade:
+                remove.extend(not_found)
+
+            if dtype == 'viostor':
+                install.extend([d for d in valid_drvs[dtype]])
+            else:
+                add.extend([d for d in valid_drvs[dtype]])
+
         try:
-            self._upload_virtio_drivers(dirname, valid_drvs, upgrade)
-            self._boot_virtio_vm()
+            self._update_driver_database('virtio', upload=dirname, certs=certs,
+                                         add=add, install=install,
+                                         remove=remove)
         finally:
             with self.mount(readonly=False, silent=True, fatal=False):
                 if not self.ismounted:
@@ -892,39 +920,57 @@ class Windows(OSBase):
         self.out.success("VirtIO drivers were successfully installed")
         self.out.info()
 
-    def _upload_virtio_drivers(self, dirname, drvs, delete_old=True):
-        """Upload the VirtIO drivers and installation scripts to the media.
+    def _update_driver_database(self, namespace, **kwargs):
+        """Upload a directory that contains the VirtIO drivers and add scripts
+        for installing and removing specific drivers.
+
+        Keyword arguments:
+        namespace -- namespace for the cleanup entries
+        upload  -- Host directory that contains drivers to upload
+        add     -- List of drivers to add to the driver database
+        install -- List of drivers to install to the system
+        remove  -- List of drivers to remove from the system
         """
+
+        upload = kwargs['upload'] if 'upload' in kwargs else None
+        add = kwargs['add'] if 'add' in kwargs else []
+        install = kwargs['install'] if 'install' in kwargs else []
+        certs = kwargs['certs'] if 'certs' in kwargs else []
+        remove = kwargs['remove'] if 'remove' in kwargs else []
+
+        assert len(add) == 0 or upload is not None
+        assert len(install) == 0 or upload is not None
+
         with self.mount(readonly=False, silent=True):
-            # Reset Password
-            self._add_cleanup('virtio', self.registry.reset_passwd,
+            # Reset admin password
+            self._add_cleanup(namespace, self.registry.reset_passwd,
                               self.vm.admin.rid,
                               self.registry.reset_passwd(self.vm.admin.rid))
 
             # Enable admin account (if needed)
-            self._add_cleanup('virtio', self.registry.reset_account,
+            self._add_cleanup(namespace, self.registry.reset_account,
                               self.vm.admin.rid,
                               self.registry.reset_account(self.vm.admin.rid))
 
             old = self.registry.update_uac(0)
             if old != 0:
-                self._add_cleanup('virtio', self.registry.update_uac, old)
+                self._add_cleanup(namespace, self.registry.update_uac, old)
 
             old = self.registry.update_noautoupdate(1)
             if old != 1:
-                self._add_cleanup('virtio',
+                self._add_cleanup(namespace,
                                   self.registry.update_noautoupdate, old)
 
             old = self.registry.update_auoptions(1)
             if old != 1:
-                self._add_cleanup('virtio',
+                self._add_cleanup(namespace,
                                   self.registry.update_auoptions, old)
 
             # We disable this with powershell scripts
             self.registry.enable_autologon(self.vm.admin.name)
 
             # Disable first logon animation (if needed)
-            self._add_cleanup('virtio',
+            self._add_cleanup(namespace,
                               self.registry.reset_first_logon_animation,
                               self.registry.reset_first_logon_animation(False))
 
@@ -940,35 +986,34 @@ class Windows(OSBase):
             def remove_tmp():
                 self.image.g.rm_rf("%s/%s" % (self.systemroot, tmp))
 
-            self._add_cleanup('virtio', remove_tmp)
+            self._add_cleanup(namespace, remove_tmp)
 
-            for fname in os.listdir(dirname):
-                full_path = os.path.join(dirname, fname)
-                if os.path.isfile(full_path):
-                    self.image.g.upload(
-                        full_path, "%s/%s/%s" % (self.systemroot, tmp, fname))
+            if upload is not None:
+                for fname in os.listdir(upload):
+                    full_path = os.path.join(upload, fname)
+                    if os.path.isfile(full_path):
+                        self.image.g.upload(full_path, "%s/%s/%s" %
+                                            (self.systemroot, tmp, fname))
 
             drvs_install = powershell.DRVINST_HEAD
 
-            for dtype in drvs:
-                drvs_install += "".join(
-                    [powershell.ADD_CERTIFICATE % d['CatalogFile']
-                     for d in drvs[dtype].values()])
-                cmd = powershell.ADD_DRIVER if dtype != 'viostor' \
-                    else powershell.INSTALL_DRIVER
-                drvs_install += "".join([cmd % i for i in drvs[dtype]])
+            for cert in certs:
+                drvs_install += powershell.ADD_CERTIFICATE % cert
 
-            if delete_old:
-                # Add code to remove the old drivers
-                for dtype in drvs:
-                    for oem in self.virtio_state[dtype]:
-                        drvs_install += powershell.REMOVE_DRIVER % oem
+            for driver in install:
+                drvs_install += powershell.INSTALL_DRIVER % driver
+
+            for driver in add:
+                drvs_install += powershell.ADD_DRIVER % driver
+
+            for driver in remove:
+                drvs_install += powershell.REMOVE_DRIVER % driver
 
             if self.check_version(6, 1) <= 0:
-                self._install_viostor_driver(dirname)
+                self._install_viostor_driver(upload)
                 old = self.registry.update_devices_dirs("%SystemRoot%\\" + tmp)
                 self._add_cleanup(
-                    'virtio', self.registry.update_devices_dirs, old, False)
+                    namespace, self.registry.update_devices_dirs, old, False)
                 drvs_install += powershell.DISABLE_AUTOLOGON
             else:
                 # In newer windows, in order to reduce the boot process the
@@ -998,6 +1043,9 @@ class Windows(OSBase):
             # The value name of RunOnce keys can be prefixed with an asterisk
             # (*) to force the program to run even in Safe mode.
             self.registry.runonce({'*InstallDrivers': cmd})
+
+        # Boot the Windows VM to update the driver's database
+        self._boot_virtio_vm()
 
     def _boot_virtio_vm(self):
         """Boot the media and install the VirtIO drivers"""
