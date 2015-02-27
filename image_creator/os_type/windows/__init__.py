@@ -235,8 +235,8 @@ class Windows(OSBase):
     @add_sysprep_param(
         'connection_retries', "posint", 5, DESCR['connection_retries'])
     @add_sysprep_param(
-        'shutdown_timeout', "posint", 120, DESCR['shutdown_timeout'])
-    @add_sysprep_param('boot_timeout', "posint", 300, DESCR['boot_timeout'])
+        'shutdown_timeout', "posint", 300, DESCR['shutdown_timeout'])
+    @add_sysprep_param('boot_timeout', "posint", 600, DESCR['boot_timeout'])
     @add_sysprep_param('virtio', 'dir', "", DESCR['virtio'],
                        check=virtio_dir_check, hidden=True)
     @add_sysprep_param(
