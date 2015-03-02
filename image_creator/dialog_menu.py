@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,20 +38,19 @@ from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     copy_file
 
 CONFIGURATION_TASKS = [
-    ("Partition table manipulation", ["FixPartitionTable"],
-     ["linux", "windows"]),
+    ("Partition table manipulation", ["FixPartitionTable"], lambda x: True),
     ("File system resize",
-     ["FilesystemResizeUnmounted", "FilesystemResizeMounted"],
-     ["linux", "windows"]),
-    ("Swap partition configuration", ["AddSwap"], ["linux"]),
-    ("SSH keys removal", ["DeleteSSHKeys"], ["linux"]),
+     ["FilesystemResizeUnmounted", "FilesystemResizeMounted"], lambda x: True),
+    ("Swap partition configuration", ["AddSwap"], lambda x: x == 'linux'),
+    ("SSH keys removal", ["DeleteSSHKeys"], lambda x: x != 'windows'),
     ("Temporal RDP disabling", ["DisableRemoteDesktopConnections"],
-     ["windows"]),
-    ("SELinux relabeling at next boot", ["SELinuxAutorelabel"], ["linux"]),
-    ("Hostname/Computer Name assignment", ["AssignHostname"],
-     ["windows", "linux"]),
-    ("Password change", ["ChangePassword"], ["windows", "linux"]),
-    ("File injection", ["EnforcePersonality"], ["windows", "linux"])
+     lambda x: x == "windows"),
+    ("SELinux relabeling at next boot", ["SELinuxAutorelabel"],
+     lambda x: x == "linux"),
+    ("Hostname/Computer Name assignment", ["AssignHostname"], lambda x: True),
+    ("Password change", ["ChangePassword"], lambda x: True),
+    ("Network configuration", ["ConfigureNetwork"], lambda x: x != 'windows'),
+    ("File injection", ["EnforcePersonality"], lambda x: True)
 ]
 
 SYSPREP_PARAM_MAXLEN = 20
@@ -641,13 +640,17 @@ def exclude_tasks(session):
         else:
             return False
 
-    for (msg, task, osfamily) in CONFIGURATION_TASKS:
-        if image.meta['OSFAMILY'] in osfamily:
+    for (msg, task, os_check) in CONFIGURATION_TASKS:
+        if os_check(image.meta['OSFAMILY']):
             checked = 1 if index in session['excluded_tasks'] else 0
             choices.append((str(displayed_index), msg, checked))
             mapping[displayed_index] = index
             displayed_index += 1
         index += 1
+
+    if len(choices) == 0:
+        d.msgbox("No configuration tasks available", width=WIDTH)
+        return True
 
     while 1:
         text = "Please choose which configuration tasks you would like to " \

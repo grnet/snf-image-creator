@@ -386,10 +386,11 @@ def update_sysprep_param(session, name, title=None):
 
     default_item = 1
     while 1:
-        value = []
-        for i in param.value:
-            value.append(i)
         if param.is_list:
+            value = []
+            for i in param.value:
+                value.append(i)
+
             choices = [(str(i+1), str(value[i])) for i in xrange(len(value))]
             if len(choices) == 0:
                 action = 'add'
@@ -433,6 +434,8 @@ def update_sysprep_param(session, name, title=None):
                     del value[choice-1]
                 else:
                     value[choice-1] = new_value
+        else:
+            value = new_value
 
         if param.set_value(value) is False:
             d.msgbox("Error: %s" % param.error, width=WIDTH)

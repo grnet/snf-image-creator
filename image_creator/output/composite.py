@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,30 +36,30 @@ class CompositeOutput(Output, list):
         if outputs is not None:
             self.extend(outputs)
 
-    def error(self, msg, new_line=True):
+    def error(self, msg):
         """Call the error method of each of the output instances"""
         for out in self:
-            out.error(msg, new_line)
+            out.error(msg)
 
-    def warn(self, msg, new_line=True):
+    def warn(self, msg):
         """Call the warn method of each of the output instances"""
         for out in self:
-            out.warn(msg, new_line)
+            out.warn(msg)
 
-    def success(self, msg, new_line=True):
+    def success(self, msg):
         """Call the success method of each of the output instances"""
         for out in self:
-            out.success(msg, new_line)
+            out.success(msg)
 
     def info(self, msg='', new_line=True):
         """Call the output method of each of the output instances"""
         for out in self:
             out.info(msg, new_line)
 
-    def result(self, msg='', new_line=True):
+    def result(self, msg=''):
         """Call the output method of each of the output instances"""
         for out in self:
-            out.result(msg, new_line)
+            out.result(msg)
 
     def cleanup(self):
         """Call the cleanup method of each of the output instances"""
