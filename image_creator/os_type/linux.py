@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,11 +17,12 @@
 
 """This module hosts OS-specific code for Linux."""
 
-from image_creator.os_type.unix import Unix, sysprep
+from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
+import os
 import re
-import time
 import pkg_resources
+import tempfile
 
 X2GO_DESKTOPSESSIONS = {
     'CINNAMON': 'cinnamon',
@@ -59,6 +60,11 @@ DISTRO_ORDER = {
 
 class Linux(Unix):
     """OS class for Linux"""
+    @add_sysprep_param(
+        'bootmenu_timeout', 'posint', 10, "Boot menu timeout in seconds")
+    @add_sysprep_param(
+        'powerbtn_action', 'string', '/sbin/shutdown -h now',
+        "The action that should be executed if the power button is pressed")
     def __init__(self, image, **kwargs):
         super(Linux, self).__init__(image, **kwargs)
         self._uuid = dict()
@@ -68,49 +74,54 @@ class Linux(Unix):
     def _remove_user_accounts(self):
         """Remove all user accounts with id greater than 1000"""
 
-        if 'USERS' not in self.meta:
-            return
+        removed_users = {}
 
         # Remove users from /etc/passwd
-        passwd = []
-        removed_users = {}
-        metadata_users = self.meta['USERS'].split()
-        for line in self.image.g.cat('/etc/passwd').splitlines():
-            fields = line.split(':')
-            if int(fields[2]) > 1000:
-                removed_users[fields[0]] = fields
-                # remove it from the USERS metadata too
-                if fields[0] in metadata_users:
-                    metadata_users.remove(fields[0])
-            else:
-                passwd.append(':'.join(fields))
+        if self.image.g.is_file('/etc/passwd'):
+            passwd = []
+            metadata_users = self.meta['USERS'].split()
+            for line in self.image.g.cat('/etc/passwd').splitlines():
+                fields = line.split(':')
+                if int(fields[2]) > 1000:
+                    removed_users[fields[0]] = fields
+                    # remove it from the USERS metadata too
+                    if fields[0] in metadata_users:
+                        metadata_users.remove(fields[0])
+                else:
+                    passwd.append(':'.join(fields))
 
-        self.meta['USERS'] = " ".join(metadata_users)
+            self.meta['USERS'] = " ".join(metadata_users)
 
-        # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
-            del self.meta['USERS']
+            # Delete the USERS metadata if empty
+            if not len(self.meta['USERS']):
+                del self.meta['USERS']
 
-        self.image.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
+            self.image.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
+        else:
+            self.out.warn("File: `/etc/passwd' is missing. "
+                          "No users were deleted")
+            return
 
-        # Remove the corresponding /etc/shadow entries
-        shadow = []
-        for line in self.image.g.cat('/etc/shadow').splitlines():
-            fields = line.split(':')
-            if fields[0] not in removed_users:
-                shadow.append(':'.join(fields))
+        if self.image.g.is_file('/etc/shadow'):
+            # Remove the corresponding /etc/shadow entries
+            shadow = []
+            for line in self.image.g.cat('/etc/shadow').splitlines():
+                fields = line.split(':')
+                if fields[0] not in removed_users:
+                    shadow.append(':'.join(fields))
+            self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
+        else:
+            self.out.warn("File: `/etc/shadow' is missing.")
 
-        self.image.g.write('/etc/shadow', "\n".join(shadow) + '\n')
-
-        # Remove the corresponding /etc/group entries
-        group = []
-        for line in self.image.g.cat('/etc/group').splitlines():
-            fields = line.split(':')
-            # Remove groups tha have the same name as the removed users
-            if fields[0] not in removed_users:
-                group.append(':'.join(fields))
-
-        self.image.g.write('/etc/group', '\n'.join(group) + '\n')
+        if self.image.g.is_file('/etc/group'):
+            # Remove the corresponding /etc/group entries
+            group = []
+            for line in self.image.g.cat('/etc/group').splitlines():
+                fields = line.split(':')
+                # Remove groups tha have the same name as the removed users
+                if fields[0] not in removed_users:
+                    group.append(':'.join(fields))
+            self.image.g.write('/etc/group', '\n'.join(group) + '\n')
 
         # Remove home directories
         for home in [field[5] for field in removed_users.values()]:
@@ -141,8 +152,7 @@ class Linux(Unix):
         system without checking if a GUI is running.
         """
 
-        powerbtn_action = '#!/bin/sh\n\nPATH=/sbin:/bin:/usr/bin\n' \
-                          'shutdown -h now "Power button pressed"\n'
+        powerbtn_action = self.sysprep_params['powerbtn_action'].value
 
         events_dir = '/etc/acpi/events'
         if not self.image.g.is_dir(events_dir):
@@ -155,40 +165,36 @@ class Linux(Unix):
             if events_file['ftyp'] != 'r':
                 continue
 
+            event = -1
+            action = -1
             fullpath = "%s/%s" % (events_dir, events_file['name'])
-            event = ""
-            action = ""
-            for line in self.image.g.cat(fullpath).splitlines():
-                match = event_exp.match(line)
-                if match:
-                    event = match.group(1)
-                    continue
-                match = action_exp.match(line)
-                if match:
-                    action = match.group(1)
-                    continue
+            content = self.image.g.cat(fullpath).splitlines()
+            for i in xrange(len(content)):
+                if event_exp.match(content[i]):
+                    event = i
+                elif action_exp.match(content[i]):
+                    action = i
 
-            if event.strip() in ("button[ /]power", "button/power.*"):
-                if action:
-                    if not self.image.g.is_file(action):
-                        self.out.warn("Acpid action file: %s does not exist" %
-                                      action)
-                        return
-                    self.image.g.copy_file_to_file(
-                        action, "%s.orig.snf-image-creator-%d" %
-                        (action, time.time()))
-                    self.image.g.write(action, powerbtn_action)
+            if event == -1:
+                continue
+
+            if action == -1:
+                self.out.warn("Corrupted acpid event file: `%'" % fullpath)
+                continue
+
+            entry = content[event].split('=')[1].strip()
+            if entry in ("button[ /]power", "button/power.*"):
+                    content[action] = "action=%s" % powerbtn_action
+                    self.image.g.write(
+                        fullpath, "\n".join(content) +
+                        '\n\n### Edited by snf-image-creator ###\n')
                     return
-                else:
-                    self.out.warn("Acpid event file %s does not contain and "
-                                  "action")
-                    return
-            elif event.strip() == ".*":
+            elif entry == ".*":
                 self.out.warn("Found action `.*'. Don't know how to handle "
                               "this. Please edit `%s' image file manually to "
                               "make the system immediately shutdown when an "
                               "power button ACPI event occurs." %
-                              action.strip().split()[0])
+                              content[action].split('=')[1].strip())
                 return
 
         self.out.warn("No acpi power button event found!")
@@ -212,6 +218,10 @@ class Linux(Unix):
         going to shrink the image you should probably disable this.
         """
 
+        if not self.image.g.is_file('/etc/fstab'):
+            self.out.warn("File: `/etc/fstab' is missing. No entry removed!")
+            return
+
         new_fstab = ""
         fstab = self.image.g.cat('/etc/fstab')
         for line in fstab.splitlines():
@@ -224,6 +234,55 @@ class Linux(Unix):
 
         self.image.g.write('/etc/fstab', new_fstab)
 
+    @sysprep('Change boot menu timeout to %(bootmenu_timeout)s seconds')
+    def _change_bootmenu_timeout(self):
+        """Change the boot menu timeout to the one specified by the namesake
+        system preparation parameter.
+        """
+
+        timeout = self.sysprep_params['bootmenu_timeout'].value
+
+        if self.image.g.is_file('/etc/default/grub'):
+            self.image.g.aug_init('/', 0)
+            try:
+                self.image.g.aug_set('/files/etc/default/grub/GRUB_TIMEOUT',
+                                     str(timeout))
+            finally:
+                self.image.g.aug_save()
+                self.image.g.aug_close()
+
+        def replace_timeout(remote, regexp, timeout):
+            """Replace the timeout value from a config file"""
+            tmpfd, tmp = tempfile.mkstemp()
+            try:
+                for line in self.image.g.cat(remote).splitlines():
+                    if regexp.match(line):
+                        line = re.sub('\d+', str(timeout), line)
+                    os.write(tmpfd, line + '\n')
+                os.close(tmpfd)
+                tmpfd = None
+                self.image.g.upload(tmp, remote)
+            finally:
+                if tmpfd is not None:
+                    os.close(tmpfd)
+                os.unlink(tmp)
+
+        grub1_config = '/boot/grub/menu.lst'
+        grub2_config = '/boot/grub/grub.cfg'
+        syslinux_config = '/boot/syslinux/syslinux.cfg'
+
+        if self.image.g.is_file(grub1_config):
+            regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
+            replace_timeout(grub1_config, regexp, timeout)
+        elif self.image.g.is_file(grub2_config):
+            regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
+            replace_timeout(grub2_config, regexp, timeout)
+
+        if self.image.g.is_file(syslinux_config):
+            regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
+            # In syslinux the timeout unit is 0.1 seconds
+            replace_timeout(syslinux_config, regexp, timeout * 10)
+
     @sysprep('Replacing fstab & grub non-persistent device references')
     def _use_persistent_block_device_names(self):
         """Scan fstab & grub configuration files and replace all non-persistent
@@ -233,8 +292,43 @@ class Linux(Unix):
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
 
-        # convert all devices in grub1 to persistent
+        # convert root device in grub1 to persistent
         self._persistent_grub1(persistent_root)
+
+        # convert root device in syslinux to persistent
+        self._persistent_syslinux(persistent_root)
+
+    @sysprep('Disabling IPv6 privacy extensions',
+             display='Disable IPv6 privacy enxtensions')
+    def _disable_ipv6_privacy_extensions(self):
+        """Disable IPv6 privacy extensions."""
+
+        file_path = '/files/etc/sysctl.conf/net.ipv6.conf.%s.use_tempaddr'
+        dir_path = '/files/etc/sysctl.d/*/net.ipv6.conf.%s.use_tempaddr'
+
+        self.image.g.aug_init('/', 0)
+        try:
+            default = self.image.g.aug_match(file_path % 'default') + \
+                self.image.g.aug_match(dir_path % 'default')
+
+            all = self.image.g.aug_match(file_path % 'all') + \
+                self.image.g.aug_match(dir_path % 'all')
+
+            if len(default) == 0:
+                self.image.g.aug_set(file_path % 'default', '0')
+            else:
+                for token in default:
+                    self.image.g.aug_set(token, '0')
+
+            if len(all) == 0:
+                self.image.g.aug_set(file_path % 'all', '0')
+            else:
+                for token in all:
+                    self.image.g.aug_set(token, '0')
+
+        finally:
+            self.image.g.aug_save()
+            self.image.g.aug_close()
 
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent
@@ -261,6 +355,34 @@ class Linux(Unix):
         finally:
             self.image.g.aug_save()
             self.image.g.aug_close()
+
+    def _persistent_syslinux(self, new_root):
+        """Replace non-persistent root device name occurrences with persistent
+        ones in the syslinux configuration files.
+        """
+
+        config = '/boot/syslinux/syslinux.cfg'
+        append_regexp = re.compile(
+            r'\s*APPEND\s+.*\broot=/dev/[hsv]d[a-z][1-9]*\b', re.IGNORECASE)
+
+        if not self.image.g.is_file(config):
+            return
+
+        # There is no augeas lense for syslinux :-(
+        tmpfd, tmp = tempfile.mkstemp()
+        try:
+            for line in self.image.g.cat(config).splitlines():
+                if append_regexp.match(line):
+                    line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
+                                  'root=%s' % new_root, line)
+                os.write(tmpfd, line + '\n')
+            os.close(tmpfd)
+            tmpfd = None
+            self.image.g.upload(tmp, config)
+        finally:
+            if tmpfd is not None:
+                os.close(tmpfd)
+            os.unlink(tmp)
 
     def _persistent_fstab(self):
         """Replaces non-persistent device name occurrences in /etc/fstab with
@@ -453,6 +575,12 @@ class Linux(Unix):
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
+
+        if not self.image.g.is_file('/etc/shadow'):
+            self.out.warn(
+                "Unable to collect user info. File: `/etc/shadow' is missing!")
+            return []
+
         users = []
         regexp = re.compile(r'(\S+):((?:!\S+)|(?:[^!*]\S+)|):(?:\S*:){6}')
 

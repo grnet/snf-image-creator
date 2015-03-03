@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,6 +28,11 @@ class Bsd(Unix):
     @sysprep("Cleaning up passwords & locking all user accounts")
     def _cleanup_password(self):
         """Remove all passwords and lock all user accounts"""
+
+        if not self.image.g.is_file('/etc/master.passwd'):
+            self.out.warn(
+                "File: `/etc/master.passwd' is missing. Nothing to do!")
+            return
 
         master_passwd = []
 
@@ -101,6 +106,12 @@ class Bsd(Unix):
 
     def _get_passworded_users(self):
         """Returns a list of non-locked user accounts"""
+
+        if not self.image.g.is_file('/etc/master.passwd'):
+            self.out.warn("Unable to collect user info. "
+                          "File: `/etc/master.passwd' is missing!")
+            return []
+
         users = []
         regexp = re.compile(
             '^([^:]+):((?:![^:]+)|(?:[^!*][^:]+)|):(?:[^:]*:){7}(?:[^:]*)'
