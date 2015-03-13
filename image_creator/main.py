@@ -62,6 +62,10 @@ def parse_options(input_args):
                       default=None, help="use this authentication URL when "
                       "uploading/registering images")
 
+    parser.add_option("--add-timestamp", dest="timestamp", default=False,
+                      help="Add a timestamp when outputting messages",
+                      action="store_true")
+
     parser.add_option("--allow-unsupported", dest="allow_unsupported",
                       help="proceed with the image creation even if the media "
                       "is not supported", default=False, action="store_true")
@@ -456,17 +460,19 @@ def main():
     options = parse_options(sys.argv[1:])
 
     if options.silent:
-        out = SilentOutput(colored=sys.stderr.isatty())
+        out = SilentOutput(colored=sys.stderr.isatty(),
+                           timestamp=options.timestamp)
+    elif sys.stderr.isatty():
+        out = OutputWthProgress(timestamp=options.timestamp)
     else:
-        out = OutputWthProgress() if sys.stderr.isatty() else \
-            SimpleOutput(colored=False)
+        out = SimpleOutput(colored=False, timestamp=options.timestamp)
 
     if options.syslog:
         out = CompositeOutput([out, SyslogOutput()])
 
     title = 'snf-image-creator %s' % version
-    out.info(title)
-    out.info('=' * len(title))
+    sys.stderr.write(title + '\n')
+    sys.stderr.write(('=' * len(title)) + '\n')
 
     try:
         sys.exit(image_creator(options, out))
