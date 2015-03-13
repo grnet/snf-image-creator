@@ -209,7 +209,8 @@ def parse_options(input_args):
                      "`--print-sysprep-params' or `--print-metadata' must be "
                      "set")
 
-    if not options.force and options.outfile is not None:
+    if not options.force and options.outfile is not None and \
+            os.path.realpath(options.outfile) != '/dev/null':
         for extension in ('', '.meta', '.md5sum'):
             filename = "%s%s" % (options.outfile, extension)
             if os.path.exists(filename):
@@ -379,18 +380,21 @@ def image_creator(options, out):
              'disk-format': 'diskdump'}, ensure_ascii=False))
 
         if options.outfile is not None:
-            image.dump(options.outfile)
+            if os.path.realpath(options.outfile) == '/dev/null':
+                out.warn('Not dumping file to /dev/null')
+            else:
+                image.dump(options.outfile)
 
-            out.info('Dumping metadata file ...', False)
-            with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
-                f.write(metastring)
-            out.success('done')
+                out.info('Dumping metadata file ...', False)
+                with open('%s.%s' % (options.outfile, 'meta'), 'w') as f:
+                    f.write(metastring)
+                out.success('done')
 
-            out.info('Dumping md5sum file ...', False)
-            with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
-                f.write('%s %s\n' % (checksum,
-                                     os.path.basename(options.outfile)))
-            out.success('done')
+                out.info('Dumping md5sum file ...', False)
+                with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
+                    f.write('%s %s\n' % (checksum,
+                                         os.path.basename(options.outfile)))
+                out.success('done')
 
         out.info()
         try:
