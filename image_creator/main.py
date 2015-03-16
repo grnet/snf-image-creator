@@ -27,7 +27,7 @@ from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.output.composite import CompositeOutput
 from image_creator.output.syslog import SyslogOutput
-from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 import sys
 import os
 import optparse
@@ -74,6 +74,10 @@ def parse_options(input_args):
                       default=None, help="use this saved cloud account to "
                       "authenticate against a cloud when "
                       "uploading/registering images")
+
+    parser.add_option("--container", dest="container", type="string",
+                      default=CONTAINER, help="Upload files to CONTAINER "
+                      "[default: %s]" % CONTAINER)
 
     parser.add_option("--disable-sysprep", dest="disabled_syspreps",
                       help="prevent SYSPREP operation from running on the "
@@ -407,7 +411,7 @@ def image_creator(options, out):
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         remote = kamaki.upload(
-                            f, image.size, options.upload,
+                            f, image.size, options.upload, options.container,
                             "(1/3)  Calculating block hashes",
                             "(2/3)  Uploading missing blocks")
 
@@ -416,7 +420,8 @@ def image_creator(options, out):
                                          os.path.basename(options.upload))
                 kamaki.upload(StringIO.StringIO(md5sumstr),
                               size=len(md5sumstr),
-                              remote_path="%s.%s" % (options.upload, 'md5sum'))
+                              remote_path="%s.%s" % (options.upload, 'md5sum'),
+                              container=options.container)
                 out.success('done')
                 out.info()
 
@@ -432,7 +437,8 @@ def image_creator(options, out):
                                                 indent=4))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
-                              remote_path="%s.%s" % (options.upload, 'meta'))
+                              remote_path="%s.%s" % (options.upload, 'meta'),
+                              container=options.container)
                 out.success('done')
                 if options.public:
                     out.info("Sharing md5sum file ...", False)

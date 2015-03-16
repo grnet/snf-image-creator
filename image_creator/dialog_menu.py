@@ -30,7 +30,7 @@ import tempfile
 from image_creator import __version__ as version
 from image_creator.util import FatalError, virtio_versions
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
-from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
@@ -155,14 +155,15 @@ def upload_image(session):
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         session["pithos_uri"] = \
-                            kamaki.upload(f, image.size, filename,
+                            kamaki.upload(f, image.size, filename, CONTAINER,
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
                 # Upload md5sum file
                 out.info("Uploading md5sum file ...")
                 md5str = "%s %s\n" % (session['checksum'], filename)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
-                              remote_path="%s.md5sum" % filename)
+                              remote_path="%s.md5sum" % filename,
+                              container=CONTAINER)
                 out.success("done")
 
             except ClientError as e:
@@ -259,7 +260,8 @@ def register_image(session):
                                                 indent=4, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
-                              remote_path="%s.meta" % session['upload'])
+                              remote_path="%s.meta" % session['upload'],
+                              container=CONTAINER)
                 out.success("done")
                 if is_public:
                     out.info("Sharing metadata and md5sum files ...", False)

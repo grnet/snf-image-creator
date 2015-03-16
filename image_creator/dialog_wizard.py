@@ -24,7 +24,7 @@ import StringIO
 import json
 import re
 
-from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 from image_creator.util import FatalError, virtio_versions
 from image_creator.output.cli import OutputWthProgress
 from image_creator.dialog_util import extract_image, update_background_title, \
@@ -474,14 +474,15 @@ def create_image(session, answers):
                                        time.strftime("%Y%m%d%H%M"))
             with image.raw_device() as raw:
                 with open(raw, 'rb') as device:
-                    remote = kamaki.upload(device, image.size, name,
+                    remote = kamaki.upload(device, image.size, name, CONTAINER,
                                            "(1/3)  Calculating block hashes",
                                            "(2/3)  Uploading image blocks")
 
             image.out.info("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
-                          remote_path="%s.%s" % (name, 'md5sum'))
+                          remote_path="%s.%s" % (name, 'md5sum'),
+                          container=CONTAINER)
             image.out.success('done')
             image.out.info()
 
@@ -493,7 +494,8 @@ def create_image(session, answers):
             image.out.info("Uploading metadata file ...", False)
             metastring = unicode(json.dumps(result, ensure_ascii=False))
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
-                          remote_path="%s.%s" % (name, 'meta'))
+                          remote_path="%s.%s" % (name, 'meta'),
+                          container=CONTAINER)
             image.out.success('done')
 
             if answers['RegistrationType'] == "Public":

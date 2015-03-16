@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,10 +45,11 @@ except Exception as e:
     sys.stderr.write("Kamaki config error: %s\n" % str(e))
     sys.exit(1)
 
+CONTAINER = "images"
+
 
 class Kamaki(object):
     """Wrapper class for the ./kamaki library"""
-    CONTAINER = "images"
 
     @staticmethod
     def get_default_cloud_name():
@@ -133,19 +134,23 @@ class Kamaki(object):
             self.account.get_service_endpoints('object-store')['publicURL'],
             self.account.token,
             self.account.user_info()['id'],
-            self.CONTAINER)
+            CONTAINER)
 
         self.image = ImageClient(
             self.account.get_service_endpoints('image')['publicURL'],
             self.account.token)
 
-    def upload(self, file_obj, size=None, remote_path=None, hp=None, up=None):
+    def upload(self, file_obj, size=None, remote_path=None, container=None,
+               hp=None, up=None):
         """Upload a file to Pithos+"""
 
         path = basename(file_obj.name) if remote_path is None else remote_path
 
+        if container is None:
+            container = CONTAINER
+
         try:
-            self.pithos.create_container(self.CONTAINER)
+            self.pithos.create_container(container)
         except ClientError as e:
             if e.status != 202:  # Ignore container already exists errors
                 raise e
@@ -153,10 +158,14 @@ class Kamaki(object):
         hash_cb = self.out.progress_generator(hp) if hp is not None else None
         upload_cb = self.out.progress_generator(up) if up is not None else None
 
-        self.pithos.upload_object(path, file_obj, size, hash_cb, upload_cb)
+        try:
+            self.pithos.container = container
+            self.pithos.upload_object(path, file_obj, size, hash_cb, upload_cb)
+        finally:
+            self.pithos.container = CONTAINER
 
         return "pithos://%s/%s/%s" % (self.account.user_info()['id'],
-                                      self.CONTAINER, path)
+                                      container, path)
 
     def register(self, name, location, metadata, public=False):
         """Register an image with Cyclades"""
