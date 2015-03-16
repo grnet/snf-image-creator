@@ -475,7 +475,7 @@ def show_info(session):
     while 1:
         code = d.scrollbox(info, width=WIDTH, title="Registration info",
                            extra_label="Save", extra_button=1,
-                           exit_label="Close")
+                           ok_label="Close")
         if code == d.DIALOG_EXTRA:
             path = select_file(d, title="Save registration information as...")
             if path is None:
