@@ -179,7 +179,7 @@ class Linux(Unix):
                 continue
 
             if action == -1:
-                self.out.warn("Corrupted acpid event file: `%'" % fullpath)
+                self.out.warn("Corrupted acpid event file: `%s'" % fullpath)
                 continue
 
             entry = content[event].split('=')[1].strip()
