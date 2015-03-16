@@ -44,10 +44,9 @@ def os_cls(distro, osfamily):
     """
 
     # hyphens are not allowed in module names
-    canonicalize = lambda x: x.replace('-', '_').lower()
+    distro = distro.replace('-', '_').lower()
+    osfamily = osfamily.replace('-', '_').lower()
 
-    distro = canonicalize(distro)
-    osfamily = canonicalize(osfamily)
     if distro == 'unknown':
         distro = osfamily
 
@@ -490,12 +489,19 @@ class OSBase(object):
     def mount(self, readonly=False, silent=False, fatal=True):
         """Returns a context manager for mounting an image"""
 
-        parent = self
-        output = lambda msg='', nl=True: None if silent else self.out.info
-        success = lambda msg='', nl=True: None if silent else self.out.success
-        warn = lambda msg='', nl=True: None if silent else self.out.warn
+        if not silent:
+            output = self.out.info
+            success = self.out.success
+            warn = self.out.warn
+        else:
+            def output(msg='', nl=True):
+                pass
 
-        class Mount:
+            success = warn = output
+
+        parent = self
+
+        class Mount(object):
             """The Mount context manager"""
             def __enter__(self):
                 mount_type = 'read-only' if readonly else 'read-write'
@@ -590,7 +596,10 @@ class OSBase(object):
         exclude = None if 'exclude' not in kwargs else kwargs['exclude']
         include = None if 'include' not in kwargs else kwargs['include']
         ftype = None if 'ftype' not in kwargs else kwargs['ftype']
-        has_ftype = lambda x, y: y is None and True or x['ftyp'] == y
+
+        def has_ftype(f, ftype):
+            """Returns True if the type of the file is ftype"""
+            return ftype is None and True or f['ftyp'] == ftype
 
         for f in self.image.g.readdir(directory):
             if f['name'] in ('.', '..'):

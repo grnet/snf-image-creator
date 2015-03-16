@@ -22,14 +22,14 @@ from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
 import os
-# Make sure libguestfs runs qemu directly to launch an appliance.
-os.environ['LIBGUESTFS_BACKEND'] = 'direct'
-import guestfs
-
 import re
 import hashlib
 from sendfile import sendfile
 import threading
+
+# Make sure libguestfs runs qemu directly to launch an appliance.
+os.environ['LIBGUESTFS_BACKEND'] = 'direct'
+import guestfs  # noqa
 
 
 class Image(object):
@@ -273,11 +273,13 @@ class Image(object):
                 "partition tables are supported" % self.meta['PARTITION_TABLE']
             raise FatalError(msg)
 
-        is_extended = lambda p: \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
-            in (0x5, 0xf)
-        is_logical = lambda p: \
-            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
+        def is_extended(partition):
+            return self.g.part_get_mbr_id(
+                self.guestfs_device, partition['part_num']) in (0x5, 0xf)
+
+        def is_logical(partition):
+            return self.meta['PARTITION_TABLE'] == 'msdos' and \
+                partition['part_num'] > 4
 
         partitions = self.g.part_list(self.guestfs_device)
         last_partition = partitions[-1]
@@ -302,25 +304,47 @@ class Image(object):
 
         ATTENTION: make sure unmount is called before shrink
         """
-        get_fstype = lambda p: \
-            self.g.vfs_type("%s%d" % (self.guestfs_device, p['part_num']))
-        is_logical = lambda p: \
-            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
-        is_extended = lambda p: \
-            self.meta['PARTITION_TABLE'] == 'msdos' and \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
-            in (0x5, 0xf)
+        def get_fstype(partition):
+            """Get file system type"""
+            device = "%s%d" % (self.guestfs_device, partition['part_num'])
+            return self.g.vfs_type(device)
 
-        part_add = lambda ptype, start, stop: \
+        def is_logical(partition):
+            """Returns True if the partition is a logical partition"""
+            return self.meta['PARTITION_TABLE'] == 'msdos' and \
+                partition['part_num'] > 4
+
+        def is_extended(partition):
+            """Returns True if the partition is an extended partition"""
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                mbr_id = self.g.part_get_mbr_id(self.guestfs_device,
+                                                partition['part_num'])
+                return mbr_id in (0x5, 0xf)
+            return False
+
+        def part_add(ptype, start, stop):
+            """Add partition"""
             self.g.part_add(self.guestfs_device, ptype, start, stop)
-        part_del = lambda p: self.g.part_del(self.guestfs_device, p)
-        part_get_id = lambda p: self.g.part_get_mbr_id(self.guestfs_device, p)
-        part_set_id = lambda p, id: \
-            self.g.part_set_mbr_id(self.guestfs_device, p, id)
-        part_get_bootable = lambda p: \
-            self.g.part_get_bootable(self.guestfs_device, p)
-        part_set_bootable = lambda p, bootable: \
-            self.g.part_set_bootable(self.guestfs_device, p, bootable)
+
+        def part_del(partnum):
+            """Delete a partition"""
+            self.g.part_del(self.guestfs_device, partnum)
+
+        def part_get_id(partnum):
+            """Returns the MBR id of the partition"""
+            return self.g.part_get_mbr_id(self.guestfs_device, partnum)
+
+        def part_set_id(partnum, id):
+            """Sets the MBR id of the partition"""
+            self.g.part_set_mbr_id(self.guestfs_device, partnum, id)
+
+        def part_get_bootable(partnum):
+            """Returns the bootable flag of the partition"""
+            return self.g.part_get_bootable(self.guestfs_device, partnum)
+
+        def part_set_bootable(partnum, bootable):
+            """Sets the bootable flag for a partition"""
+            self.g.part_set_bootable(self.guestfs_device, partnum, bootable)
 
         MB = 2 ** 20
 

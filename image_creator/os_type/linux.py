@@ -184,11 +184,10 @@ class Linux(Unix):
 
             entry = content[event].split('=')[1].strip()
             if entry in ("button[ /]power", "button/power.*"):
-                    content[action] = "action=%s" % powerbtn_action
-                    self.image.g.write(
-                        fullpath, "\n".join(content) +
-                        '\n\n### Edited by snf-image-creator ###\n')
-                    return
+                content[action] = "action=%s" % powerbtn_action
+                self.image.g.write(fullpath, "\n".join(content) +
+                                   '\n\n### Edited by snf-image-creator ###\n')
+                return
             elif entry == ".*":
                 self.out.warn("Found action `.*'. Don't know how to handle "
                               "this. Please edit `%s' image file manually to "
