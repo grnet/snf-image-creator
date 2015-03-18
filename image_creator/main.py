@@ -346,6 +346,11 @@ def image_creator(options, out):
             image.os.install_virtio_drivers()
 
         if len(options.host_run) != 0:
+            # Export image metadata as environment variables to make them
+            # visible by the scripts
+            for key, value in image.meta.items():
+                os.environ["SNF_IMAGE_CREATOR_METADATA_%s" % key] = str(value)
+
             out.info("Running scripts on the input media:")
             mpoint = tempfile.mkdtemp()
             try:
