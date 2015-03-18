@@ -215,7 +215,7 @@ def dialog_main(media, **kwargs):
     try:
         stream = logfile if logfile else tmplog
         logs.append(SimpleOutput(colored=False, stderr=stream, stdout=stream,
-                    timestamp=True))
+                                 timestamp=True))
         if syslog:
             logs.append(SyslogOutput())
 

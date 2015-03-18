@@ -389,7 +389,7 @@ def kamaki_menu(session):
                             % session['upload']))
         if 'registered' in session:
             choices.append(("Info", "Show registration info for \"%s\"" %
-                                    session['registered']['name']))
+                            session['registered']['name']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",

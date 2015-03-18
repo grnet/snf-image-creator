@@ -256,7 +256,7 @@ class Linux(Unix):
             try:
                 for line in self.image.g.cat(remote).splitlines():
                     if regexp.match(line):
-                        line = re.sub('\d+', str(timeout), line)
+                        line = re.sub(r'\d+', str(timeout), line)
                     os.write(tmpfd, line + '\n')
                 os.close(tmpfd)
                 tmpfd = None
