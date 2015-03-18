@@ -375,7 +375,7 @@ def image_creator(options, out):
                         time.sleep(1)
                     out.info()
             finally:
-                os.rmdir
+                os.rmdir(mpoint)
 
         if options.sysprep:
             image.os.do_sysprep()
