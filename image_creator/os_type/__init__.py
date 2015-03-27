@@ -265,7 +265,7 @@ class OSBase(object):
         # This will host the error if mount fails
         self._mount_error = ""
         self._mount_warnings = []
-        self._mounted = False
+        self._mounted = None
 
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
@@ -484,7 +484,7 @@ class OSBase(object):
 
     @property
     def ismounted(self):
-        return self._mounted
+        return self._mounted is not None
 
     def mount(self, readonly=False, silent=False, fatal=True):
         """Returns a context manager for mounting an image"""
@@ -496,47 +496,60 @@ class OSBase(object):
         else:
             def output(msg='', nl=True):
                 pass
-
             success = warn = output
+
+        mount_type = 'read-only' if readonly else 'read-write'
+        output("Mounting the media %s ..." % mount_type, False)
+
+        self._mount_error = ""
+        del self._mount_warnings[:]
+
+        try:
+            mounted = self._do_mount(readonly)
+        except:
+            self.image.g.umount_all()
+            raise
+
+        if not mounted:
+            msg = "Unable to mount the media %s. Reason: %s" % \
+                (mount_type, self._mount_error)
+            if fatal:
+                raise FatalError(msg)
+            else:
+                warn(msg)
+
+        for warning in self._mount_warnings:
+            warn(warning)
+
+        if mounted:
+            success('done')
 
         parent = self
 
         class Mount(object):
             """The Mount context manager"""
             def __enter__(self):
-                mount_type = 'read-only' if readonly else 'read-write'
-                output("Mounting the media %s ..." % mount_type, False)
-
-                parent._mount_error = ""
-                del parent._mount_warnings[:]
-
-                try:
-                    parent._mounted = parent._do_mount(readonly)
-                except:
-                    parent.image.g.umount_all()
-                    raise
-
-                if not parent.ismounted:
-                    msg = "Unable to mount the media %s. Reason: %s" % \
-                        (mount_type, parent._mount_error)
-                    if fatal:
-                        raise FatalError(msg)
-                    else:
-                        warn(msg)
-
-                for warning in parent._mount_warnings:
-                    warn(warning)
-
-                if parent.ismounted:
-                    success('done')
+                pass
 
             def __exit__(self, exc_type, exc_value, traceback):
+                self.umount()
+
+            def umount(self):
                 output("Umounting the media ...", False)
                 parent.image.g.umount_all()
-                parent._mounted = False
+                parent._mounted = None
                 success('done')
 
-        return Mount()
+        self._mounted = Mount()
+        return self._mounted
+
+    def umount(self):
+        """Umount a previously mounted image"""
+        if self._mounted is None:
+            self.out.warn("Ignoring the umount request.")
+            return
+
+        self._mounted.umount()
 
     def check_version(self, major, minor):
         """Checks the OS version against the one specified by the major, minor
