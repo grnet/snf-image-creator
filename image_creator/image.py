@@ -302,7 +302,7 @@ class Image(object):
         image and then updating the partition table. The new disk size
         (in bytes) is returned.
 
-        ATTENTION: make sure unmount is called before shrink
+        ATTENTION: make sure umount is called before shrink
         """
         def get_fstype(partition):
             """Get file system type"""
@@ -471,15 +471,13 @@ class Image(object):
 
         assert self._mount_thread is None, "Image is already mounted"
 
-        def do_mount():
-            """Use libguestfs's guestmount API"""
-            with self.os.mount(readonly=readonly, silent=True):
-                if self.g.mount_local(mpoint, readonly=readonly) == -1:
-                    return
-                # The thread will block in mount_local_run until the file
-                self.g.mount_local_run()
+        self.os.mount(readonly=readonly, silent=True)
 
-        self._mount_thread = threading.Thread(target=do_mount)
+        if self.g.mount_local(mpoint, readonly=readonly) == -1:
+            return
+
+        # The thread will block in mount_local_run until the file
+        self._mount_thread = threading.Thread(target=self.g.mount_local_run)
         self._mount_thread.mpoint = mpoint
         self._mount_thread.start()
 
@@ -506,26 +504,29 @@ class Image(object):
 
         assert self._mount_thread is not None, "Image is not mounted"
 
-        # Maybe the image was umounted externally
-        if not self._mount_thread.is_alive():
+        try:
+            # Maybe the image was umounted externally
+            if not self._mount_thread.is_alive():
+                self._mount_thread = None
+                return True
+
+            try:
+                args = (['-l'] if lazy else []) + [self._mount_thread.mpoint]
+                get_command('umount')(*args)
+            except:
+                return False
+
+            # Wait for a little while. If the image is umounted,
+            # mount_local_run should have terminated
+            self._mount_thread.join(5)
+
+            if self._mount_thread.is_alive():
+                raise FatalError('Unable to join the mount thread')
+
             self._mount_thread = None
             return True
-
-        try:
-            args = (['-l'] if lazy else []) + [self._mount_thread.mpoint]
-            get_command('umount')(*args)
-        except:
-            return False
-
-        # Wait for a little while. If the image is umounted, mount_local_run
-        # should have terminated
-        self._mount_thread.join(5)
-
-        if self._mount_thread.is_alive():
-            raise FatalError('Unable to join the mount thread')
-
-        self._mount_thread = None
-        return True
+        finally:
+            self.os.umount()
 
     def dump(self, outfile):
         """Dumps the content of the image into a file.
