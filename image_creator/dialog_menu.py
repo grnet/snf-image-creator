@@ -109,27 +109,40 @@ def upload_image(session):
         return False
 
     while 1:
-        if 'upload' in session:
-            init = session['upload']
+        if 'uploaded' in session:
+            _, _, _, container, name = session['uploaded'].split('/')
         elif 'OS' in session['image'].meta:
-            init = "%s.diskdump" % session['image'].meta['OS']
+            name = "%s.diskdump" % session['image'].meta['OS']
+            container = CONTAINER
         else:
-            init = ""
-        (code, answer) = d.inputbox("Please provide a filename:", init=init,
-                                    width=WIDTH)
+            name = ""
+            container = CONTAINER
+
+        fields = [("Remote Name:", name, 60), ("Container:", container, 60)]
+
+        (code, output) = d.form("Please provide the following upload info:",
+                                height=11, width=WIDTH, form_height=2,
+                                fields=fields)
 
         if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
             return False
 
-        filename = answer.strip()
-        if len(filename) == 0:
-            d.msgbox("Filename cannot be empty", width=SMALL_WIDTH)
+        name, container = output
+        name = name.strip()
+        container = container.strip()
+
+        if len(name) == 0:
+            d.msgbox("Remote Name cannot be empty", width=SMALL_WIDTH)
+            continue
+
+        if len(container) == 0:
+            d.msgbox("Container cannot be empty", width=SMALL_WIDTH)
             continue
 
         kamaki = Kamaki(session['account'], None)
         overwrite = []
-        for f in (filename, "%s.md5sum" % filename, "%s.meta" % filename):
-            if kamaki.object_exists(f):
+        for f in (name, "%s.md5sum" % name, "%s.meta" % name):
+            if kamaki.object_exists(container, f):
                 overwrite.append(f)
 
         if len(overwrite) > 0:
@@ -137,8 +150,6 @@ def upload_image(session):
                        "exist(s):\n%s\nDo you want to overwrite them?" %
                        "\n".join(overwrite), width=WIDTH, defaultno=1):
                 continue
-
-        session['upload'] = filename
         break
 
     gauge = GaugeOutput(d, "Image Upload", "Uploading ...")
@@ -154,31 +165,31 @@ def upload_image(session):
                 # Upload image file
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
-                        session["pithos_uri"] = \
-                            kamaki.upload(f, image.size, filename, CONTAINER,
+                        session["uploaded"] = \
+                            kamaki.upload(f, image.size, name, container,
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
                 # Upload md5sum file
                 out.info("Uploading md5sum file ...")
-                md5str = "%s %s\n" % (session['checksum'], filename)
+                md5str = "%s %s\n" % (session['checksum'], name)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
-                              remote_path="%s.md5sum" % filename,
-                              container=CONTAINER)
+                              remote_path="%s.md5sum" % name,
+                              container=container)
                 out.success("done")
 
             except ClientError as e:
                 d.msgbox(
                     "Error in storage service client: %s" % e.message,
                     title="Storage Service Client Error", width=SMALL_WIDTH)
-                if 'pithos_uri' in session:
-                    del session['pithos_uri']
+                if 'uploaded' in session:
+                    del session['uploaded']
                 return False
         finally:
             out.remove(gauge)
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image file `%s' was successfully uploaded" % filename,
+    d.msgbox("Image file `%s' was successfully uploaded" % name,
              width=SMALL_WIDTH)
 
     return True
@@ -196,10 +207,11 @@ def register_image(session):
                  "can register an images with it", width=SMALL_WIDTH)
         return False
 
-    if "pithos_uri" not in session:
+    if "uploaded" not in session:
         d.msgbox("You need to upload the image to the cloud before you can "
                  "register it", width=SMALL_WIDTH)
         return False
+    _, _, _, container, remote = session['uploaded'].split('/')
 
     name = "" if 'registered' not in session else session['registered'].name
     description = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta \
@@ -251,7 +263,7 @@ def register_image(session):
                          False)
                 kamaki = Kamaki(session['account'], out)
                 session['registered'] = kamaki.register(
-                    name, session['pithos_uri'], metadata, is_public)
+                    name, session['uploaded'], metadata, is_public)
                 out.success('done')
 
                 # Upload metadata file
@@ -260,13 +272,13 @@ def register_image(session):
                                                 indent=4, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
-                              remote_path="%s.meta" % session['upload'],
-                              container=CONTAINER)
+                              remote_path="%s.meta" % remote,
+                              container=container)
                 out.success("done")
                 if is_public:
                     out.info("Sharing metadata and md5sum files ...", False)
-                    kamaki.share("%s.meta" % session['upload'])
-                    kamaki.share("%s.md5sum" % session['upload'])
+                    kamaki.share("%s.meta" % remote)
+                    kamaki.share("%s.md5sum" % remote)
                     out.success('done')
             except ClientError as error:
                 d.msgbox("Error in storage service client: %s" % error.message)
@@ -277,7 +289,7 @@ def register_image(session):
         gauge.cleanup()
 
     d.msgbox("%s image `%s' was successfully registered with the cloud as `%s'"
-             % (img_type.title(), session['upload'], name), width=SMALL_WIDTH)
+             % (img_type.title(), remote, name), width=SMALL_WIDTH)
     return True
 
 
@@ -359,7 +371,7 @@ def kamaki_menu(session):
 
     if 'registered' in session:
         default_item = "Info"
-    elif 'upload' in session:
+    elif 'uploaded' in session:
         default_item = "Register"
     else:
         default_item = "Upload"
@@ -384,9 +396,10 @@ def kamaki_menu(session):
                    ("Cloud", "Select cloud account to use: %s" % cloud),
                    ("Upload", "Upload image to the cloud")]
 
-        if 'upload' in session:
+        if 'uploaded' in session:
+            _, _, _, _, name = session['uploaded'].split('/')
             choices.append(("Register", "Register image with the cloud: %s"
-                            % session['upload']))
+                            % name))
         if 'registered' in session:
             choices.append(("Info", "Show registration info for \"%s\"" %
                             session['registered']['name']))

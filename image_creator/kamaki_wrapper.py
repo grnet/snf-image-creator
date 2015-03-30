@@ -183,16 +183,20 @@ class Kamaki(object):
 
         self.pithos.set_object_sharing(location, "*")
 
-    def object_exists(self, location):
+    def object_exists(self, container, location):
         """Check if an object exists in Pithos+"""
 
         try:
+            self.pithos.container = container
             self.pithos.get_object_info(location)
         except ClientError as e:
+            self.pithos.container = CONTAINER
             if e.status == 404:  # Object not found error
                 return False
             else:
                 raise
+
+        self.pithos.container = CONTAINER
         return True
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

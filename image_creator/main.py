@@ -263,16 +263,17 @@ def image_creator(options, out):
             raise FatalError("Astakos client: %d %s" % (e.status, e.message))
 
     if options.upload and not options.force:
-        if kamaki.object_exists(options.upload):
+        if kamaki.object_exists(options.container, options.upload):
             raise FatalError("Remote storage service object: `%s' exists "
                              "(use --force to overwrite it)." % options.upload)
-        if kamaki.object_exists("%s.md5sum" % options.upload):
+        if kamaki.object_exists(options.container,
+                                "%s.md5sum" % options.upload):
             raise FatalError("Remote storage service object: `%s.md5sum' "
                              "exists (use --force to overwrite it)." %
                              options.upload)
 
     if options.register and not options.force:
-        if kamaki.object_exists("%s.meta" % options.upload):
+        if kamaki.object_exists(options.container, "%s.meta" % options.upload):
             raise FatalError("Remote storage service object `%s.meta' exists "
                              "(use --force to overwrite it)." % options.upload)
 
