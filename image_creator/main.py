@@ -427,7 +427,8 @@ def image_creator(options, out):
                 kamaki.upload(StringIO.StringIO(md5sumstr),
                               size=len(md5sumstr),
                               remote_path="%s.%s" % (options.upload, 'md5sum'),
-                              container=options.container)
+                              container=options.container,
+                              content_type="text/plain")
                 out.success('done')
                 out.info()
 
@@ -444,7 +445,8 @@ def image_creator(options, out):
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'),
-                              container=options.container)
+                              container=options.container,
+                              content_type="application/json")
                 out.success('done')
                 if options.public:
                     out.info("Sharing md5sum file ...", False)

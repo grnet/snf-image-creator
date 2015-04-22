@@ -141,7 +141,7 @@ class Kamaki(object):
             self.account.token)
 
     def upload(self, file_obj, size=None, remote_path=None, container=None,
-               hp=None, up=None):
+               content_type=None, hp=None, up=None):
         """Upload a file to Pithos+"""
 
         path = basename(file_obj.name) if remote_path is None else remote_path
@@ -160,7 +160,9 @@ class Kamaki(object):
 
         try:
             self.pithos.container = container
-            self.pithos.upload_object(path, file_obj, size, hash_cb, upload_cb)
+            self.pithos.upload_object(path, file_obj, size=size,
+                                      hash_cb=hash_cb, upload_cb=upload_cb,
+                                      content_type=content_type)
         finally:
             self.pithos.container = CONTAINER
 

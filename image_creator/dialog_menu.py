@@ -174,7 +174,8 @@ def upload_image(session):
                 md5str = "%s %s\n" % (session['checksum'], name)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
                               remote_path="%s.md5sum" % name,
-                              container=container)
+                              container=container,
+                              content_type="text/plain")
                 out.success("done")
 
             except ClientError as e:
@@ -273,7 +274,8 @@ def register_image(session):
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % remote,
-                              container=container)
+                              container=container,
+                              content_type="application/json")
                 out.success("done")
                 if is_public:
                     out.info("Sharing metadata and md5sum files ...", False)

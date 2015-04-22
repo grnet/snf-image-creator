@@ -482,7 +482,7 @@ def create_image(session, answers):
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
                           remote_path="%s.%s" % (name, 'md5sum'),
-                          container=CONTAINER)
+                          container=CONTAINER, content_type="text/plain")
             image.out.success('done')
             image.out.info()
 
@@ -495,7 +495,7 @@ def create_image(session, answers):
             metastring = unicode(json.dumps(result, ensure_ascii=False))
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                           remote_path="%s.%s" % (name, 'meta'),
-                          container=CONTAINER)
+                          container=CONTAINER, content_type="application/json")
             image.out.success('done')
 
             if answers['RegistrationType'] == "Public":
