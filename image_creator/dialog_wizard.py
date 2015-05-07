@@ -310,18 +310,19 @@ def start_wizard(session):
 
     def no_clouds():
         """Fallback function when no cloud account exists"""
-        if not session['dialog'].yesno(
+        if session['dialog'].yesno(
                 "No available clouds found. Would you like to add one now?",
-                width=PAGE_WIDTH, defaultno=0):
+                width=PAGE_WIDTH, defaultno=0) == session['dialog'].OK:
             return add_cloud(session)
         return False
 
     def cloud_validate(cloud):
         """Checks if a cloud is valid"""
         if not Kamaki.get_account(cloud):
-            if not session['dialog'].yesno(
+            if session['dialog'].yesno(
                     "The cloud you have selected is not valid! Would you "
-                    "like to edit it now?", width=PAGE_WIDTH, defaultno=0):
+                    "like to edit it now?", width=PAGE_WIDTH,
+                    defaultno=0) == session['dialog'].OK:
                 if edit_cloud(session, cloud):
                     return cloud
             raise WizardReloadPage
@@ -519,7 +520,7 @@ def create_image(session, answers):
            "to keep a local copy?" % \
            (answers['RegistrationType'].lower(), answers['Cloud'])
 
-    if not session['dialog'].yesno(text, width=PAGE_WIDTH):
+    if session['dialog'].yesno(text, width=PAGE_WIDTH) == session['dialog'].OK:
         extract_image(session)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

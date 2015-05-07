@@ -148,7 +148,8 @@ def upload_image(session):
         if len(overwrite) > 0:
             if d.yesno("The following storage service object(s) already "
                        "exist(s):\n%s\nDo you want to overwrite them?" %
-                       "\n".join(overwrite), width=WIDTH, defaultno=1):
+                       "\n".join(overwrite), width=WIDTH, defaultno=1
+                       ) != d.OK:
                 continue
         break
 
@@ -240,10 +241,10 @@ def register_image(session):
         answer = d.yesno("Make the image public?\\nA public image is "
                          "accessible by every user of the service.",
                          defaultno=1, width=WIDTH)
-        if answer not in (0, 1):
+        if answer == d.ESC:
             continue
 
-        is_public = (answer == 0)
+        is_public = (answer == d.OK)
         break
 
     image.meta['DESCRIPTION'] = description
@@ -351,8 +352,8 @@ def delete_clouds(session):
         d.msgbox("Nothing selected!", width=SMALL_WIDTH)
         return False
 
-    if not d.yesno("Are you sure you want to remove the selected accounts?",
-                   width=WIDTH, defaultno=1):
+    if d.yesno("Are you sure you want to remove the selected accounts?",
+               width=WIDTH, defaultno=1) == d.OK:
         for i in to_delete:
             Kamaki.remove_cloud(i)
             if 'cloud' in session and session['cloud'] == i:
@@ -452,8 +453,8 @@ def kamaki_menu(session):
                 session['account'] = Kamaki.get_account(answer)
 
                 if session['account'] is None:  # invalid account
-                    if not d.yesno("The cloud %s' is not valid! Would you "
-                                   "like to edit it?" % answer, width=WIDTH):
+                    if d.yesno("The cloud %s' is not valid! Would you like to "
+                               "edit it?" % answer, width=WIDTH) == d.OK:
                         if edit_cloud(session, answer):
                             session['account'] = Kamaki.get_account(answer)
                             Kamaki.set_default_cloud(answer)
@@ -500,7 +501,8 @@ def show_info(session):
 
             if os.path.exists(path):
                 if d.yesno("File: `%s' already exists. Do you want to "
-                           "overwrite it?" % path, width=WIDTH, defaultno=1):
+                           "overwrite it?" % path, width=WIDTH, defaultno=1
+                           ) != d.OK:
                     continue
 
             with open(path, 'w') as f:
@@ -588,7 +590,7 @@ def modify_properties(session):
             if code == d.DIALOG_OK:
                 if not add_property(session):
                     return True
-            elif code == d.DIALOG_CANCEL:
+            elif code == d.DIALOG_CANCEL or code == d.DIALOG_ESC:
                 return True
             elif code == d.DIALOG_HELP:
                 show_properties_help(session)
@@ -621,8 +623,8 @@ def modify_properties(session):
                     image.meta[choice] = value
             # Delete button
             elif code == d.DIALOG_EXTRA:
-                if not d.yesno("Are you sure you want to delete `%s' image "
-                               "property?" % choice, width=WIDTH):
+                if d.yesno("Are you sure you want to delete `%s' image "
+                           "property?" % choice, width=WIDTH) == d.OK:
                     del image.meta[choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
                              width=SMALL_WIDTH)
@@ -651,8 +653,8 @@ def exclude_tasks(session):
         session['excluded_tasks'] = []
 
     if -1 in session['excluded_tasks']:
-        if not d.yesno("Image deployment configuration is disabled. "
-                       "Do you wish to enable it?", width=SMALL_WIDTH):
+        if d.yesno("Image deployment configuration is disabled. "
+                   "Do you wish to enable it?", width=SMALL_WIDTH) == d.OK:
             session['excluded_tasks'].remove(-1)
         else:
             return False
@@ -851,7 +853,7 @@ def install_virtio_drivers(session):
     msg += "\nPress <Install> to continue with the installation of the " \
         "aforementioned drivers or <Cancel> to return to the previous menu."
     if d.yesno(msg, width=WIDTH, defaultno=1, height=11+len(new_drivers),
-               yes_label="Install", no_label="Cancel"):
+               yes_label="Install", no_label="Cancel") != d.OK:
         return False
 
     title = "VirtIO Drivers Installation"
@@ -884,7 +886,7 @@ def sysprep(session):
               "preparation tasks on a shrinked image is dangerous."
 
         if d.yesno("%s\n\nDo you really want to continue?" % msg,
-                   width=SMALL_WIDTH, defaultno=1):
+                   width=SMALL_WIDTH, defaultno=1) != d.OK:
             return
 
     wrapper = textwrap.TextWrapper(width=WIDTH-5)

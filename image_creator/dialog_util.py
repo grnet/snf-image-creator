@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -126,13 +126,13 @@ def update_background_title(session):
 
 def confirm_exit(d, msg=''):
     """Ask the user to confirm when exiting the program"""
-    return not d.yesno("%s Do you want to exit?" % msg, width=SMALL_WIDTH)
+    return d.yesno("%s Do you want to exit?" % msg, width=SMALL_WIDTH) == d.OK
 
 
 def confirm_reset(d):
     """Ask the user to confirm a reset action"""
-    return not d.yesno("Are you sure you want to reset everything?",
-                       width=SMALL_WIDTH, defaultno=1)
+    return d.yesno("Are you sure you want to reset everything?",
+                   width=SMALL_WIDTH, defaultno=1) == d.OK
 
 
 class Reset(Exception):
@@ -198,7 +198,7 @@ def extract_image(session):
         if len(overwrite) > 0:
             if d.yesno("The following file(s) exist:\n"
                        "%s\nDo you want to overwrite them?" %
-                       "\n".join(overwrite), width=SMALL_WIDTH):
+                       "\n".join(overwrite), width=SMALL_WIDTH) != d.OK:
                 continue
 
         gauge = GaugeOutput(d, "Image Extraction", "Extracting image...")
@@ -460,7 +460,7 @@ def copy_file(d, src, dest):
 
     if os.path.exists(dest):
         if d.yesno("File: `%s' exists! Are you sure you want to overwrite it?",
-                   defaultno=1, width=WIDTH):
+                   defaultno=1, width=WIDTH) != d.OK:
             return False
 
     shutil.copyfile(src, dest)

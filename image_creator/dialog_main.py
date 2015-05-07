@@ -91,7 +91,7 @@ def create_image(d, media, out, tmp, snapshot):
                 "you still want to continue with the image creation process." \
                 % image._unsupported
 
-            if not d.yesno(msg, width=WIDTH, defaultno=1, height=12):
+            if d.yesno(msg, width=WIDTH, defaultno=1, height=12) == d.OK:
                 main_menu(session)
 
             d.infobox("Thank you for using snf-image-creator. Bye", width=53)
@@ -175,25 +175,46 @@ def dialog_main(media, **kwargs):
 
     d = dialog.Dialog(dialog="dialog")
 
-    # Add extra button in dialog library
-    dialog._common_args_syntax["extra_button"] = \
-        lambda enable: dialog._simple_option("--extra-button", enable)
-    dialog._common_args_syntax["extra_label"] = \
-        lambda string: ("--extra-label", string)
+    # Add extra button in dialog library if missing
+    if 'extra_button' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["extra_button"] = \
+            lambda enable: dialog._simple_option("--extra-button", enable)
+    if 'extra_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["extra_label"] = \
+            lambda string: ("--extra-label", string)
 
-    # Allow yes-no label overwriting
-    dialog._common_args_syntax["yes_label"] = \
-        lambda string: ("--yes-label", string)
-    dialog._common_args_syntax["no_label"] = \
-        lambda string: ("--no-label", string)
+    # Allow yes-no label overwriting if missing
+    if 'yes_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["yes_label"] = \
+            lambda string: ("--yes-label", string)
+    if 'no_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["no_label"] = \
+            lambda string: ("--no-label", string)
 
-    # Add exit label overwriting
-    dialog._common_args_syntax["exit_label"] = \
-        lambda string: ("--exit-label", string)
+    # Add exit label overwriting if missing
+    if 'exit_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["exit_label"] = \
+            lambda string: ("--exit-label", string)
 
     # Monkey-patch pythondialog to include support for form dialog boxes
-    if not hasattr(dialog, 'form'):
+    if not hasattr(d, 'form'):
         d.form = types.MethodType(_dialog_form, d)
+
+    # Add sort dialog constants if missing
+    if not hasattr(d, 'OK'):
+        d.OK = d.DIALOG_OK
+
+    if not hasattr(d, 'CANCEL'):
+        d.CANCEL = d.DIALOG_CANCEL
+
+    if not hasattr(d, 'ESC'):
+        d.ESC = d.DIALOG_ESC
+
+    if not hasattr(d, 'EXTRA'):
+        d.EXTRA = d.DIALOG_EXTRA
+
+    if not hasattr(d, 'HELP'):
+        d.HELP = d.DIALOG_HELP
 
     d.setBackgroundTitle('snf-image-creator')
 
