@@ -98,9 +98,9 @@ def select_file(d, **kwargs):
 
         (code, fname) = d.fselect(default, 10, 60, extra_button=extra_button,
                                   title=title, extra_label="Bundle Host")
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return None
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             return os.sep
 
     return fname
@@ -281,7 +281,7 @@ def add_cloud(session):
         (code, output) = d.form("Add a new cloud account:", height=13,
                                 width=WIDTH, form_height=4, fields=fields)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         name, description, url, token = output
@@ -327,7 +327,7 @@ def edit_cloud(session, name):
         (code, output) = d.form("Edit cloud account: `%s'" % name, height=13,
                                 width=WIDTH, form_height=3, fields=fields)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         description, url, token = output
@@ -366,9 +366,9 @@ def _get_sysprep_param_value(session, param, default, title=None,
                                     extra_button=int(delete),
                                     extra_label="Delete")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return (None, False)
-        if code == d.DIALOG_EXTRA:
+        if code == d.EXTRA:
             return ("", True)
 
         value = answer.strip()
@@ -403,12 +403,12 @@ def update_sysprep_param(session, name, title=None):
                     ok_label="Edit", extra_button=1, extra_label="Add",
                     cancel="Back", default_item=str(default_item), title=name)
 
-                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                if code in (d.CANCEL, d.ESC):
                     return True
-                elif code == d.DIALOG_EXTRA:
+                elif code == d.EXTRA:
                     action = 'add'
                     default_value = ""
-                elif code == d.DIALOG_OK:
+                elif code == d.OK:
                     action = 'edit'
                     choice = int(choice)
                     default_value = choices[choice-1][1]

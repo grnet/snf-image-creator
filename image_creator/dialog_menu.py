@@ -124,7 +124,7 @@ def upload_image(session):
                                 height=11, width=WIDTH, form_height=2,
                                 fields=fields)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         name, container = output
@@ -227,7 +227,7 @@ def register_image(session):
             "Please provide the following registration info:", height=11,
             width=WIDTH, form_height=2, fields=fields)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         name, description = output
@@ -320,11 +320,11 @@ def modify_clouds(session):
             extra_button=1, extra_label="Add", cancel="Back", help_button=1,
             title="Clouds")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
-        elif code == d.DIALOG_OK:  # Edit button
+        elif code == d.OK:  # Edit button
             edit_cloud(session, choice)
-        elif code == d.DIALOG_EXTRA:  # Add button
+        elif code == d.EXTRA:  # Add button
             add_cloud(session)
 
 
@@ -345,7 +345,7 @@ def delete_clouds(session):
                                     choices=choices, width=WIDTH)
     to_delete = [x.strip('"') for x in to_delete]  # Needed for OpenSUSE
 
-    if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+    if code in (d.CANCEL, d.ESC):
         return False
 
     if not len(to_delete):
@@ -413,7 +413,7 @@ def kamaki_menu(session):
             menu_height=len(choices), default_item=default_item,
             title="Image Registration Menu")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         if choice == "Add/Edit":
@@ -447,7 +447,7 @@ def kamaki_menu(session):
 
             (code, answer) = d.radiolist("Please select a cloud:",
                                          width=WIDTH, choices=choices)
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+            if code in (d.CANCEL, d.ESC):
                 continue
             else:
                 session['account'] = Kamaki.get_account(answer)
@@ -492,7 +492,7 @@ def show_info(session):
         code = d.scrollbox(info, width=WIDTH, title="Registration info",
                            extra_label="Save", extra_button=1,
                            ok_label="Close")
-        if code == d.DIALOG_EXTRA:
+        if code == d.EXTRA:
             path = select_file(d, title="Save registration information as...")
             if path is None:
                 break
@@ -525,7 +525,7 @@ def add_property(session):
     while 1:
         (code, answer) = d.inputbox("Please provide a case-insensitive name "
                                     "for a new image property:", width=WIDTH)
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         name = answer.strip()
@@ -549,7 +549,7 @@ def add_property(session):
     while 1:
         (code, answer) = d.inputbox("Please provide a value for image "
                                     "property: `%s'" % name, width=WIDTH)
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         value = answer.strip()
@@ -587,12 +587,12 @@ def modify_properties(session):
             code = d.yesno(
                 "No image properties are available. "
                 "Would you like to add a new one?", width=WIDTH, help_button=1)
-            if code == d.DIALOG_OK:
+            if code == d.OK:
                 if not add_property(session):
                     return True
-            elif code == d.DIALOG_CANCEL or code == d.DIALOG_ESC:
+            elif code == d.CANCEL or code == d.ESC:
                 return True
-            elif code == d.DIALOG_HELP:
+            elif code == d.HELP:
                 show_properties_help(session)
             continue
 
@@ -605,16 +605,16 @@ def modify_properties(session):
             ok_label="Edit/Del", extra_button=1, extra_label="Add",
             cancel="Back", help_button=1, title="Image Properties")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
         # Edit button
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             (code, answer) = d.inputbox(
                 "Please provide a new value for `%s' image property or press "
                 "<Delete> to completely delete it." % choice,
                 init=image.meta[choice], width=WIDTH, extra_button=1,
                 extra_label="Delete")
-            if code == d.DIALOG_OK:
+            if code == d.OK:
                 value = answer.strip()
                 if len(value) == 0:
                     d.msgbox("Value cannot be empty!")
@@ -622,14 +622,14 @@ def modify_properties(session):
                 else:
                     image.meta[choice] = value
             # Delete button
-            elif code == d.DIALOG_EXTRA:
+            elif code == d.EXTRA:
                 if d.yesno("Are you sure you want to delete `%s' image "
                            "property?" % choice, width=WIDTH) == d.OK:
                     del image.meta[choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
                              width=SMALL_WIDTH)
         # ADD button
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             add_property(session)
         elif code == 'help':
             show_properties_help(session)
@@ -684,19 +684,19 @@ def exclude_tasks(session):
             title="Exclude Configuration Tasks")
         tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
-        elif code == d.DIALOG_HELP:
+        elif code == d.HELP:
             help_file = get_help_file("configuration_tasks")
             assert os.path.exists(help_file)
             d.textbox(help_file, title="Configuration Tasks",
                       width=70, height=40)
         # No Config button
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             session['excluded_tasks'] = [-1]
             session['task_metadata'] = ["EXCLUDE_ALL_TASKS"]
             break
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             session['excluded_tasks'] = []
             for tag in tags:
                 session['excluded_tasks'].append(mapping[int(tag)])
@@ -750,9 +750,9 @@ def sysprep_params(session):
 
         default = choice
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
-        elif code == d.DIALOG_OK:  # Details button
+        elif code == d.OK:  # Details button
             d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
         else:  # Update button
             update_sysprep_param(session, choice)
@@ -784,9 +784,9 @@ def virtio(session):
             title="VirtIO Drivers", extra_button=1, extra_label="Update",
             default_item=default_item)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             default_item = choice
 
             # Create a string with the driver details and display it.
@@ -924,13 +924,13 @@ def sysprep(session):
 
         tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             sysprep_params(session)
-        elif code == d.DIALOG_HELP:
+        elif code == d.HELP:
             d.scrollbox(sysprep_help, width=WIDTH)
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             # Enable selected syspreps and disable the rest
             for i in range(len(syspreps)):
                 if str(i + 1) in tags:
@@ -1009,7 +1009,7 @@ def show_log(session):
     while 1:
         code = d.textbox(log.name, title="Log", width=70, height=40,
                          extra_button=1, extra_label="Save", ok_label="Close")
-        if code == d.DIALOG_EXTRA:
+        if code == d.EXTRA:
             while 1:
                 path = select_file(d, title="Save log as...")
                 if path is None:
@@ -1052,7 +1052,7 @@ def customization_menu(session):
             menu_height=len(choices), default_item=choices[default_item][0],
             title="Image Customization Menu")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             break
         elif choice in actions:
             default_item = [entry[0] for entry in choices].index(choice)
@@ -1085,7 +1085,7 @@ def main_menu(session):
             default_item=default_item, menu_height=len(choices),
             title=title)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             if confirm_exit(d):
                 break
         elif choice == "Reset":

@@ -111,10 +111,10 @@ def create_image(d, media, out, tmp, snapshot):
         while True:
             code = d.yesno(msg, width=WIDTH, height=12, yes_label="Wizard",
                            no_label="Expert")
-            if code == d.DIALOG_OK:
+            if code == d.OK:
                 if start_wizard(session):
                     break
-            elif code == d.DIALOG_CANCEL:
+            elif code == d.CANCEL:
                 main_menu(session)
                 break
 

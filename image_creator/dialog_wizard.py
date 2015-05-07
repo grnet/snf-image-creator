@@ -84,11 +84,11 @@ class Wizard(object):
                     ok_label="Yes", cancel="Back", extra_button=1,
                     extra_label="Quit", title="Confirmation")
 
-                if ret == self.dialog.DIALOG_CANCEL:
+                if ret == self.dialog.CANCEL:
                     idx -= 1
-                elif ret == self.dialog.DIALOG_EXTRA:
+                elif ret == self.dialog.EXTRA:
                     return False
-                elif ret == self.dialog.DIALOG_OK:
+                elif ret == self.dialog.OK:
                     return True
 
             if idx < 0:
@@ -153,7 +153,7 @@ class WizardInputPage(WizardPage):
                                          extra_label=self.extra_label(),
                                          **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
 
         self.answer = self.validate(answer.strip())
@@ -181,13 +181,13 @@ class WizardInfoPage(WizardPage):
         ret = dialog.yesno(text, title=title, extra_label=self.extra_label(),
                            **self.dargs)
 
-        if ret in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if ret in (dialog.CANCEL, dialog.ESC):
             return self.PREV
-        elif ret == dialog.DIALOG_EXTRA:
+        elif ret == dialog.EXTRA:
             self.extra()
             raise WizardReloadPage
 
-        # DIALOG_OK
+        # OK
         self.answer = self.validate(None)
         return self.NEXT
 
@@ -211,7 +211,7 @@ class WizardFormPage(WizardPage):
                                      extra_label=self.extra_label(),
                                      default_item=self.default, **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
 
         self.answer = self.validate(output)
@@ -249,7 +249,7 @@ class WizardRadioListPage(WizardPageWthChoices):
                                           extra_label=self.extra_label(),
                                           title=title, **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
 
         self.answer = self.validate(answer)
@@ -279,9 +279,9 @@ class WizardMenuPage(WizardPageWthChoices):
                                      extra_label=self.extra_label(),
                                      default_item=default_item, **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
-        elif code == dialog.DIALOG_EXTRA:
+        elif code == dialog.EXTRA:
             self.extra()
             raise WizardReloadPage
 
