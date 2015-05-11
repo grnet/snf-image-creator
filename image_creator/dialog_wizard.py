@@ -28,7 +28,7 @@ from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 from image_creator.util import FatalError, virtio_versions
 from image_creator.output.cli import OutputWthProgress
 from image_creator.dialog_util import extract_image, update_background_title, \
-    add_cloud, edit_cloud, update_sysprep_param
+    add_cloud, edit_cloud, update_sysprep_param, create_form_elements
 
 PAGE_WIDTH = 70
 PAGE_HEIGHT = 12
@@ -206,8 +206,10 @@ class WizardFormPage(WizardPage):
         form_height = field_lenght if field_lenght < PAGE_HEIGHT - 4 \
             else PAGE_HEIGHT - 4
 
-        (code, output) = dialog.form(self.text(), form_height=form_height,
-                                     fields=self.fields(), title=title,
+        (code, output) = dialog.form(self.text(),
+                                     create_form_elements(self.fields(),
+                                                          self.dargs['width']),
+                                     form_height=form_height, title=title,
                                      extra_label=self.extra_label(),
                                      default_item=self.default, **self.dargs)
 

@@ -128,30 +128,37 @@ def create_image(d, media, out, tmp, snapshot):
     return 0
 
 
-def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
+def _dialog_form(self, text, elements, height=20, width=60, form_height=15,
                  **kwargs):
     """Display a form box.
-
-    fields is in the form: [(label1, item1, item_length1), ...]
+       Each element of *elements* must itself be a sequence
+       :samp:`({label}, {yl}, {xl}, {item}, {yi}, {xi}, {field_length},
+       {input_length})` containing the various parameters concerning a
+       given field and the associated label.
+       *label* is a string that will be displayed at row *yl*, column
+       *xl*. *item* is a string giving the initial value for the field,
+       which will be displayed at row *yi*, column *xi* (row and column
+       numbers starting from 1).
+       *field_length* and *input_length* are integers that respectively
+       specify the number of characters used for displaying the field
+       and the maximum number of characters that can be entered for
+       this field. These two integers also determine whether the
+       contents of the field can be modified, as follows:
+         - if *field_length* is zero, the field cannot be altered and
+           its contents determines the displayed length;
+         - if *field_length* is negative, the field cannot be altered
+           and the opposite of *field_length* gives the displayed
+           length;
+         - if *input_length* is zero, it is set to *field_length*.
     """
 
     cmd = ["--form", text, str(height), str(width), str(form_height)]
 
-    label_len = 0
-    for field in fields:
-        if len(field[0]) > label_len:
-            label_len = len(field[0])
+    for element in elements:
+        label, yl, xl, item, yi, xi, field_len, input_len = element[:8]
 
-    input_len = width - label_len - 1
-
-    line = 1
-    for field in fields:
-        label = field[0]
-        item = field[1]
-        item_len = field[2]
-        cmd.extend((label, str(line), str(1), item, str(line),
-                    str(label_len + 1), str(input_len), str(item_len)))
-        line += 1
+        cmd.extend((label, unicode(yl), unicode(xl), item, unicode(yi),
+                    unicode(xi), unicode(field_len), unicode(input_len)))
 
     code, output = self._perform(*(cmd,), **kwargs)
 

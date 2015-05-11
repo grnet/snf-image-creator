@@ -35,7 +35,7 @@ from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
     extract_image, add_cloud, edit_cloud, update_sysprep_param, select_file, \
-    copy_file
+    copy_file, create_form_elements
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"], lambda x: True),
@@ -121,8 +121,8 @@ def upload_image(session):
         fields = [("Remote Name:", name, 60), ("Container:", container, 60)]
 
         (code, output) = d.form("Please provide the following upload info:",
-                                height=11, width=WIDTH, form_height=2,
-                                fields=fields)
+                                create_form_elements(fields), height=11,
+                                width=WIDTH, form_height=2)
 
         if code in (d.CANCEL, d.ESC):
             return False
@@ -224,8 +224,9 @@ def register_image(session):
                   ("Description (optional):", description, 80)]
 
         (code, output) = d.form(
-            "Please provide the following registration info:", height=11,
-            width=WIDTH, form_height=2, fields=fields)
+            "Please provide the following registration info:",
+            create_form_elements(fields), height=11, width=WIDTH,
+            form_height=2)
 
         if code in (d.CANCEL, d.ESC):
             return False

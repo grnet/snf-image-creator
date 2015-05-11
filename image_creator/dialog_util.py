@@ -278,8 +278,9 @@ def add_cloud(session):
             ("Authentication URL: ", url, 200),
             ("Token:", token, 100)]
 
-        (code, output) = d.form("Add a new cloud account:", height=13,
-                                width=WIDTH, form_height=4, fields=fields)
+        (code, output) = d.form("Add a new cloud account:",
+                                create_form_elements(fields), height=13,
+                                width=WIDTH, form_height=4)
 
         if code in (d.CANCEL, d.ESC):
             return False
@@ -324,8 +325,9 @@ def edit_cloud(session, name):
             ("Authentication URL: ", url, 200),
             ("Token:", token, 100)]
 
-        (code, output) = d.form("Edit cloud account: `%s'" % name, height=13,
-                                width=WIDTH, form_height=3, fields=fields)
+        (code, output) = d.form("Edit cloud account: `%s'" % name,
+                                create_form_elements(fields), height=13,
+                                width=WIDTH, form_height=3)
 
         if code in (d.CANCEL, d.ESC):
             return False
@@ -466,5 +468,27 @@ def copy_file(d, src, dest):
     shutil.copyfile(src, dest)
     d.msgbox("File: `%s' was successfully written!")
     return True
+
+
+def create_form_elements(fields, width=WIDTH):
+    """Transform a list of (label, default, length) fields and transform it
+    to the element format that dialog.form() expects.
+    """
+
+    assert len(fields) > 0
+    assert width > 0
+
+    max_label = max([len(f[0]) for f in fields])
+    input_length = width - max_label - 1
+
+    elements = []
+
+    line = 1
+    for field in fields:
+        elements.append((field[0], line, 1, field[1], line, max_label+1,
+                         input_length, field[2]))
+        line += 1
+
+    return elements
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
