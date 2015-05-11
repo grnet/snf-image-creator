@@ -318,8 +318,7 @@ def modify_clouds(session):
             " ones. Press <Edit> to edit an existing account or <Add> to add "
             " a new one. Press <Back> or hit <ESC> when done.", height=18,
             width=WIDTH, choices=choices, menu_height=10, ok_label="Edit",
-            extra_button=1, extra_label="Add", cancel="Back", help_button=1,
-            title="Clouds")
+            extra_button=1, extra_label="Add", cancel="Back", title="Clouds")
 
         if code in (d.CANCEL, d.ESC):
             return True
