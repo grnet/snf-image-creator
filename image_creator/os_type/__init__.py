@@ -20,6 +20,7 @@ Systems for image creation.
 """
 
 from image_creator.util import FatalError
+from image_creator.bootloader import mbr_bootinfo
 
 import textwrap
 import re
@@ -320,6 +321,9 @@ class OSBase(object):
         """Collect metadata about the OS"""
 
         self.out.info('Collecting image metadata ...', False)
+
+        mbr = self.image.g.pread_device('/dev/sda', 512, 0)
+        self.meta['BOOTSTRAP'] = mbr_bootinfo(mbr)
 
         with self.mount(readonly=True, silent=True):
             self._do_collect_metadata()
