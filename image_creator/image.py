@@ -299,8 +299,8 @@ class Image(object):
         """Shrink the image.
 
         This is accomplished by shrinking the last file system of the
-        image and then updating the partition table. The new disk size
-        (in bytes) is returned.
+        image and then updating the partition table. The shrinked device is
+        returned.
 
         ATTENTION: make sure umount is called before shrink
         """
@@ -351,7 +351,7 @@ class Image(object):
         if self.is_unsupported():
             if not silent:
                 self.out.warn("Shrinking is disabled for unsupported images")
-            return self.size
+            return None
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
 
@@ -381,7 +381,7 @@ class Image(object):
             if not silent:
                 self.out.warn(
                     "Don't know how to shrink %s partitions." % fstype)
-            return self.size
+            return None
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
 
@@ -461,7 +461,7 @@ class Image(object):
             self.out.success("Image size is %dMB" %
                              ((self.size + MB - 1) // MB))
 
-        return self.size
+        return part_dev
 
     def mount(self, mpoint, readonly=False):
         """Mount the image file system under a local directory"""
