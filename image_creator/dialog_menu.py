@@ -103,14 +103,23 @@ def upload_image(session):
     d = session["dialog"]
     image = session['image']
 
-    if "account" not in session:
+    assert 'clouds' in session
+
+    try:
+        cloud_name = session['current_cloud']
+        cloud = session['clouds'][cloud_name]
+        account = cloud['account']
+    except KeyError:
+        cloud = None
+
+    if cloud is None or not account:
         d.msgbox("You need to select a valid cloud before you can upload "
                  "images to it", width=SMALL_WIDTH)
         return False
 
     while 1:
-        if 'uploaded' in session:
-            _, _, _, container, name = session['uploaded'].split('/')
+        if 'uploaded' in cloud:
+            _, _, _, container, name = cloud['uploaded'].split('/')
         elif 'OS' in session['image'].meta:
             name = "%s.diskdump" % session['image'].meta['OS']
             container = CONTAINER
@@ -139,7 +148,7 @@ def upload_image(session):
             d.msgbox("Container cannot be empty", width=SMALL_WIDTH)
             continue
 
-        kamaki = Kamaki(session['account'], None)
+        kamaki = Kamaki(cloud['account'], None)
         overwrite = []
         for f in (name, "%s.md5sum" % name, "%s.meta" % name):
             if kamaki.object_exists(container, f):
@@ -166,7 +175,7 @@ def upload_image(session):
                 # Upload image file
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
-                        session["uploaded"] = \
+                        cloud["uploaded"] = \
                             kamaki.upload(f, image.size, name, container,
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
@@ -183,8 +192,8 @@ def upload_image(session):
                 d.msgbox(
                     "Error in storage service client: %s" % e.message,
                     title="Storage Service Client Error", width=SMALL_WIDTH)
-                if 'uploaded' in session:
-                    del session['uploaded']
+                if 'uploaded' in cloud:
+                    del cloud['uploaded']
                 return False
         finally:
             out.remove(gauge)
@@ -202,26 +211,33 @@ def register_image(session):
     d = session["dialog"]
     image = session['image']
 
-    is_public = False
+    assert 'clouds' in session
 
-    if "account" not in session:
-        d.msgbox("You need to select a valid cloud before you "
-                 "can register an images with it", width=SMALL_WIDTH)
+    try:
+        cloud_name = session['current_cloud']
+        cloud = session['clouds'][cloud_name]
+        account = cloud['account']
+    except KeyError:
+        cloud = None
+
+    if cloud is None or account is None:
+        d.msgbox("You need to select a valid cloud before you can register an "
+                 "images with it", width=SMALL_WIDTH)
         return False
 
-    if "uploaded" not in session:
-        d.msgbox("You need to upload the image to the cloud before you can "
+    if "uploaded" not in cloud:
+        d.msgbox("You need to upload the image to a cloud before you can "
                  "register it", width=SMALL_WIDTH)
         return False
-    _, _, _, container, remote = session['uploaded'].split('/')
 
-    name = "" if 'registered' not in session else session['registered'].name
-    description = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta \
-        else ""
+    is_public = False
+    _, _, _, container, remote = cloud['uploaded'].split('/')
+    name = "" if 'registered' not in cloud else cloud['registered']
+    descr = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta else ""
 
     while 1:
         fields = [("Registration name:", name, 60),
-                  ("Description (optional):", description, 80)]
+                  ("Description (optional):", descr, 80)]
 
         (code, output) = d.form(
             "Please provide the following registration info:",
@@ -231,9 +247,9 @@ def register_image(session):
         if code in (d.CANCEL, d.ESC):
             return False
 
-        name, description = output
+        name, descr = output
         name = name.strip()
-        description = description.strip()
+        descr = descr.strip()
 
         if len(name) == 0:
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
@@ -248,7 +264,7 @@ def register_image(session):
         is_public = (answer == d.OK)
         break
 
-    image.meta['DESCRIPTION'] = description
+    image.meta['DESCRIPTION'] = descr
     metadata = {}
     metadata.update(image.meta)
     if 'task_metadata' in session:
@@ -264,14 +280,14 @@ def register_image(session):
             try:
                 out.info("Registering %s image with the cloud ..." % img_type,
                          False)
-                kamaki = Kamaki(session['account'], out)
-                session['registered'] = kamaki.register(
-                    name, session['uploaded'], metadata, is_public)
+                kamaki = Kamaki(cloud['account'], out)
+                cloud['registered'] = kamaki.register(
+                    name, cloud['uploaded'], metadata, is_public)
                 out.success('done')
 
                 # Upload metadata file
                 out.info("Uploading metadata file ...", False)
-                metastring = unicode(json.dumps(session['registered'],
+                metastring = unicode(json.dumps(cloud['registered'],
                                                 indent=4, ensure_ascii=False))
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
@@ -356,10 +372,10 @@ def delete_clouds(session):
                width=WIDTH, defaultno=1) == d.OK:
         for i in to_delete:
             Kamaki.remove_cloud(i)
-            if 'cloud' in session and session['cloud'] == i:
-                del session['cloud']
-                if 'account' in session:
-                    del session['account']
+            if i in session['clouds']:
+                del session['clouds'][i]
+            if 'current_cloud' in session and session['current_cloud'] == i:
+                del session['current_cloud']
     else:
         return False
 
@@ -368,44 +384,125 @@ def delete_clouds(session):
     return True
 
 
+def select_cloud(session):
+    """Select one of the existing cloud accounts"""
+    d = session['dialog']
+
+    clouds = Kamaki.get_clouds()
+    if not len(clouds):
+        d.msgbox("No clouds available. Please add a new cloud!",
+                 width=SMALL_WIDTH)
+        return False
+
+    try:
+        current = session['current_cloud']
+    except KeyError:
+        current = clouds.key()[0]
+        session['current_cloud'] = current
+
+    choices = []
+    for name, info in clouds.items():
+        default = 1 if current == name else 0
+        descr = info['description'] if 'description' in info else ""
+        choices.append((name, descr, default))
+
+    (code, answer) = d.radiolist("Please select a cloud:", width=WIDTH,
+                                 choices=choices)
+    if code in (d.CANCEL, d.ESC):
+        return True
+
+    if answer not in session['clouds']:
+        session['clouds'][answer] = {}
+
+    cloud = session['clouds'][answer]
+    cloud['account'] = Kamaki.get_account(answer)
+
+    if cloud['account'] is None:  # invalid account
+        if d.yesno("The cloud %s' is not valid! Would you like to edit it?"
+                   % answer, width=WIDTH) == d.OK:
+            if edit_cloud(session, answer):
+                session['current_cloud'] = answer
+                cloud['account'] = Kamaki.get_account(answer)
+                Kamaki.set_default_cloud(answer)
+
+    if cloud['account'] is not None:
+        session['current_cloud'] = answer
+        Kamaki.set_default_cloud(answer)
+        return True
+    else:
+        del cloud['account']
+        del session['current_cloud']
+
+
 def kamaki_menu(session):
     """Show kamaki related actions"""
     d = session['dialog']
 
-    if 'registered' in session:
-        default_item = "Info"
-    elif 'uploaded' in session:
-        default_item = "Register"
-    else:
-        default_item = "Upload"
+    try:
+        clouds = session['clouds']
+    except KeyError:
+        clouds = {}
+        session['clouds'] = clouds
 
-    if 'cloud' not in session:
-        cloud = Kamaki.get_default_cloud_name()
-        if cloud:
-            session['cloud'] = cloud
-            session['account'] = Kamaki.get_account(cloud)
-            if not session['account']:
-                del session['account']
-        else:
-            default_item = "Add/Edit"
+    default_item = "Add/Edit"
+
+    try:
+        current = session['current_cloud']
+    except KeyError:
+        current = Kamaki.get_default_cloud_name()
+        if not current:
+            try:
+                current = Kamaki.get_clouds().key()[0]
+            except IndexError:
+                # No available cloud
+                pass
+        session['current_cloud'] = current
+
+    if current:
+        if current not in clouds:
+            clouds[current] = {}
+
+        try:
+            account = clouds[current]['account']
+        except KeyError:
+            account = Kamaki.get_account(current)
+            clouds[current]['account'] = account
+
+        if account:
+            if 'registered' in clouds[current]:
+                default_item = "Info"
+            elif 'uploaded' in clouds[current]:
+                default_item = "Register"
+            else:
+                default_item = "Upload"
 
     while 1:
-        cloud = session["cloud"] if "cloud" in session else "<none>"
-        if 'account' not in session and 'cloud' in session:
-            cloud += " <invalid>"
+        current = session['current_cloud'] if 'current_cloud' in session else \
+            None
+        if current:
+            if current not in session['clouds']:
+                session['clouds'][current] = {}
+
+            cloud = current
+            if 'account' not in clouds[current]:
+                clouds[current]['account'] = Kamaki.get_account(current)
+                if not clouds[current]['account']:
+                    cloud += " <invalid>"
+        else:
+            cloud = '<none>'
 
         choices = [("Add/Edit", "Add/Edit cloud accounts"),
                    ("Delete", "Delete existing cloud accounts"),
                    ("Cloud", "Select cloud account to use: %s" % cloud),
                    ("Upload", "Upload image to the cloud")]
 
-        if 'uploaded' in session:
-            _, _, _, _, name = session['uploaded'].split('/')
+        if current and 'uploaded' in clouds[current]:
+            _, _, _, _, name = clouds[current]['uploaded'].split('/')
             choices.append(("Register", "Register image with the cloud: %s"
                             % name))
-        if 'registered' in session:
+        if current and 'registered' in clouds[current]:
             choices.append(("Info", "Show registration info for \"%s\"" %
-                            session['registered']['name']))
+                            clouds[current]['registered']['name']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -428,44 +525,10 @@ def kamaki_menu(session):
             else:
                 default_item = "Delete"
         elif choice == "Cloud":
-            default_item = "Cloud"
-            clouds = Kamaki.get_clouds()
-            if not len(clouds):
-                d.msgbox("No clouds available. Please add a new cloud!",
-                         width=SMALL_WIDTH)
-                default_item = "Add/Edit"
-                continue
-
-            if 'cloud' not in session:
-                session['cloud'] = clouds.keys()[0]
-
-            choices = []
-            for name, info in clouds.items():
-                default = 1 if session['cloud'] == name else 0
-                descr = info['description'] if 'description' in info else ""
-                choices.append((name, descr, default))
-
-            (code, answer) = d.radiolist("Please select a cloud:",
-                                         width=WIDTH, choices=choices)
-            if code in (d.CANCEL, d.ESC):
-                continue
+            if select_cloud(session):
+                default_item = "Cloud"
             else:
-                session['account'] = Kamaki.get_account(answer)
-
-                if session['account'] is None:  # invalid account
-                    if d.yesno("The cloud %s' is not valid! Would you like to "
-                               "edit it?" % answer, width=WIDTH) == d.OK:
-                        if edit_cloud(session, answer):
-                            session['account'] = Kamaki.get_account(answer)
-                            Kamaki.set_default_cloud(answer)
-
-                if session['account'] is not None:
-                    session['cloud'] = answer
-                    Kamaki.set_default_cloud(answer)
-                    default_item = "Upload"
-                else:
-                    del session['account']
-                    del session['cloud']
+                default_item = 'Add/Edit'
         elif choice == "Upload":
             if upload_image(session):
                 default_item = "Register"
@@ -483,8 +546,13 @@ def kamaki_menu(session):
 def show_info(session):
     """Show registration info"""
 
-    assert 'registered' in session
-    info = json.dumps(session['registered'], ensure_ascii=False, indent=4)
+    assert 'current_cloud' in session
+    assert session['current_cloud'] in session['clouds']
+    cloud = session['clouds']['current_cloud']
+
+    assert 'registered' in cloud
+
+    info = json.dumps(cloud['registered'], ensure_ascii=False, indent=4)
 
     d = session['dialog']
 
