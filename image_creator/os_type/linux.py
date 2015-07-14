@@ -288,6 +288,9 @@ class Linux(Unix):
         device references with UUIDs.
         """
 
+        if not self.image.g.is_file('/etc/fstab'):
+            self.out.warn("Omitted! File: `/etc/fstab' does not exist")
+
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
 
