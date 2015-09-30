@@ -172,13 +172,9 @@ class Kamaki(object):
     def register(self, name, location, metadata, public=False):
         """Register an image with Cyclades"""
 
-        # Convert all metadata to strings
-        str_metadata = {}
-        for (key, value) in metadata.iteritems():
-            str_metadata[str(key)] = str(value)
         is_public = 'true' if public else 'false'
         params = {'is_public': is_public, 'disk_format': 'diskdump'}
-        return self.image.register(name, location, params, str_metadata)
+        return self.image.register(name, location, params, metadata)
 
     def share(self, location):
         """Share this file with all the users"""
