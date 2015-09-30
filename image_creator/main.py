@@ -38,6 +38,7 @@ import textwrap
 import tempfile
 import subprocess
 import time
+import re
 
 
 def check_writable_dir(option, opt_str, value, parser):
@@ -187,6 +188,7 @@ def parse_options(input_args):
         parser.error("The directory `%s' specified with --tmpdir is not valid"
                      % options.tmp)
 
+    metadata_regexp = re.compile('^[A-Za-z_]+$')
     meta = {}
     for m in options.metadata:
         try:
@@ -194,6 +196,9 @@ def parse_options(input_args):
         except ValueError:
             parser.error("Metadata option: `%s' is not in KEY=VALUE format." %
                          m)
+        if not re.match(metadata_regexp, key):
+            parser.error("Metadata key: `%s' is not valid. Allowed characters "
+                         "for key: [a-zA-Z0-9_]." % key)
         meta[key.upper()] = value
     options.metadata = meta
 
@@ -442,7 +447,7 @@ def image_creator(options, out):
                 out.info("Uploading metadata file ...", False)
                 metastring = unicode(json.dumps(result, ensure_ascii=False,
                                                 indent=4))
-                kamaki.upload(StringIO.StringIO(metastring),
+                kamaki.upload(StringIO.StringIO(metastring.encode('utf8')),
                               size=len(metastring),
                               remote_path="%s.%s" % (options.upload, 'meta'),
                               container=options.container,

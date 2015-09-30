@@ -495,7 +495,8 @@ def create_image(session, answers):
                                      answers['RegistrationType'] == "Public")
             image.out.success('done')
             image.out.info("Uploading metadata file ...", False)
-            metastring = unicode(json.dumps(result, ensure_ascii=False))
+            metastring = unicode(
+                json.dumps(result, ensure_ascii=False)).encode('utf8')
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
                           remote_path="%s.%s" % (name, 'meta'),
                           container=CONTAINER, content_type="application/json")
