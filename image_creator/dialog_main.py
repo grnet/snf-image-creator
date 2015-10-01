@@ -21,11 +21,13 @@ snf-image-creator program. The main function will create a dialog where the
 user is asked if he wants to use the program in expert or wizard mode.
 """
 
+from __future__ import unicode_literals
+
 import dialog
 import sys
 import os
 import signal
-import optparse
+import argparse
 import types
 import termios
 import traceback
@@ -278,27 +280,22 @@ def main():
         sys.stderr.write("Error: You must run %s as root\n" % PROGNAME)
         sys.exit(2)
 
-    usage = "Usage: %prog [options] [<input_media>]"
-    parser = optparse.OptionParser(version=version, usage=usage)
-    parser.add_option("-l", "--logfile", type="string", dest="logfile",
-                      default=None, help="log all messages to FILE",
-                      metavar="FILE")
-    parser.add_option("--no-snapshot", dest="snapshot", default=True,
-                      help="don't snapshot the input media. (THIS IS "
-                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
-                      action="store_false")
-    parser.add_option("--syslog", dest="syslog", default=False,
-                      help="log to syslog", action="store_true")
-    parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
-                      help="create large temporary image files under DIR",
-                      metavar="DIR")
+    description = "Dialog-based tool for creating OS images"
+    parser = argparse.ArgumentParser(version=version, description=description)
+    parser.add_argument("-l", "--logfile", dest="logfile", metavar="FILE",
+                        default=None, help="log all messages to FILE")
+    parser.add_argument("--no-snapshot", dest="snapshot", default=True,
+                        help="don't snapshot the input media. (THIS IS "
+                        "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
+                        action="store_false")
+    parser.add_argument("--syslog", dest="syslog", default=False,
+                        help="log to syslog", action="store_true")
+    parser.add_argument("--tmpdir", dest="tmp", default=None, metavar="DIR",
+                        help="create large temporary image files under DIR")
+    parser.add_argument("source", metavar="SOURCE", default=None, nargs='?',
+                        help="Image file, block device or /")
 
-    opts, args = parser.parse_args(sys.argv[1:])
-
-    if len(args) > 1:
-        parser.error("Wrong number of arguments")
-
-    media = args[0] if len(args) == 1 else None
+    opts = parser.parse_args()
 
     if opts.tmp is not None and not os.path.isdir(opts.tmp):
         parser.error("Directory: `%s' specified with --tmpdir is not valid"
@@ -314,7 +311,7 @@ def main():
         # Save the terminal attributes
         attr = termios.tcgetattr(sys.stdin.fileno())
         try:
-            ret = dialog_main(media, logfile=logfile, tmpdir=opts.tmp,
+            ret = dialog_main(opts.source, logfile=logfile, tmpdir=opts.tmp,
                               snapshot=opts.snapshot, syslog=opts.syslog)
         finally:
             # Restore the terminal attributes. If an error occurs make sure

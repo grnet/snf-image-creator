@@ -287,8 +287,8 @@ def register_image(session):
 
                 # Upload metadata file
                 out.info("Uploading metadata file ...", False)
-                metastring = unicode(json.dumps(cloud['registered'],
-                                                indent=4, ensure_ascii=False))
+                metastring = json.dumps(cloud['registered'], indent=4,
+                                        ensure_ascii=False)
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
                               remote_path="%s.meta" % remote,

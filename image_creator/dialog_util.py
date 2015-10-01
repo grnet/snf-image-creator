@@ -148,8 +148,8 @@ def extract_metadata_string(session):
         for key in session['task_metadata']:
             metadata[key] = 'yes'
 
-    return unicode(json.dumps({'properties': metadata,
-                               'disk-format': 'diskdump'}, ensure_ascii=False))
+    return json.dumps({'properties': metadata, 'disk-format': 'diskdump'},
+                      ensure_ascii=False)
 
 
 def extract_image(session):

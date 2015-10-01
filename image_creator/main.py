@@ -20,6 +20,8 @@
 snf-image-creator program.
 """
 
+from __future__ import unicode_literals
+
 from image_creator import __version__ as version
 from image_creator.disk import Disk
 from image_creator.util import FatalError
@@ -30,7 +32,7 @@ from image_creator.output.syslog import SyslogOutput
 from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 import sys
 import os
-import optparse
+import argparse
 import StringIO
 import signal
 import json
@@ -41,136 +43,167 @@ import time
 import re
 
 
-def check_writable_dir(option, opt_str, value, parser):
+class CheckWritableDir(argparse.Action):
     """Check if a directory is writable"""
-    dirname = os.path.dirname(value)
-    name = os.path.basename(value)
-    if dirname and not os.path.isdir(dirname):
-        raise FatalError("`%s' is not an existing directory" % dirname)
+    def __call__(self, parser, namespace, value, option):
 
-    if not name:
-        raise FatalError("`%s' is not a valid file name" % dirname)
+        if getattr(namespace, self.dest):
+            raise argparse.ArgumentError(self,
+                                         "Argument defined multiple times")
 
-    setattr(parser.values, option.dest, value)
+        dirname = os.path.dirname(value)
+        name = os.path.basename(value)
+
+        if dirname and not os.path.isdir(dirname):
+            raise argparse.ArgumentError(
+                self, "`%s' is not an existing directory" % dirname)
+        if not os.access(dirname, os.W_OK):
+            raise argparse.ArgumentError(
+                self, "`%s' is not writable" % dirname)
+        if not name:
+            raise argparse.ArgumentError(
+                self, "`%s' is not a valid file name" % dirname)
+
+        setattr(namespace, self.dest, value.decode(sys.stdin.encoding))
 
 
-def parse_options(input_args):
+class AddKeyValue(argparse.Action):
+    """Add key value options"""
+    def __call__(self, parser, namespace, value, option):
+
+        dest = getattr(namespace, self.dest)
+        if not dest:
+            dest = {}
+
+        value = value.decode(sys.stdin.encoding)
+        try:
+            key, val = value.split('=', 1)
+        except ValueError:
+            raise argparse.ArgumentError(
+                self, "`%s' is not in KEY=VALUE format." % value)
+        dest[key.upper()] = val
+
+        setattr(namespace, self.dest, dest)
+
+
+def parse_options():
     """Parse input parameters"""
-    usage = "Usage: %prog [options] <input_media>"
-    parser = optparse.OptionParser(version=version, usage=usage)
+    description = "Command-line tool for creating OS images"
+    parser = argparse.ArgumentParser(version=version, description=description)
 
-    parser.add_option("-a", "--authentication-url", dest="url", type="string",
-                      default=None, help="use this authentication URL when "
-                      "uploading/registering images")
+    parser.add_argument("source", metavar="SOURCE",
+                        help="Image file, block device or /")
+    parser.add_argument(
+        "-a", "--authentication-url", dest="url", default=None,
+        help="use this authentication URL when uploading/registering images")
 
-    parser.add_option("--add-timestamp", dest="timestamp", default=False,
-                      help="Add a timestamp when outputting messages",
-                      action="store_true")
+    parser.add_argument(
+        "--add-timestamp", dest="timestamp", default=False,
+        help="Add a timestamp when outputting messages", action="store_true")
 
-    parser.add_option("--allow-unsupported", dest="allow_unsupported",
-                      help="proceed with the image creation even if the media "
-                      "is not supported", default=False, action="store_true")
+    parser.add_argument(
+        "--allow-unsupported", dest="allow_unsupported",
+        help="proceed with the image creation even if the media is not "
+        "supported", default=False, action="store_true")
 
-    parser.add_option("-c", "--cloud", dest="cloud", type="string",
-                      default=None, help="use this saved cloud account to "
-                      "authenticate against a cloud when "
-                      "uploading/registering images")
+    parser.add_argument(
+        "-c", "--cloud", dest="cloud", default=None,
+        help="use this saved cloud account to authenticate against a cloud "
+             "when uploading/registering images")
 
-    parser.add_option("--container", dest="container", type="string",
-                      default=CONTAINER, help="Upload files to CONTAINER "
-                      "[default: %s]" % CONTAINER)
+    parser.add_argument(
+        "--container", dest="container", default=CONTAINER,
+        help="Upload files to CONTAINER [default: %s]" % CONTAINER)
 
-    parser.add_option("--disable-sysprep", dest="disabled_syspreps",
-                      help="prevent SYSPREP operation from running on the "
-                      "input media", default=[], action="append",
-                      metavar="SYSPREP")
+    parser.add_argument(
+        "--disable-sysprep", dest="disabled_syspreps",
+        help="prevent SYSPREP operation from running on the input media",
+        default=[], action="append", metavar="SYSPREP")
 
-    parser.add_option("--enable-sysprep", dest="enabled_syspreps", default=[],
-                      help="run SYSPREP operation on the input media",
-                      action="append", metavar="SYSPREP")
+    parser.add_argument(
+        "--enable-sysprep", dest="enabled_syspreps", default=[],
+        help="run SYSPREP operation on the input media", action="append",
+        metavar="SYSPREP")
 
-    parser.add_option("-f", "--force", dest="force", default=False,
-                      action="store_true",
-                      help="overwrite output files if they exist")
+    parser.add_argument(
+        "-f", "--force", dest="force", default=False, action="store_true",
+        help="overwrite output files if they exist")
 
-    parser.add_option("--host-run", dest="host_run", default=[],
-                      help="mount the media in the host and run a script "
-                      "against the guest media. This option may be defined "
-                      "multiple times. The script's working directory will be "
-                      "the guest's root directory. BE CAREFUL! DO NOT USE "
-                      "ABSOLUTE PATHS INSIDE THE SCRIPT! YOU MAY HARM YOUR "
-                      "SYSTEM!", metavar="SCRIPT", action="append")
+    parser.add_argument(
+        "--host-run", dest="host_run", default=[],
+        help="mount the media in the host and run a script against the guest "
+             "media. This option may be defined multiple times. The script's "
+             "working directory will be the guest's root directory. BE "
+             "CAREFUL! DO NOT USE ABSOLUTE PATHS INSIDE THE SCRIPT! YOU MAY "
+             "HARM YOUR SYSTEM!",
+        metavar="SCRIPT", action="append")
 
-    parser.add_option("--install-virtio", dest="virtio", type="string",
-                      help="install VirtIO drivers hosted under DIR "
-                      "(Windows only)", metavar="DIR")
+    parser.add_argument(
+        "--install-virtio", dest="virtio", metavar="DIR",
+        help="install VirtIO drivers hosted under DIR (Windows only)")
 
-    parser.add_option("-m", "--metadata", dest="metadata", default=[],
-                      help="add custom KEY=VALUE metadata to the image",
-                      action="append", metavar="KEY=VALUE")
+    parser.add_argument(
+        "-m", "--metadata", dest="metadata", default={}, action=AddKeyValue,
+        help="add custom KEY=VALUE metadata to the image", metavar="KEY=VALUE")
 
-    parser.add_option("--no-snapshot", dest="snapshot", default=True,
-                      help="don't snapshot the input media. (THIS IS "
-                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
-                      action="store_false")
+    parser.add_argument(
+        "--no-snapshot", dest="snapshot", default=True,
+        help="don't snapshot the input media. (THIS IS DANGEROUS AS IT WILL "
+             "ALTER THE ORIGINAL MEDIA!!!)", action="store_false")
 
-    parser.add_option("--no-sysprep", dest="sysprep", default=True,
-                      help="don't perform any system preparation operation",
-                      action="store_false")
+    parser.add_argument("--no-sysprep", dest="sysprep", default=True,
+                        help="don't perform any system preparation operation",
+                        action="store_false")
 
-    parser.add_option("-o", "--outfile", type="string", dest="outfile",
-                      default=None, action="callback", metavar="FILE",
-                      callback=check_writable_dir, help="dump image to FILE")
+    parser.add_argument("-o", "--outfile", dest="outfile", default=None,
+                        action=CheckWritableDir, metavar="FILE",
+                        help="dump image to FILE")
 
-    parser.add_option("--print-metadata", dest="print_metadata", default=False,
-                      help="print the detected image metadata",
-                      action='store_true')
+    parser.add_argument("--print-metadata", dest="print_metadata",
+                        action='store_true', default=False,
+                        help="print the detected image metadata")
 
-    parser.add_option("--print-syspreps", dest="print_syspreps", default=False,
-                      help="print the enabled and disabled system preparation "
-                      "operations for this input media", action="store_true")
+    parser.add_argument(
+        "--print-syspreps", dest="print_syspreps", default=False,
+        help="print the enabled and disabled system preparation operations "
+             "for this input media", action="store_true")
 
-    parser.add_option("--print-sysprep-params", dest="print_sysprep_params",
-                      default=False, action="store_true",
-                      help="print the defined system preparation parameters "
-                      "for this input media")
+    parser.add_argument(
+        "--print-sysprep-params", dest="print_sysprep_params", default=False,
+        help="print the defined system preparation parameters for this input "
+        "media", action="store_true")
 
-    parser.add_option("--public", dest="public", default=False,
-                      help="register image with the cloud as public",
-                      action="store_true")
+    parser.add_argument("--public", dest="public", default=False,
+                        help="register image with the cloud as public",
+                        action="store_true")
 
-    parser.add_option("-r", "--register", dest="register", type="string",
-                      default=False, metavar="IMAGENAME",
-                      help="register the image with a cloud as IMAGENAME")
+    parser.add_argument("-r", "--register", dest="register", default=False,
+                        metavar="IMAGENAME",
+                        help="register the image with a cloud as IMAGENAME")
 
-    parser.add_option("-s", "--silent", dest="silent", default=False,
-                      help="output only errors", action="store_true")
+    parser.add_argument("-s", "--silent", dest="silent", default=False,
+                        help="output only errors", action="store_true")
 
-    parser.add_option('--syslog', dest="syslog", default=False,
-                      help="log to syslog", action="store_true")
+    parser.add_argument('--syslog', dest="syslog", default=False,
+                        help="log to syslog", action="store_true")
 
-    parser.add_option("--sysprep-param", dest="sysprep_params", default=[],
-                      help="add KEY=VALUE system preparation parameter",
-                      action="append")
+    parser.add_argument("--sysprep-param", dest="sysprep_params", default={},
+                        help="add KEY=VALUE system preparation parameter",
+                        action=AddKeyValue)
 
-    parser.add_option("-t", "--token", dest="token", type="string",
-                      default=None, help="use this authentication token when "
-                      "uploading/registering images")
+    parser.add_argument(
+        "-t", "--token", dest="token", default=None,
+        help="use this authentication token when uploading/registering images")
 
-    parser.add_option("--tmpdir", dest="tmp", type="string", default=None,
-                      help="create large temporary image files under DIR",
-                      metavar="DIR")
+    parser.add_argument("--tmpdir", dest="tmp", default=None, metavar="DIR",
+                        help="create large temporary image files under DIR")
 
-    parser.add_option("-u", "--upload", dest="upload", type="string",
-                      default=False, metavar="FILENAME",
-                      help="upload the image to the cloud with name FILENAME")
+    parser.add_argument(
+        "-u", "--upload", dest="upload", default=None, metavar="FILENAME",
+        help="upload the image to the cloud with name FILENAME")
 
-    options, args = parser.parse_args(input_args)
+    options = parser.parse_args()
 
-    if len(args) != 1:
-        parser.error('Wrong number of arguments')
-
-    options.source = args[0]
     if not os.path.exists(options.source):
         parser.error("Input media `%s' is not accessible" % options.source)
 
@@ -188,32 +221,23 @@ def parse_options(input_args):
         parser.error("The directory `%s' specified with --tmpdir is not valid"
                      % options.tmp)
 
-    metadata_regexp = re.compile('^[A-Za-z_]+$')
-    meta = {}
-    for m in options.metadata:
-        try:
-            key, value = m.split('=', 1)
-        except ValueError:
-            parser.error("Metadata option: `%s' is not in KEY=VALUE format." %
-                         m)
-        if not re.match(metadata_regexp, key):
-            parser.error("Metadata key: `%s' is not valid. Allowed characters "
-                         "for key: [a-zA-Z0-9_]." % key)
-        meta[key.upper()] = value
-    options.metadata = meta
+    # Convert input attributes to unicode
+    for opt in ('url', 'cloud', 'container', 'outfile', 'register', 'token',
+                'tmp', 'upload', 'virtio'):
+        attr = getattr(options, opt)
+        if attr:
+            setattr(options, opt, attr.decode(sys.stdin.encoding))
 
-    sysprep_params = {}
-    for p in options.sysprep_params:
-        try:
-            key, value = p.split('=', 1)
-        except ValueError:
-            parser.error("Sysprep parameter option: `%s' is not in KEY=VALUE "
-                         "format." % p)
-        sysprep_params[key] = value
+    options.host_run = [h.decode(sys.stdin.encoding) for h in options.host_run]
+
+    metadata_regexp = re.compile('^[A-Za-z_]+$')
+    for m in options.metadata:
+        if not re.match(metadata_regexp, m):
+            parser.error("Metadata key: `%s' is not valid. Allowed characters "
+                         "for key: [a-zA-Z0-9_]." % m)
 
     if options.virtio is not None:
-        sysprep_params['virtio'] = options.virtio
-    options.sysprep_params = sysprep_params
+        options.sysprep_params['virtio'] = options.virtio
 
     if options.outfile is None and not options.upload and not \
             options.print_syspreps and not options.print_sysprep_params \
@@ -331,6 +355,11 @@ def image_creator(options, out):
             else:
                 out.warn("Sysprep: `%s' does not exist. Can't enable it." %
                          name)
+        if image.is_unsupported():
+            image.meta['EXCLUDE_ALL_TASKS'] = "yes"
+
+        # Add command line metadata to the collected ones...
+        image.meta.update(options.metadata)
 
         if options.print_syspreps:
             image.os.print_syspreps()
@@ -386,17 +415,11 @@ def image_creator(options, out):
         if options.sysprep:
             image.os.do_sysprep()
 
-        if image.is_unsupported():
-            image.meta['EXCLUDE_ALL_TASKS'] = "yes"
-
-        # Add command line metadata to the collected ones...
-        image.meta.update(options.metadata)
-
         checksum = image.md5()
 
-        metastring = unicode(json.dumps(
-            {'properties': image.meta,
-             'disk-format': 'diskdump'}, ensure_ascii=False))
+        metastring = json.dumps(
+            {'properties': image.meta, 'disk-format': 'diskdump'},
+            ensure_ascii=False)
 
         if options.outfile is not None:
             if os.path.realpath(options.outfile) == '/dev/null':
@@ -476,7 +499,7 @@ def image_creator(options, out):
 
 def main():
     """Main entry point"""
-    options = parse_options(sys.argv[1:])
+    options = parse_options()
 
     if options.silent:
         out = SilentOutput(colored=sys.stderr.isatty(),

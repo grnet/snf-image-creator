@@ -445,7 +445,7 @@ class OSBase(object):
                                        "%s" % param.description))
             self.out.info("TYPE:".ljust(13) + "%s%s" %
                           ("list:" if param.is_list else "", param.type))
-            self.out.info("VALUE:".ljust(13) +
+            self.out.info("VALUE:".ljust(13) + "%s" %
                           ("\n".ljust(14).join(param.value) if param.is_list
                            else param.value))
             self.out.info()
