@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,7 +41,10 @@ def get_tmp_dir(default=None):
     if default is not None:
         return default
 
-    TMP_CANDIDATES = ['/var/tmp', os.path.expanduser('~'), '/mnt']
+    # TODO: I need to find a better way of choosing temporary directories.
+    # Maybe check all available mount points.
+    TMP_CANDIDATES = [t for t in ('/var/tmp', os.path.expanduser('~'), '/mnt')
+                      if os.access(t, os.W_OK)]
 
     space = [free_space(t) for t in TMP_CANDIDATES]
 
