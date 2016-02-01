@@ -54,6 +54,9 @@ class CheckWritableDir(argparse.Action):
         dirname = os.path.dirname(value)
         name = os.path.basename(value)
 
+        if len(dirname) == 0:
+            dirname = '.'
+
         if dirname and not os.path.isdir(dirname):
             raise argparse.ArgumentError(
                 self, "`%s' is not an existing directory" % dirname)
