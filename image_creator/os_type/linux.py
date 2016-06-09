@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -79,7 +79,8 @@ class Linux(Unix):
         # Remove users from /etc/passwd
         if self.image.g.is_file('/etc/passwd'):
             passwd = []
-            metadata_users = self.meta['USERS'].split()
+            metadata_users = self.meta['USERS'].split() \
+                if 'USERS' in self.meta else []
             for line in self.image.g.cat('/etc/passwd').splitlines():
                 fields = line.split(':')
                 if int(fields[2]) > 1000:
