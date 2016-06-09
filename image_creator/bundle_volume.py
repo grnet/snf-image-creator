@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -219,7 +219,7 @@ class BundleVolume(object):
         if root.startswith("UUID=") or root.startswith("LABEL="):
             root = findfs(root).stdout.strip()
 
-        if not re.match('/dev/[hsv]d[a-z][1-9]*$', root):
+        if not re.match('/dev/x?[hsv]d[a-z][1-9]*$', root):
             raise FatalError("Don't know how to handle root device: %s" % root)
 
         out.success(root)
