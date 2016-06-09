@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
 """Package for creating images to be used with Synnefo open source cloud
 software.
 """
-
-from image_creator.version import __version__
+from image_creator.version import __version__  # noqa
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
