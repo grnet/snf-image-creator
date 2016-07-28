@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ from image_creator.os_type.unsupported import Unsupported
 class Unknown(Unsupported):
     """OS class for Unknown OSes"""
     def __init__(self, image, **kwargs):
-        super(Unsupported, self).__init__(image, **kwargs)
+        super(Unknown, self).__init__(image, **kwargs)
 
         self.image.set_unsupported("Unknown Operating System")
 

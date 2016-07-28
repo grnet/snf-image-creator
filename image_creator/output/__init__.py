@@ -21,9 +21,14 @@ subclassing the Output class and assigning the derived one as the output class
 of the various parts of the image-creator package.
 """
 
+import time
+
 
 class Output(object):
     """A class for printing program output"""
+
+    start = time.time()
+
     def error(self, msg):
         """Print an error"""
         pass

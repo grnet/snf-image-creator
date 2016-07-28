@@ -20,6 +20,7 @@ Systems for image creation.
 """
 
 from image_creator.util import FatalError
+from image_creator.bootloader import mbr_bootinfo, vbr_bootinfo
 
 import textwrap
 import re
@@ -44,10 +45,9 @@ def os_cls(distro, osfamily):
     """
 
     # hyphens are not allowed in module names
-    canonicalize = lambda x: x.replace('-', '_').lower()
+    distro = distro.replace('-', '_').lower()
+    osfamily = osfamily.replace('-', '_').lower()
 
-    distro = canonicalize(distro)
-    osfamily = canonicalize(osfamily)
     if distro == 'unknown':
         distro = osfamily
 
@@ -266,7 +266,7 @@ class OSBase(object):
         # This will host the error if mount fails
         self._mount_error = ""
         self._mount_warnings = []
-        self._mounted = False
+        self._mounted = None
 
         # Many guestfs compilations don't support scrub
         self._scrub_support = True
@@ -321,6 +321,9 @@ class OSBase(object):
         """Collect metadata about the OS"""
 
         self.out.info('Collecting image metadata ...', False)
+
+        mbr = self.image.g.pread_device('/dev/sda', 512, 0)
+        self.meta['BOOTSTRAP'] = mbr_bootinfo(mbr)
 
         with self.mount(readonly=True, silent=True):
             self._do_collect_metadata()
@@ -442,7 +445,7 @@ class OSBase(object):
                                        "%s" % param.description))
             self.out.info("TYPE:".ljust(13) + "%s%s" %
                           ("list:" if param.is_list else "", param.type))
-            self.out.info("VALUE:".ljust(13) +
+            self.out.info("VALUE:".ljust(13) + "%s" %
                           ("\n".ljust(14).join(param.value) if param.is_list
                            else param.value))
             self.out.info()
@@ -480,57 +483,96 @@ class OSBase(object):
     @sysprep('Shrinking image (may take a while)', nomount=True)
     def _shrink(self):
         """Shrink the last file system and update the partition table"""
-        self.image.shrink()
+        device = self.image.shrink()
         self.shrinked = True
+
+        # Check the Volume Boot Record of the shrinked partition to determine
+        # if a bootloader is present on it.
+        vbr = self.image.g.pread_device(device, 512, 0)
+        bootloader = vbr_bootinfo(vbr)
+
+        if bootloader == 'syslinux':
+            # EXTLINUX needs to be reinstalled after shrinking
+            with self.mount(silent=True):
+                self.out.info("Reinstalling extlinux ...", False)
+                if self.image.g.is_dir('/boot/extlinux'):
+                    extdir = '/boot/extlinux'
+                elif self.image.g.is_dir('/boot/syslinux'):
+                    extdir = '/boot/syslinux'
+                else:
+                    extdir = '/boot'
+
+                self.image.g.command(['extlinux', '--install', extdir])
+                self.out.success("done")
 
     @property
     def ismounted(self):
-        return self._mounted
+        return self._mounted is not None
 
     def mount(self, readonly=False, silent=False, fatal=True):
         """Returns a context manager for mounting an image"""
 
-        parent = self
-        output = lambda msg='', nl=True: None if silent else self.out.info
-        success = lambda msg='', nl=True: None if silent else self.out.success
-        warn = lambda msg='', nl=True: None if silent else self.out.warn
+        if not silent:
+            output = self.out.info
+            success = self.out.success
+            warn = self.out.warn
+        else:
+            def output(msg='', nl=True):
+                pass
+            success = warn = output
 
-        class Mount:
+        mount_type = 'read-only' if readonly else 'read-write'
+        output("Mounting the media %s ..." % mount_type, False)
+
+        self._mount_error = ""
+        del self._mount_warnings[:]
+
+        try:
+            mounted = self._do_mount(readonly)
+        except:
+            self.image.g.umount_all()
+            raise
+
+        if not mounted:
+            msg = "Unable to mount the media %s. Reason: %s" % \
+                (mount_type, self._mount_error)
+            if fatal:
+                raise FatalError(msg)
+            else:
+                warn(msg)
+
+        for warning in self._mount_warnings:
+            warn(warning)
+
+        if mounted:
+            success('done')
+
+        parent = self
+
+        class Mount(object):
             """The Mount context manager"""
             def __enter__(self):
-                mount_type = 'read-only' if readonly else 'read-write'
-                output("Mounting the media %s ..." % mount_type, False)
-
-                parent._mount_error = ""
-                del parent._mount_warnings[:]
-
-                try:
-                    parent._mounted = parent._do_mount(readonly)
-                except:
-                    parent.image.g.umount_all()
-                    raise
-
-                if not parent.ismounted:
-                    msg = "Unable to mount the media %s. Reason: %s" % \
-                        (mount_type, parent._mount_error)
-                    if fatal:
-                        raise FatalError(msg)
-                    else:
-                        warn(msg)
-
-                for warning in parent._mount_warnings:
-                    warn(warning)
-
-                if parent.ismounted:
-                    success('done')
+                pass
 
             def __exit__(self, exc_type, exc_value, traceback):
+                self.umount()
+
+            def umount(self):
                 output("Umounting the media ...", False)
                 parent.image.g.umount_all()
-                parent._mounted = False
+                parent._mounted = None
                 success('done')
 
-        return Mount()
+        self._mounted = Mount()
+        return self._mounted
+
+    def umount(self):
+        """Umount a previously mounted image"""
+        if self._mounted is None:
+            self.out.warn("Ignoring the umount request.")
+            return
+
+        self._mounted.umount()
 
     def check_version(self, major, minor):
         """Checks the OS version against the one specified by the major, minor
@@ -590,7 +632,10 @@ class OSBase(object):
         exclude = None if 'exclude' not in kwargs else kwargs['exclude']
         include = None if 'include' not in kwargs else kwargs['include']
         ftype = None if 'ftype' not in kwargs else kwargs['ftype']
-        has_ftype = lambda x, y: y is None and True or x['ftyp'] == y
+
+        def has_ftype(f, ftype):
+            """Returns True if the type of the file is ftype"""
+            return ftype is None and True or f['ftyp'] == ftype
 
         for f in self.image.g.readdir(directory):
             if f['name'] in ('.', '..'):

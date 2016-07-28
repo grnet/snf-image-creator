@@ -23,7 +23,7 @@ import syslog
 
 
 class SyslogOutput(Output):
-
+    """This class implements the Output interface for the system logger"""
     def __init__(self, ident=None, logoption=None, facility=None):
         """Initialize a Syslog instance"""
 
