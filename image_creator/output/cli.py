@@ -20,6 +20,7 @@
 from image_creator.output import Output
 
 import sys
+import time
 from colors import red, green, yellow
 from progress.bar import Bar
 
@@ -39,14 +40,30 @@ class SilentOutput(Output):
         self.stdout = kwargs['stdout'] if 'stdout' in kwargs else sys.stdout
         self.stderr = kwargs['stderr'] if 'stderr' in kwargs else sys.stderr
 
+        if 'timestamp' in kwargs and kwargs['timestamp']:
+            self.timestamp = lambda x: "[%ds] %s" % \
+                ((time.time() - self.start), x)
+        else:
+            self.timestamp = lambda x: x
+
+        self.yellow = yellow if self.colored else lambda x: x
+        self.red = red if self.colored else lambda x: x
+        self.green = green if self.colored else lambda x: x
+
+        # Are we in the beginning of a line?
+        self.linestart = True
+
     def result(self, msg):
         """Print a result"""
         write(msg, True, lambda x: x, self.stdout)
+        self.linestart = True
 
     def error(self, msg):
         """Print an error"""
-        color = red if self.colored else lambda x: x
-        write("Error: %s" % msg, True, color, self.stderr)
+        decorator = (lambda x: self.red(self.timestamp(x))) \
+            if self.linestart else self.red
+        write("Error: %s" % msg, True, decorator, self.stderr)
+        self.linestart = True
 
 
 class SimpleOutput(SilentOutput):
@@ -56,22 +73,31 @@ class SimpleOutput(SilentOutput):
 
     def warn(self, msg):
         """Print a warning"""
-        color = yellow if self.colored else lambda x: x
-        write("Warning: %s" % msg, True, color, self.stderr)
+        decorator = (lambda x: self.yellow(self.timestamp(x))) \
+            if self.linestart else self.yellow
+        write("Warning: %s" % msg, True, decorator, self.stderr)
+        self.linestart = True
 
     def success(self, msg):
         """Print msg after an action is completed"""
-        color = green if self.colored else lambda x: x
-        write(msg, True, color, self.stderr)
+        decorator = (lambda x: self.green(self.timestamp(x))) \
+            if self.linestart else self.green
+        write(msg, True, decorator, self.stderr)
+        self.linestart = True
 
     def info(self, msg='', new_line=True):
         """Print msg as normal program output"""
-        write(msg, new_line, lambda x: x, self.stderr)
+        decorator = (lambda x: self.timestamp(x)) \
+            if self.linestart else lambda x: x
+        write(msg, new_line, decorator, self.stderr)
+        self.linestart = new_line
 
     def clear(self):
         """Clear the screen"""
         if self.stderr.isatty():
             self.stderr.write('\033[H\033[2J')
+        else:
+            self.info()
 
 
 class OutputWthProgress(SimpleOutput):
@@ -95,9 +121,10 @@ class OutputWthProgress(SimpleOutput):
             self.fill = '#'
             self.bar_prefix = ' ['
             self.bar_suffix = '] '
-            self.message = ("%s:" % self.title).ljust(self.MESSAGE_LENGTH)
             self.suffix = self.template[bar_type]
             self.max = size
+            self.title = self.parent.timestamp(title)
+            self.message = ("%s:" % self.title).ljust(self.MESSAGE_LENGTH)
 
             # print empty progress bar
             self.start()

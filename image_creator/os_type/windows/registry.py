@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,12 +36,25 @@ WINDOWS_SETUP_STATES = (
     "IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE",
     "IMAGE_STATE_SPECIALIZE_RESEAL_TO_AUDIT")
 
-REG_SZ = lambda k, v: {'key': k, 't': 1L,
-                       'value': (v + '\x00').encode('utf-16le')}
-REG_EXPAND_SZ = lambda k, v: {'key': k, 't': 2L,
-                              'value': (v + '\x00').encode('utf-16le')}
-REG_BINARY = lambda k, v: {'key': k, 't': 3L, 'value': v}
-REG_DWORD = lambda k, v: {'key': k, 't': 4L, 'value': struct.pack('<I', v)}
+
+def reg_sz(key, value):
+    """Pack value as REG_SZ"""
+    return {'key': key, 't': 1L, 'value': (value + '\x00').encode('utf-16le')}
+
+
+def reg_expand_sz(key, value):
+    """Pack value as REG_EXPAND_SZ"""
+    return {'key': key, 't': 2L, 'value': (value + '\x00').encode('utf-16le')}
+
+
+def reg_binary(key, value):
+    """Pack value as REG_BINARY"""
+    return {'key': key, 't': 3L, 'value': value}
+
+
+def reg_dword(key, value):
+    """Pack value as REG_DWORD"""
+    return {'key': key, 't': 4L, 'value': struct.pack('<I', value)}
 
 
 def safe_add_node(hive, parent, name):
@@ -166,7 +179,7 @@ class Registry(object):
                                  (valuename, hivename, keyname))
 
             if old != data:
-                hive.node_set_value(key, REG_DWORD(valuename, data))
+                hive.node_set_value(key, reg_dword(valuename, data))
                 hive.commit(None)
 
         return old
@@ -243,7 +256,7 @@ class Registry(object):
                 runonce = hive.node_add_child(key, "RunOnce")
 
             for desc, cmd in commands.items():
-                hive.node_set_value(runonce, REG_SZ(desc, cmd))
+                hive.node_set_value(runonce, reg_sz(desc, cmd))
 
             hive.commit(None)
 
@@ -257,9 +270,9 @@ class Registry(object):
                           'Winlogon'):
                 winlogon = hive.node_get_child(winlogon, child)
 
-            hive.node_set_value(winlogon, REG_SZ('DefaultUserName', username))
-            hive.node_set_value(winlogon, REG_SZ('DefaultPassword', password))
-            hive.node_set_value(winlogon, REG_SZ('AutoAdminLogon', "1"))
+            hive.node_set_value(winlogon, reg_sz('DefaultUserName', username))
+            hive.node_set_value(winlogon, reg_sz('DefaultPassword', password))
+            hive.node_set_value(winlogon, reg_sz('AutoAdminLogon', "1"))
 
             hive.commit(None)
 
@@ -297,7 +310,7 @@ class Registry(object):
                 assert hive.value_type(old_value)[1] == 4
                 old_values.append(hive.value_dword(old_value))
 
-                hive.node_set_value(node, REG_DWORD('EnableFirewall',
+                hive.node_set_value(node, reg_dword('EnableFirewall',
                                                     new_values.pop(0)))
             hive.commit(None)
 
@@ -393,7 +406,9 @@ class Registry(object):
         # http://www.beginningtoseethelight.org/ntsecurity/index.htm
         #        #8603CF0AFBB170DD
         #
-        disabled = lambda f: int(f[56].encode('hex'), 16) & 0x01
+        def disabled(f):
+            """Check if the account is disabled"""
+            return int(f[56].encode('hex'), 16) & 0x01
 
         def collect_group_members(hive, group, rid_node):
             """Enumerate group members"""
@@ -461,7 +476,7 @@ class Registry(object):
                 fmt = '%ds4x8s4x%ds' % (0xa0, len(v_val) - 0xb0)
                 new = ("\x00" * 4).join(struct.unpack(fmt, v_val))
 
-            hive.node_set_value(rid_node, REG_BINARY('V', new))
+            hive.node_set_value(rid_node, reg_binary('V', new))
             hive.commit(None)
             parent['old'] = v_val
 
@@ -477,8 +492,9 @@ class Registry(object):
         # This is why I'm using a dict
         state = {}
 
-        # Convert byte to int
-        to_int = lambda b: int(b.encode('hex'), 16)
+        def to_int(b):
+            """Convert byte to int"""
+            return int(b.encode('hex'), 16)
 
         # Under HKEY_LOCAL_MACHINE\SAM\SAM\Domains\Account\Users\%RID% there is
         # an F field that contains information about this user account. Bytes
@@ -488,7 +504,9 @@ class Registry(object):
         # http://www.beginningtoseethelight.org/ntsecurity/index.htm
         #        #8603CF0AFBB170DD
         #
-        isactive = lambda f: (to_int(f[56]) & 0x01) == 0
+        def isactive(f):
+            """Check if the account is active"""
+            return (to_int(f[56]) & 0x01) == 0
 
         def update_f_field(hive, username, rid_node):
             """Updates the user's F field to reset the account"""
@@ -505,7 +523,7 @@ class Registry(object):
             new = struct.pack("56sB23s", f_val[:56], mask(to_int(f_val[56])),
                               f_val[57:])
 
-            hive.node_set_value(rid_node, REG_BINARY('F', new))
+            hive.node_set_value(rid_node, reg_binary('F', new))
             hive.commit(None)
 
         self._foreach_account(True, userlist=[rid], useraction=update_f_field)
@@ -534,7 +552,7 @@ class Registry(object):
                     return False
                 old = False
 
-            hive.node_set_value(system, REG_DWORD('EnableFirstLogonAnimation',
+            hive.node_set_value(system, reg_dword('EnableFirstLogonAnimation',
                                                   int(activate)))
             hive.commit(None)
 
@@ -615,8 +633,8 @@ class Registry(object):
 
                 node = safe_add_node(hive, cdd, name)
 
-                hive.node_set_value(node, REG_SZ('ClassGUID', guid))
-                hive.node_set_value(node, REG_SZ('Service', 'viostor'))
+                hive.node_set_value(node, reg_sz('ClassGUID', guid))
+                hive.node_set_value(node, reg_sz('Service', 'viostor'))
 
             # SYSTEM/CurrentContolSet/Services/viostor
             services = hive.root()
@@ -624,33 +642,33 @@ class Registry(object):
                 services = hive.node_get_child(services, child)
 
             viostor = safe_add_node(hive, services, 'viostor')
-            hive.node_set_value(viostor, REG_SZ('Group', 'SCSI miniport'))
-            hive.node_set_value(viostor, REG_SZ('ImagePath', path))
-            hive.node_set_value(viostor, REG_DWORD('ErrorControl', 1))
-            hive.node_set_value(viostor, REG_DWORD('Start', 0))
-            hive.node_set_value(viostor, REG_DWORD('Type', 1))
-            hive.node_set_value(viostor, REG_DWORD('Tag', 0x21))
+            hive.node_set_value(viostor, reg_sz('Group', 'SCSI miniport'))
+            hive.node_set_value(viostor, reg_sz('ImagePath', path))
+            hive.node_set_value(viostor, reg_dword('ErrorControl', 1))
+            hive.node_set_value(viostor, reg_dword('Start', 0))
+            hive.node_set_value(viostor, reg_dword('Type', 1))
+            hive.node_set_value(viostor, reg_dword('Tag', 0x21))
 
             params = safe_add_node(hive, viostor, 'Parameters')
-            hive.node_set_value(params, REG_DWORD('BusType', 1))
+            hive.node_set_value(params, reg_dword('BusType', 1))
 
             mts = safe_add_node(hive, params, 'MaxTransferSize')
             hive.node_set_value(mts,
-                                REG_SZ('ParamDesc', 'Maximum Transfer Size'))
-            hive.node_set_value(mts, REG_SZ('type', 'enum'))
-            hive.node_set_value(mts, REG_SZ('default', '0'))
+                                reg_sz('ParamDesc', 'Maximum Transfer Size'))
+            hive.node_set_value(mts, reg_sz('type', 'enum'))
+            hive.node_set_value(mts, reg_sz('default', '0'))
 
             enum = safe_add_node(hive, mts, 'enum')
-            hive.node_set_value(enum, REG_SZ('0', '64  KB'))
-            hive.node_set_value(enum, REG_SZ('1', '128 KB'))
-            hive.node_set_value(enum, REG_SZ('2', '256 KB'))
+            hive.node_set_value(enum, reg_sz('0', '64  KB'))
+            hive.node_set_value(enum, reg_sz('1', '128 KB'))
+            hive.node_set_value(enum, reg_sz('2', '256 KB'))
 
             pnp_interface = safe_add_node(hive, params, 'PnpInterface')
-            hive.node_set_value(pnp_interface, REG_DWORD('5', 1))
+            hive.node_set_value(pnp_interface, reg_dword('5', 1))
             enum = safe_add_node(hive, viostor, 'Enum')
-            hive.node_set_value(enum, REG_SZ('0', pci))
-            hive.node_set_value(enum, REG_DWORD('Count', 1))
-            hive.node_set_value(enum, REG_DWORD('NextInstance', 1))
+            hive.node_set_value(enum, reg_sz('0', pci))
+            hive.node_set_value(enum, reg_dword('Count', 1))
+            hive.node_set_value(enum, reg_dword('NextInstance', 1))
 
             hive.commit(None)
 
@@ -685,7 +703,7 @@ class Registry(object):
             new_value = "%s;%s" % (old_value, dirname) if append else dirname
 
             hive.node_set_value(current,
-                                REG_EXPAND_SZ('DevicePath', new_value))
+                                reg_expand_sz('DevicePath', new_value))
             hive.commit(None)
 
         return old_value

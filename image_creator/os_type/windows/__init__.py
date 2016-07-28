@@ -393,73 +393,17 @@ class Windows(OSBase):
         defragged.
         """
 
-        # Query for the maximum number of reclaimable bytes
-        cmd = (
-            r'cmd /Q /V:ON /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
-            r'ECHO SELECT DISK 0 > %SCRIPT% & ' +
-            'ECHO SELECT PARTITION %d >> %%SCRIPT%% & ' % self.last_part_num +
-            r'ECHO SHRINK QUERYMAX >> %SCRIPT% & ' +
-            r'ECHO EXIT >> %SCRIPT% & ' +
-            r'DISKPART /S %SCRIPT% & ' +
-            r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
-            r'DEL /Q %SCRIPT%"')
-
-        stdout, stderr, rc = self.vm.rexec(cmd)
-
-        querymax = None
-        expr = re.compile(
-            r'.+:\s*(\d+)\s*([KMGT]?)B\s*(?:\((\d+)\s*([KMGT]?)B\))?\s*$')
-        for line in stdout.splitlines():
-            # diskpart will return something like this:
-            #
-            # a) The maximum number of reclaimable bytes is: xxxx MB
-            # b) The maximum number of reclaimable bytes is: xxxx GB (xxxx MB)
-
-            match = expr.match(line)
-            if match:
-                offset = 0 if match.group(3) is None else 2
-                querymax = match.group(offset+1)
-                unit = match.group(offset+2)
-                break
-
-        if querymax is None:
-            raise FatalError("Error in shrinking! Couldn't find the max "
-                             "number of reclaimable bytes!\n"
-                             "Command output: %s" % stdout)
-
-        querymax = int(querymax)
-        if querymax == 0:
-            self.out.warn("Unable to reclaim any space. The media is full.")
-            return
-
-        # Not sure if we should use 1000 or 1024 here
-        if len(unit) == 0:  # Bytes
-            querymax /= 1000 * 1000
-        elif unit == 'K':
-            querymax /= 1000
-        elif unit == 'G':
-            querymax *= 1000
-        elif unit == 'T':
-            querymax *= 1000*1000
-
+        # Shrink the volume as much as possible and then give 100MB back.
         # From ntfsresize:
         # Practically the smallest shrunken size generally is at around
         # "used space" + (20-200 MB). Please also take into account that
         # Windows might need about 50-100 MB free space left to boot safely.
-        # I'll give 100MB extra space just to be sure
-        querymax -= 100
-
-        if querymax < 0:
-            self.out.warn("Not enough available space to shrink the image!")
-            return
-
-        self.out.info("\tReclaiming %dMB ..." % querymax)
-
         cmd = (
             r'cmd /Q /V:ON /C "SET SCRIPT=%TEMP%\QUERYMAX_%RANDOM%.TXT & ' +
             r'ECHO SELECT DISK 0 > %SCRIPT% & ' +
             'ECHO SELECT PARTITION %d >> %%SCRIPT%% & ' % self.last_part_num +
-            'ECHO SHRINK DESIRED=%d >> %%SCRIPT%% & ' % querymax +
+            r'ECHO SHRINK NOERR >> %SCRIPT% & ' +
+            r'ECHO EXTEND SIZE=100 NOERR >> %SCRIPT% & ' +
             r'ECHO EXIT >> %SCRIPT% & ' +
             r'DISKPART /S %SCRIPT% & ' +
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
@@ -472,8 +416,10 @@ class Windows(OSBase):
                 "Shrinking failed. Please make sure the media is defragged.")
 
         for line in stdout.splitlines():
-            if line.find("%d" % querymax) >= 0:
-                self.out.info(" %s" % line)
+            line = line.strip()
+            if not len(line):
+                continue
+            self.out.info(" %s" % line)
 
         self.shrinked = True
 
