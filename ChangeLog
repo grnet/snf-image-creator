@@ -1,3 +1,17 @@
+2016-07-28, v0.10
+	* Detect Bitnami images
+	* Support changing the default "images" container when registering an
+	  image with a Synnefo deployment
+	* Make the image metadata visible as environment variables to the
+	  host-run scripts
+	* Detect the image's bootloader and reinstall it after shrinking the
+	  image if it is extlinux
+	* Support having multiple clouds and keep separate registration status
+	  for each one of them
+	* Fix windows shrinking to work on non-English localized images
+	* Add Linux sysprep for removing /etc/machine-id
+	* Fix bugs
+
 2015-03-02, v0.9
 	* Add Linux syspreps for disabling the IPv6 privacy extensions and for
 	  changing the boot timeout
