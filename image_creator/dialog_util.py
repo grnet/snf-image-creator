@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -98,9 +98,9 @@ def select_file(d, **kwargs):
 
         (code, fname) = d.fselect(default, 10, 60, extra_button=extra_button,
                                   title=title, extra_label="Bundle Host")
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return None
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             return os.sep
 
     return fname
@@ -126,13 +126,13 @@ def update_background_title(session):
 
 def confirm_exit(d, msg=''):
     """Ask the user to confirm when exiting the program"""
-    return not d.yesno("%s Do you want to exit?" % msg, width=SMALL_WIDTH)
+    return d.yesno("%s Do you want to exit?" % msg, width=SMALL_WIDTH) == d.OK
 
 
 def confirm_reset(d):
     """Ask the user to confirm a reset action"""
-    return not d.yesno("Are you sure you want to reset everything?",
-                       width=SMALL_WIDTH, defaultno=1)
+    return d.yesno("Are you sure you want to reset everything?",
+                   width=SMALL_WIDTH, defaultno=1) == d.OK
 
 
 class Reset(Exception):
@@ -148,8 +148,8 @@ def extract_metadata_string(session):
         for key in session['task_metadata']:
             metadata[key] = 'yes'
 
-    return unicode(json.dumps({'properties': metadata,
-                               'disk-format': 'diskdump'}, ensure_ascii=False))
+    return json.dumps({'properties': metadata, 'disk-format': 'diskdump'},
+                      ensure_ascii=False)
 
 
 def extract_image(session):
@@ -198,7 +198,7 @@ def extract_image(session):
         if len(overwrite) > 0:
             if d.yesno("The following file(s) exist:\n"
                        "%s\nDo you want to overwrite them?" %
-                       "\n".join(overwrite), width=SMALL_WIDTH):
+                       "\n".join(overwrite), width=SMALL_WIDTH) != d.OK:
                 continue
 
         gauge = GaugeOutput(d, "Image Extraction", "Extracting image...")
@@ -278,10 +278,11 @@ def add_cloud(session):
             ("Authentication URL: ", url, 200),
             ("Token:", token, 100)]
 
-        (code, output) = d.form("Add a new cloud account:", height=13,
-                                width=WIDTH, form_height=4, fields=fields)
+        (code, output) = d.form("Add a new cloud account:",
+                                create_form_elements(fields), height=13,
+                                width=WIDTH, form_height=4)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         name, description, url, token = output
@@ -324,10 +325,11 @@ def edit_cloud(session, name):
             ("Authentication URL: ", url, 200),
             ("Token:", token, 100)]
 
-        (code, output) = d.form("Edit cloud account: `%s'" % name, height=13,
-                                width=WIDTH, form_height=3, fields=fields)
+        (code, output) = d.form("Edit cloud account: `%s'" % name,
+                                create_form_elements(fields), height=13,
+                                width=WIDTH, form_height=3)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         description, url, token = output
@@ -366,9 +368,9 @@ def _get_sysprep_param_value(session, param, default, title=None,
                                     extra_button=int(delete),
                                     extra_label="Delete")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return (None, False)
-        if code == d.DIALOG_EXTRA:
+        if code == d.EXTRA:
             return ("", True)
 
         value = answer.strip()
@@ -403,12 +405,12 @@ def update_sysprep_param(session, name, title=None):
                     ok_label="Edit", extra_button=1, extra_label="Add",
                     cancel="Back", default_item=str(default_item), title=name)
 
-                if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+                if code in (d.CANCEL, d.ESC):
                     return True
-                elif code == d.DIALOG_EXTRA:
+                elif code == d.EXTRA:
                     action = 'add'
                     default_value = ""
-                elif code == d.DIALOG_OK:
+                elif code == d.OK:
                     action = 'edit'
                     choice = int(choice)
                     default_value = choices[choice-1][1]
@@ -460,11 +462,33 @@ def copy_file(d, src, dest):
 
     if os.path.exists(dest):
         if d.yesno("File: `%s' exists! Are you sure you want to overwrite it?",
-                   defaultno=1, width=WIDTH):
+                   defaultno=1, width=WIDTH) != d.OK:
             return False
 
     shutil.copyfile(src, dest)
     d.msgbox("File: `%s' was successfully written!")
     return True
+
+
+def create_form_elements(fields, width=WIDTH):
+    """Transform a list of (label, default, length) fields and transform it
+    to the element format that dialog.form() expects.
+    """
+
+    assert len(fields) > 0
+    assert width > 0
+
+    max_label = max([len(f[0]) for f in fields])
+    input_length = width - max_label - 1
+
+    elements = []
+
+    line = 1
+    for field in fields:
+        elements.append((field[0], line, 1, field[1], line, max_label+1,
+                         input_length, field[2]))
+        line += 1
+
+    return elements
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

@@ -30,12 +30,12 @@ import tempfile
 from image_creator import __version__ as version
 from image_creator.util import FatalError, virtio_versions
 from image_creator.output.dialog import GaugeOutput, InfoBoxOutput
-from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 from image_creator.help import get_help_file
 from image_creator.dialog_util import SMALL_WIDTH, WIDTH, \
     update_background_title, confirm_reset, confirm_exit, Reset, \
     extract_image, add_cloud, edit_cloud, update_sysprep_param, select_file, \
-    copy_file
+    copy_file, create_form_elements
 
 CONFIGURATION_TASKS = [
     ("Partition table manipulation", ["FixPartitionTable"], lambda x: True),
@@ -103,42 +103,63 @@ def upload_image(session):
     d = session["dialog"]
     image = session['image']
 
-    if "account" not in session:
+    assert 'clouds' in session
+
+    try:
+        cloud_name = session['current_cloud']
+        cloud = session['clouds'][cloud_name]
+        account = cloud['account']
+    except KeyError:
+        cloud = None
+
+    if cloud is None or not account:
         d.msgbox("You need to select a valid cloud before you can upload "
                  "images to it", width=SMALL_WIDTH)
         return False
 
     while 1:
-        if 'upload' in session:
-            init = session['upload']
+        if 'uploaded' in cloud:
+            _, _, _, container, name = cloud['uploaded'].split('/')
         elif 'OS' in session['image'].meta:
-            init = "%s.diskdump" % session['image'].meta['OS']
+            name = "%s.diskdump" % session['image'].meta['OS']
+            container = CONTAINER
         else:
-            init = ""
-        (code, answer) = d.inputbox("Please provide a filename:", init=init,
-                                    width=WIDTH)
+            name = ""
+            container = CONTAINER
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        fields = [("Remote Name:", name, 60), ("Container:", container, 60)]
+
+        (code, output) = d.form("Please provide the following upload info:",
+                                create_form_elements(fields), height=11,
+                                width=WIDTH, form_height=2)
+
+        if code in (d.CANCEL, d.ESC):
             return False
 
-        filename = answer.strip()
-        if len(filename) == 0:
-            d.msgbox("Filename cannot be empty", width=SMALL_WIDTH)
+        name, container = output
+        name = name.strip()
+        container = container.strip()
+
+        if len(name) == 0:
+            d.msgbox("Remote Name cannot be empty", width=SMALL_WIDTH)
             continue
 
-        kamaki = Kamaki(session['account'], None)
+        if len(container) == 0:
+            d.msgbox("Container cannot be empty", width=SMALL_WIDTH)
+            continue
+
+        kamaki = Kamaki(cloud['account'], None)
         overwrite = []
-        for f in (filename, "%s.md5sum" % filename, "%s.meta" % filename):
-            if kamaki.object_exists(f):
+        for f in (name, "%s.md5sum" % name, "%s.meta" % name):
+            if kamaki.object_exists(container, f):
                 overwrite.append(f)
 
         if len(overwrite) > 0:
             if d.yesno("The following storage service object(s) already "
                        "exist(s):\n%s\nDo you want to overwrite them?" %
-                       "\n".join(overwrite), width=WIDTH, defaultno=1):
+                       "\n".join(overwrite), width=WIDTH, defaultno=1
+                       ) != d.OK:
                 continue
-
-        session['upload'] = filename
         break
 
     gauge = GaugeOutput(d, "Image Upload", "Uploading ...")
@@ -154,30 +175,32 @@ def upload_image(session):
                 # Upload image file
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
-                        session["pithos_uri"] = \
-                            kamaki.upload(f, image.size, filename,
+                        cloud["uploaded"] = \
+                            kamaki.upload(f, image.size, name, container,
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
                 # Upload md5sum file
                 out.info("Uploading md5sum file ...")
-                md5str = "%s %s\n" % (session['checksum'], filename)
+                md5str = "%s %s\n" % (session['checksum'], name)
                 kamaki.upload(StringIO.StringIO(md5str), size=len(md5str),
-                              remote_path="%s.md5sum" % filename)
+                              remote_path="%s.md5sum" % name,
+                              container=container,
+                              content_type="text/plain")
                 out.success("done")
 
             except ClientError as e:
                 d.msgbox(
                     "Error in storage service client: %s" % e.message,
                     title="Storage Service Client Error", width=SMALL_WIDTH)
-                if 'pithos_uri' in session:
-                    del session['pithos_uri']
+                if 'uploaded' in cloud:
+                    del cloud['uploaded']
                 return False
         finally:
             out.remove(gauge)
     finally:
         gauge.cleanup()
 
-    d.msgbox("Image file `%s' was successfully uploaded" % filename,
+    d.msgbox("Image file `%s' was successfully uploaded" % name,
              width=SMALL_WIDTH)
 
     return True
@@ -188,36 +211,45 @@ def register_image(session):
     d = session["dialog"]
     image = session['image']
 
-    is_public = False
+    assert 'clouds' in session
 
-    if "account" not in session:
-        d.msgbox("You need to select a valid cloud before you "
-                 "can register an images with it", width=SMALL_WIDTH)
+    try:
+        cloud_name = session['current_cloud']
+        cloud = session['clouds'][cloud_name]
+        account = cloud['account']
+    except KeyError:
+        cloud = None
+
+    if cloud is None or account is None:
+        d.msgbox("You need to select a valid cloud before you can register an "
+                 "images with it", width=SMALL_WIDTH)
         return False
 
-    if "pithos_uri" not in session:
-        d.msgbox("You need to upload the image to the cloud before you can "
+    if "uploaded" not in cloud:
+        d.msgbox("You need to upload the image to a cloud before you can "
                  "register it", width=SMALL_WIDTH)
         return False
 
-    name = "" if 'registered' not in session else session['registered'].name
-    description = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta \
-        else ""
+    is_public = False
+    _, _, _, container, remote = cloud['uploaded'].split('/')
+    name = "" if 'registered' not in cloud else cloud['registered']
+    descr = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta else ""
 
     while 1:
         fields = [("Registration name:", name, 60),
-                  ("Description (optional):", description, 80)]
+                  ("Description (optional):", descr, 80)]
 
         (code, output) = d.form(
-            "Please provide the following registration info:", height=11,
-            width=WIDTH, form_height=2, fields=fields)
+            "Please provide the following registration info:",
+            create_form_elements(fields), height=11, width=WIDTH,
+            form_height=2)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
-        name, description = output
+        name, descr = output
         name = name.strip()
-        description = description.strip()
+        descr = descr.strip()
 
         if len(name) == 0:
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
@@ -226,13 +258,13 @@ def register_image(session):
         answer = d.yesno("Make the image public?\\nA public image is "
                          "accessible by every user of the service.",
                          defaultno=1, width=WIDTH)
-        if answer not in (0, 1):
+        if answer == d.ESC:
             continue
 
-        is_public = (answer == 0)
+        is_public = (answer == d.OK)
         break
 
-    image.meta['DESCRIPTION'] = description
+    image.meta['DESCRIPTION'] = descr
     metadata = {}
     metadata.update(image.meta)
     if 'task_metadata' in session:
@@ -248,23 +280,25 @@ def register_image(session):
             try:
                 out.info("Registering %s image with the cloud ..." % img_type,
                          False)
-                kamaki = Kamaki(session['account'], out)
-                session['registered'] = kamaki.register(
-                    name, session['pithos_uri'], metadata, is_public)
+                kamaki = Kamaki(cloud['account'], out)
+                cloud['registered'] = kamaki.register(
+                    name, cloud['uploaded'], metadata, is_public)
                 out.success('done')
 
                 # Upload metadata file
                 out.info("Uploading metadata file ...", False)
-                metastring = unicode(json.dumps(session['registered'],
-                                                indent=4, ensure_ascii=False))
+                metastring = json.dumps(cloud['registered'], indent=4,
+                                        ensure_ascii=False)
                 kamaki.upload(StringIO.StringIO(metastring),
                               size=len(metastring),
-                              remote_path="%s.meta" % session['upload'])
+                              remote_path="%s.meta" % remote,
+                              container=container,
+                              content_type="application/json")
                 out.success("done")
                 if is_public:
                     out.info("Sharing metadata and md5sum files ...", False)
-                    kamaki.share("%s.meta" % session['upload'])
-                    kamaki.share("%s.md5sum" % session['upload'])
+                    kamaki.share("%s.meta" % remote)
+                    kamaki.share("%s.md5sum" % remote)
                     out.success('done')
             except ClientError as error:
                 d.msgbox("Error in storage service client: %s" % error.message)
@@ -275,7 +309,7 @@ def register_image(session):
         gauge.cleanup()
 
     d.msgbox("%s image `%s' was successfully registered with the cloud as `%s'"
-             % (img_type.title(), session['upload'], name), width=SMALL_WIDTH)
+             % (img_type.title(), remote, name), width=SMALL_WIDTH)
     return True
 
 
@@ -300,14 +334,13 @@ def modify_clouds(session):
             " ones. Press <Edit> to edit an existing account or <Add> to add "
             " a new one. Press <Back> or hit <ESC> when done.", height=18,
             width=WIDTH, choices=choices, menu_height=10, ok_label="Edit",
-            extra_button=1, extra_label="Add", cancel="Back", help_button=1,
-            title="Clouds")
+            extra_button=1, extra_label="Add", cancel="Back", title="Clouds")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
-        elif code == d.DIALOG_OK:  # Edit button
+        elif code == d.OK:  # Edit button
             edit_cloud(session, choice)
-        elif code == d.DIALOG_EXTRA:  # Add button
+        elif code == d.EXTRA:  # Add button
             add_cloud(session)
 
 
@@ -328,21 +361,21 @@ def delete_clouds(session):
                                     choices=choices, width=WIDTH)
     to_delete = [x.strip('"') for x in to_delete]  # Needed for OpenSUSE
 
-    if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+    if code in (d.CANCEL, d.ESC):
         return False
 
     if not len(to_delete):
         d.msgbox("Nothing selected!", width=SMALL_WIDTH)
         return False
 
-    if not d.yesno("Are you sure you want to remove the selected accounts?",
-                   width=WIDTH, defaultno=1):
+    if d.yesno("Are you sure you want to remove the selected accounts?",
+               width=WIDTH, defaultno=1) == d.OK:
         for i in to_delete:
             Kamaki.remove_cloud(i)
-            if 'cloud' in session and session['cloud'] == i:
-                del session['cloud']
-                if 'account' in session:
-                    del session['account']
+            if i in session['clouds']:
+                del session['clouds'][i]
+            if 'current_cloud' in session and session['current_cloud'] == i:
+                del session['current_cloud']
     else:
         return False
 
@@ -351,43 +384,125 @@ def delete_clouds(session):
     return True
 
 
+def select_cloud(session):
+    """Select one of the existing cloud accounts"""
+    d = session['dialog']
+
+    clouds = Kamaki.get_clouds()
+    if not len(clouds):
+        d.msgbox("No clouds available. Please add a new cloud!",
+                 width=SMALL_WIDTH)
+        return False
+
+    try:
+        current = session['current_cloud']
+    except KeyError:
+        current = clouds.key()[0]
+        session['current_cloud'] = current
+
+    choices = []
+    for name, info in clouds.items():
+        default = 1 if current == name else 0
+        descr = info['description'] if 'description' in info else ""
+        choices.append((name, descr, default))
+
+    (code, answer) = d.radiolist("Please select a cloud:", width=WIDTH,
+                                 choices=choices)
+    if code in (d.CANCEL, d.ESC):
+        return True
+
+    if answer not in session['clouds']:
+        session['clouds'][answer] = {}
+
+    cloud = session['clouds'][answer]
+    cloud['account'] = Kamaki.get_account(answer)
+
+    if cloud['account'] is None:  # invalid account
+        if d.yesno("The cloud %s' is not valid! Would you like to edit it?"
+                   % answer, width=WIDTH) == d.OK:
+            if edit_cloud(session, answer):
+                session['current_cloud'] = answer
+                cloud['account'] = Kamaki.get_account(answer)
+                Kamaki.set_default_cloud(answer)
+
+    if cloud['account'] is not None:
+        session['current_cloud'] = answer
+        Kamaki.set_default_cloud(answer)
+        return True
+    else:
+        del cloud['account']
+        del session['current_cloud']
+
+
 def kamaki_menu(session):
     """Show kamaki related actions"""
     d = session['dialog']
 
-    if 'registered' in session:
-        default_item = "Info"
-    elif 'upload' in session:
-        default_item = "Register"
-    else:
-        default_item = "Upload"
+    try:
+        clouds = session['clouds']
+    except KeyError:
+        clouds = {}
+        session['clouds'] = clouds
 
-    if 'cloud' not in session:
-        cloud = Kamaki.get_default_cloud_name()
-        if cloud:
-            session['cloud'] = cloud
-            session['account'] = Kamaki.get_account(cloud)
-            if not session['account']:
-                del session['account']
-        else:
-            default_item = "Add/Edit"
+    default_item = "Add/Edit"
+
+    try:
+        current = session['current_cloud']
+    except KeyError:
+        current = Kamaki.get_default_cloud_name()
+        if not current:
+            try:
+                current = Kamaki.get_clouds().key()[0]
+            except IndexError:
+                # No available cloud
+                pass
+        session['current_cloud'] = current
+
+    if current:
+        if current not in clouds:
+            clouds[current] = {}
+
+        try:
+            account = clouds[current]['account']
+        except KeyError:
+            account = Kamaki.get_account(current)
+            clouds[current]['account'] = account
+
+        if account:
+            if 'registered' in clouds[current]:
+                default_item = "Info"
+            elif 'uploaded' in clouds[current]:
+                default_item = "Register"
+            else:
+                default_item = "Upload"
 
     while 1:
-        cloud = session["cloud"] if "cloud" in session else "<none>"
-        if 'account' not in session and 'cloud' in session:
-            cloud += " <invalid>"
+        current = session['current_cloud'] if 'current_cloud' in session else \
+            None
+        if current:
+            if current not in session['clouds']:
+                session['clouds'][current] = {}
+
+            cloud = current
+            if 'account' not in clouds[current]:
+                clouds[current]['account'] = Kamaki.get_account(current)
+                if not clouds[current]['account']:
+                    cloud += " <invalid>"
+        else:
+            cloud = '<none>'
 
         choices = [("Add/Edit", "Add/Edit cloud accounts"),
                    ("Delete", "Delete existing cloud accounts"),
                    ("Cloud", "Select cloud account to use: %s" % cloud),
                    ("Upload", "Upload image to the cloud")]
 
-        if 'upload' in session:
+        if current and 'uploaded' in clouds[current]:
+            _, _, _, _, name = clouds[current]['uploaded'].split('/')
             choices.append(("Register", "Register image with the cloud: %s"
-                            % session['upload']))
-        if 'registered' in session:
+                            % name))
+        if current and 'registered' in clouds[current]:
             choices.append(("Info", "Show registration info for \"%s\"" %
-                                    session['registered']['name']))
+                            clouds[current]['registered']['name']))
 
         (code, choice) = d.menu(
             text="Choose one of the following or press <Back> to go back.",
@@ -395,7 +510,7 @@ def kamaki_menu(session):
             menu_height=len(choices), default_item=default_item,
             title="Image Registration Menu")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         if choice == "Add/Edit":
@@ -410,44 +525,10 @@ def kamaki_menu(session):
             else:
                 default_item = "Delete"
         elif choice == "Cloud":
-            default_item = "Cloud"
-            clouds = Kamaki.get_clouds()
-            if not len(clouds):
-                d.msgbox("No clouds available. Please add a new cloud!",
-                         width=SMALL_WIDTH)
-                default_item = "Add/Edit"
-                continue
-
-            if 'cloud' not in session:
-                session['cloud'] = clouds.keys()[0]
-
-            choices = []
-            for name, info in clouds.items():
-                default = 1 if session['cloud'] == name else 0
-                descr = info['description'] if 'description' in info else ""
-                choices.append((name, descr, default))
-
-            (code, answer) = d.radiolist("Please select a cloud:",
-                                         width=WIDTH, choices=choices)
-            if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
-                continue
+            if select_cloud(session):
+                default_item = "Cloud"
             else:
-                session['account'] = Kamaki.get_account(answer)
-
-                if session['account'] is None:  # invalid account
-                    if not d.yesno("The cloud %s' is not valid! Would you "
-                                   "like to edit it?" % answer, width=WIDTH):
-                        if edit_cloud(session, answer):
-                            session['account'] = Kamaki.get_account(answer)
-                            Kamaki.set_default_cloud(answer)
-
-                if session['account'] is not None:
-                    session['cloud'] = answer
-                    Kamaki.set_default_cloud(answer)
-                    default_item = "Upload"
-                else:
-                    del session['account']
-                    del session['cloud']
+                default_item = 'Add/Edit'
         elif choice == "Upload":
             if upload_image(session):
                 default_item = "Register"
@@ -465,16 +546,21 @@ def kamaki_menu(session):
 def show_info(session):
     """Show registration info"""
 
-    assert 'registered' in session
-    info = json.dumps(session['registered'], ensure_ascii=False, indent=4)
+    assert 'current_cloud' in session
+    assert session['current_cloud'] in session['clouds']
+    cloud = session['clouds']['current_cloud']
+
+    assert 'registered' in cloud
+
+    info = json.dumps(cloud['registered'], ensure_ascii=False, indent=4)
 
     d = session['dialog']
 
     while 1:
         code = d.scrollbox(info, width=WIDTH, title="Registration info",
                            extra_label="Save", extra_button=1,
-                           exit_label="Close")
-        if code == d.DIALOG_EXTRA:
+                           ok_label="Close")
+        if code == d.EXTRA:
             path = select_file(d, title="Save registration information as...")
             if path is None:
                 break
@@ -483,7 +569,8 @@ def show_info(session):
 
             if os.path.exists(path):
                 if d.yesno("File: `%s' already exists. Do you want to "
-                           "overwrite it?" % path, width=WIDTH, defaultno=1):
+                           "overwrite it?" % path, width=WIDTH, defaultno=1
+                           ) != d.OK:
                     continue
 
             with open(path, 'w') as f:
@@ -506,7 +593,7 @@ def add_property(session):
     while 1:
         (code, answer) = d.inputbox("Please provide a case-insensitive name "
                                     "for a new image property:", width=WIDTH)
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         name = answer.strip()
@@ -530,7 +617,7 @@ def add_property(session):
     while 1:
         (code, answer) = d.inputbox("Please provide a value for image "
                                     "property: `%s'" % name, width=WIDTH)
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
 
         value = answer.strip()
@@ -568,12 +655,12 @@ def modify_properties(session):
             code = d.yesno(
                 "No image properties are available. "
                 "Would you like to add a new one?", width=WIDTH, help_button=1)
-            if code == d.DIALOG_OK:
+            if code == d.OK:
                 if not add_property(session):
                     return True
-            elif code == d.DIALOG_CANCEL:
+            elif code == d.CANCEL or code == d.ESC:
                 return True
-            elif code == d.DIALOG_HELP:
+            elif code == d.HELP:
                 show_properties_help(session)
             continue
 
@@ -586,16 +673,16 @@ def modify_properties(session):
             ok_label="Edit/Del", extra_button=1, extra_label="Add",
             cancel="Back", help_button=1, title="Image Properties")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
         # Edit button
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             (code, answer) = d.inputbox(
                 "Please provide a new value for `%s' image property or press "
                 "<Delete> to completely delete it." % choice,
                 init=image.meta[choice], width=WIDTH, extra_button=1,
                 extra_label="Delete")
-            if code == d.DIALOG_OK:
+            if code == d.OK:
                 value = answer.strip()
                 if len(value) == 0:
                     d.msgbox("Value cannot be empty!")
@@ -603,14 +690,14 @@ def modify_properties(session):
                 else:
                     image.meta[choice] = value
             # Delete button
-            elif code == d.DIALOG_EXTRA:
-                if not d.yesno("Are you sure you want to delete `%s' image "
-                               "property?" % choice, width=WIDTH):
+            elif code == d.EXTRA:
+                if d.yesno("Are you sure you want to delete `%s' image "
+                           "property?" % choice, width=WIDTH) == d.OK:
                     del image.meta[choice]
                     d.msgbox("Image property: `%s' was deleted." % choice,
                              width=SMALL_WIDTH)
         # ADD button
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             add_property(session)
         elif code == 'help':
             show_properties_help(session)
@@ -634,8 +721,8 @@ def exclude_tasks(session):
         session['excluded_tasks'] = []
 
     if -1 in session['excluded_tasks']:
-        if not d.yesno("Image deployment configuration is disabled. "
-                       "Do you wish to enable it?", width=SMALL_WIDTH):
+        if d.yesno("Image deployment configuration is disabled. "
+                   "Do you wish to enable it?", width=SMALL_WIDTH) == d.OK:
             session['excluded_tasks'].remove(-1)
         else:
             return False
@@ -665,19 +752,19 @@ def exclude_tasks(session):
             title="Exclude Configuration Tasks")
         tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
-        elif code == d.DIALOG_HELP:
+        elif code == d.HELP:
             help_file = get_help_file("configuration_tasks")
             assert os.path.exists(help_file)
             d.textbox(help_file, title="Configuration Tasks",
                       width=70, height=40)
         # No Config button
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             session['excluded_tasks'] = [-1]
             session['task_metadata'] = ["EXCLUDE_ALL_TASKS"]
             break
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             session['excluded_tasks'] = []
             for tag in tags:
                 session['excluded_tasks'].append(mapping[int(tag)])
@@ -731,9 +818,9 @@ def sysprep_params(session):
 
         default = choice
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
-        elif code == d.DIALOG_OK:  # Details button
+        elif code == d.OK:  # Details button
             d.msgbox(image.os.sysprep_params[choice].description, width=WIDTH)
         else:  # Update button
             update_sysprep_param(session, choice)
@@ -765,9 +852,9 @@ def virtio(session):
             title="VirtIO Drivers", extra_button=1, extra_label="Update",
             default_item=default_item)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return True
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             default_item = choice
 
             # Create a string with the driver details and display it.
@@ -834,7 +921,7 @@ def install_virtio_drivers(session):
     msg += "\nPress <Install> to continue with the installation of the " \
         "aforementioned drivers or <Cancel> to return to the previous menu."
     if d.yesno(msg, width=WIDTH, defaultno=1, height=11+len(new_drivers),
-               yes_label="Install", no_label="Cancel"):
+               yes_label="Install", no_label="Cancel") != d.OK:
         return False
 
     title = "VirtIO Drivers Installation"
@@ -867,7 +954,7 @@ def sysprep(session):
               "preparation tasks on a shrinked image is dangerous."
 
         if d.yesno("%s\n\nDo you really want to continue?" % msg,
-                   width=SMALL_WIDTH, defaultno=1):
+                   width=SMALL_WIDTH, defaultno=1) != d.OK:
             return
 
     wrapper = textwrap.TextWrapper(width=WIDTH-5)
@@ -905,13 +992,13 @@ def sysprep(session):
 
         tags = [x.strip('"') for x in tags]  # Needed for OpenSUSE
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             return False
-        elif code == d.DIALOG_EXTRA:
+        elif code == d.EXTRA:
             sysprep_params(session)
-        elif code == d.DIALOG_HELP:
+        elif code == d.HELP:
             d.scrollbox(sysprep_help, width=WIDTH)
-        elif code == d.DIALOG_OK:
+        elif code == d.OK:
             # Enable selected syspreps and disable the rest
             for i in range(len(syspreps)):
                 if str(i + 1) in tags:
@@ -990,7 +1077,7 @@ def show_log(session):
     while 1:
         code = d.textbox(log.name, title="Log", width=70, height=40,
                          extra_button=1, extra_label="Save", ok_label="Close")
-        if code == d.DIALOG_EXTRA:
+        if code == d.EXTRA:
             while 1:
                 path = select_file(d, title="Save log as...")
                 if path is None:
@@ -1033,7 +1120,7 @@ def customization_menu(session):
             menu_height=len(choices), default_item=choices[default_item][0],
             title="Image Customization Menu")
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             break
         elif choice in actions:
             default_item = [entry[0] for entry in choices].index(choice)
@@ -1066,7 +1153,7 @@ def main_menu(session):
             default_item=default_item, menu_height=len(choices),
             title=title)
 
-        if code in (d.DIALOG_CANCEL, d.DIALOG_ESC):
+        if code in (d.CANCEL, d.ESC):
             if confirm_exit(d):
                 break
         elif choice == "Reset":

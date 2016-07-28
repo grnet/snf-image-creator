@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -219,7 +219,7 @@ class BundleVolume(object):
         if root.startswith("UUID=") or root.startswith("LABEL="):
             root = findfs(root).stdout.strip()
 
-        if not re.match('/dev/[hsv]d[a-z][1-9]*$', root):
+        if not re.match('/dev/x?[hsv]d[a-z][1-9]*$', root):
             raise FatalError("Don't know how to handle root device: %s" % root)
 
         out.success(root)
@@ -270,8 +270,13 @@ class BundleVolume(object):
         """
         image_disk = parted.Disk(parted.Device(image))
 
-        is_extended = lambda p: p.type == parted.PARTITION_EXTENDED
-        is_logical = lambda p: p.type == parted.PARTITION_LOGICAL
+        def is_extended(partition):
+            """Returns True if the partition is extended"""
+            return partition.type == parted.PARTITION_EXTENDED
+
+        def is_logical(partition):
+            """Returns True if the partition is logical"""
+            return partition.type == parted.PARTITION_LOGICAL
 
         partitions = get_partitions(self.disk)
 

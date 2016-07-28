@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2015 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -43,5 +43,16 @@ class Ubuntu(Linux):
             descr = self.meta['DESCRIPTION'].replace('Ubuntu',
                                                      variant.capitalize())
             self.meta['DESCRIPTION'] = descr
+
+        # Check if this is a bitnami image
+        if self.image.g.is_dir('/opt/bitnami'):
+            self.meta['OS'] = 'bitnami'
+            readme = '/opt/bitnami/README.txt'
+            if self.image.g.is_file(readme):
+                content = self.image.g.cat(readme).splitlines()
+                if len(content):
+                    self.meta['OSVERSION'] = self.meta['DESCRIPTION']
+                    self.meta['DESCRIPTION'] = content[0].strip()
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

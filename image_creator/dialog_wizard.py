@@ -24,11 +24,11 @@ import StringIO
 import json
 import re
 
-from image_creator.kamaki_wrapper import Kamaki, ClientError
+from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 from image_creator.util import FatalError, virtio_versions
 from image_creator.output.cli import OutputWthProgress
 from image_creator.dialog_util import extract_image, update_background_title, \
-    add_cloud, edit_cloud, update_sysprep_param
+    add_cloud, edit_cloud, update_sysprep_param, create_form_elements
 
 PAGE_WIDTH = 70
 PAGE_HEIGHT = 12
@@ -84,11 +84,11 @@ class Wizard(object):
                     ok_label="Yes", cancel="Back", extra_button=1,
                     extra_label="Quit", title="Confirmation")
 
-                if ret == self.dialog.DIALOG_CANCEL:
+                if ret == self.dialog.CANCEL:
                     idx -= 1
-                elif ret == self.dialog.DIALOG_EXTRA:
+                elif ret == self.dialog.EXTRA:
                     return False
-                elif ret == self.dialog.DIALOG_OK:
+                elif ret == self.dialog.OK:
                     return True
 
             if idx < 0:
@@ -153,7 +153,7 @@ class WizardInputPage(WizardPage):
                                          extra_label=self.extra_label(),
                                          **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
 
         self.answer = self.validate(answer.strip())
@@ -181,13 +181,13 @@ class WizardInfoPage(WizardPage):
         ret = dialog.yesno(text, title=title, extra_label=self.extra_label(),
                            **self.dargs)
 
-        if ret in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if ret in (dialog.CANCEL, dialog.ESC):
             return self.PREV
-        elif ret == dialog.DIALOG_EXTRA:
+        elif ret == dialog.EXTRA:
             self.extra()
             raise WizardReloadPage
 
-        # DIALOG_OK
+        # OK
         self.answer = self.validate(None)
         return self.NEXT
 
@@ -206,12 +206,14 @@ class WizardFormPage(WizardPage):
         form_height = field_lenght if field_lenght < PAGE_HEIGHT - 4 \
             else PAGE_HEIGHT - 4
 
-        (code, output) = dialog.form(self.text(), form_height=form_height,
-                                     fields=self.fields(), title=title,
+        (code, output) = dialog.form(self.text(),
+                                     create_form_elements(self.fields(),
+                                                          self.dargs['width']),
+                                     form_height=form_height, title=title,
                                      extra_label=self.extra_label(),
                                      default_item=self.default, **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
 
         self.answer = self.validate(output)
@@ -249,7 +251,7 @@ class WizardRadioListPage(WizardPageWthChoices):
                                           extra_label=self.extra_label(),
                                           title=title, **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
 
         self.answer = self.validate(answer)
@@ -279,9 +281,9 @@ class WizardMenuPage(WizardPageWthChoices):
                                      extra_label=self.extra_label(),
                                      default_item=default_item, **self.dargs)
 
-        if code in (dialog.DIALOG_CANCEL, dialog.DIALOG_ESC):
+        if code in (dialog.CANCEL, dialog.ESC):
             return self.PREV
-        elif code == dialog.DIALOG_EXTRA:
+        elif code == dialog.EXTRA:
             self.extra()
             raise WizardReloadPage
 
@@ -310,18 +312,19 @@ def start_wizard(session):
 
     def no_clouds():
         """Fallback function when no cloud account exists"""
-        if not session['dialog'].yesno(
+        if session['dialog'].yesno(
                 "No available clouds found. Would you like to add one now?",
-                width=PAGE_WIDTH, defaultno=0):
+                width=PAGE_WIDTH, defaultno=0) == session['dialog'].OK:
             return add_cloud(session)
         return False
 
     def cloud_validate(cloud):
         """Checks if a cloud is valid"""
         if not Kamaki.get_account(cloud):
-            if not session['dialog'].yesno(
+            if session['dialog'].yesno(
                     "The cloud you have selected is not valid! Would you "
-                    "like to edit it now?", width=PAGE_WIDTH, defaultno=0):
+                    "like to edit it now?", width=PAGE_WIDTH,
+                    defaultno=0) == session['dialog'].OK:
                 if edit_cloud(session, cloud):
                     return cloud
             raise WizardReloadPage
@@ -474,14 +477,15 @@ def create_image(session, answers):
                                        time.strftime("%Y%m%d%H%M"))
             with image.raw_device() as raw:
                 with open(raw, 'rb') as device:
-                    remote = kamaki.upload(device, image.size, name,
+                    remote = kamaki.upload(device, image.size, name, CONTAINER,
                                            "(1/3)  Calculating block hashes",
                                            "(2/3)  Uploading image blocks")
 
             image.out.info("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
             kamaki.upload(StringIO.StringIO(md5sumstr), size=len(md5sumstr),
-                          remote_path="%s.%s" % (name, 'md5sum'))
+                          remote_path="%s.%s" % (name, 'md5sum'),
+                          container=CONTAINER, content_type="text/plain")
             image.out.success('done')
             image.out.info()
 
@@ -491,9 +495,11 @@ def create_image(session, answers):
                                      answers['RegistrationType'] == "Public")
             image.out.success('done')
             image.out.info("Uploading metadata file ...", False)
-            metastring = unicode(json.dumps(result, ensure_ascii=False))
+            metastring = unicode(
+                json.dumps(result, ensure_ascii=False)).encode('utf8')
             kamaki.upload(StringIO.StringIO(metastring), size=len(metastring),
-                          remote_path="%s.%s" % (name, 'meta'))
+                          remote_path="%s.%s" % (name, 'meta'),
+                          container=CONTAINER, content_type="application/json")
             image.out.success('done')
 
             if answers['RegistrationType'] == "Public":
@@ -517,7 +523,7 @@ def create_image(session, answers):
            "to keep a local copy?" % \
            (answers['RegistrationType'].lower(), answers['Cloud'])
 
-    if not session['dialog'].yesno(text, width=PAGE_WIDTH):
+    if session['dialog'].yesno(text, width=PAGE_WIDTH) == session['dialog'].OK:
         extract_image(session)
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

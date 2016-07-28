@@ -22,14 +22,14 @@ from image_creator.gpt import GPTPartitionTable
 from image_creator.os_type import os_cls
 
 import os
-# Make sure libguestfs runs qemu directly to launch an appliance.
-os.environ['LIBGUESTFS_BACKEND'] = 'direct'
-import guestfs
-
 import re
 import hashlib
 from sendfile import sendfile
 import threading
+
+# Make sure libguestfs runs qemu directly to launch an appliance.
+os.environ['LIBGUESTFS_BACKEND'] = 'direct'
+import guestfs  # noqa
 
 
 class Image(object):
@@ -273,11 +273,13 @@ class Image(object):
                 "partition tables are supported" % self.meta['PARTITION_TABLE']
             raise FatalError(msg)
 
-        is_extended = lambda p: \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
-            in (0x5, 0xf)
-        is_logical = lambda p: \
-            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
+        def is_extended(partition):
+            return self.g.part_get_mbr_id(
+                self.guestfs_device, partition['part_num']) in (0x5, 0xf)
+
+        def is_logical(partition):
+            return self.meta['PARTITION_TABLE'] == 'msdos' and \
+                partition['part_num'] > 4
 
         partitions = self.g.part_list(self.guestfs_device)
         last_partition = partitions[-1]
@@ -297,37 +299,59 @@ class Image(object):
         """Shrink the image.
 
         This is accomplished by shrinking the last file system of the
-        image and then updating the partition table. The new disk size
-        (in bytes) is returned.
+        image and then updating the partition table. The shrinked device is
+        returned.
 
-        ATTENTION: make sure unmount is called before shrink
+        ATTENTION: make sure umount is called before shrink
         """
-        get_fstype = lambda p: \
-            self.g.vfs_type("%s%d" % (self.guestfs_device, p['part_num']))
-        is_logical = lambda p: \
-            self.meta['PARTITION_TABLE'] == 'msdos' and p['part_num'] > 4
-        is_extended = lambda p: \
-            self.meta['PARTITION_TABLE'] == 'msdos' and \
-            self.g.part_get_mbr_id(self.guestfs_device, p['part_num']) \
-            in (0x5, 0xf)
+        def get_fstype(partition):
+            """Get file system type"""
+            device = "%s%d" % (self.guestfs_device, partition['part_num'])
+            return self.g.vfs_type(device)
 
-        part_add = lambda ptype, start, stop: \
+        def is_logical(partition):
+            """Returns True if the partition is a logical partition"""
+            return self.meta['PARTITION_TABLE'] == 'msdos' and \
+                partition['part_num'] > 4
+
+        def is_extended(partition):
+            """Returns True if the partition is an extended partition"""
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                mbr_id = self.g.part_get_mbr_id(self.guestfs_device,
+                                                partition['part_num'])
+                return mbr_id in (0x5, 0xf)
+            return False
+
+        def part_add(ptype, start, stop):
+            """Add partition"""
             self.g.part_add(self.guestfs_device, ptype, start, stop)
-        part_del = lambda p: self.g.part_del(self.guestfs_device, p)
-        part_get_id = lambda p: self.g.part_get_mbr_id(self.guestfs_device, p)
-        part_set_id = lambda p, id: \
-            self.g.part_set_mbr_id(self.guestfs_device, p, id)
-        part_get_bootable = lambda p: \
-            self.g.part_get_bootable(self.guestfs_device, p)
-        part_set_bootable = lambda p, bootable: \
-            self.g.part_set_bootable(self.guestfs_device, p, bootable)
+
+        def part_del(partnum):
+            """Delete a partition"""
+            self.g.part_del(self.guestfs_device, partnum)
+
+        def part_get_id(partnum):
+            """Returns the MBR id of the partition"""
+            return self.g.part_get_mbr_id(self.guestfs_device, partnum)
+
+        def part_set_id(partnum, id):
+            """Sets the MBR id of the partition"""
+            self.g.part_set_mbr_id(self.guestfs_device, partnum, id)
+
+        def part_get_bootable(partnum):
+            """Returns the bootable flag of the partition"""
+            return self.g.part_get_bootable(self.guestfs_device, partnum)
+
+        def part_set_bootable(partnum, bootable):
+            """Sets the bootable flag for a partition"""
+            self.g.part_set_bootable(self.guestfs_device, partnum, bootable)
 
         MB = 2 ** 20
 
         if self.is_unsupported():
             if not silent:
                 self.out.warn("Shrinking is disabled for unsupported images")
-            return self.size
+            return None
 
         sector_size = self.g.blockdev_getss(self.guestfs_device)
 
@@ -357,7 +381,7 @@ class Image(object):
             if not silent:
                 self.out.warn(
                     "Don't know how to shrink %s partitions." % fstype)
-            return self.size
+            return None
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
 
@@ -437,7 +461,7 @@ class Image(object):
             self.out.success("Image size is %dMB" %
                              ((self.size + MB - 1) // MB))
 
-        return self.size
+        return part_dev
 
     def mount(self, mpoint, readonly=False):
         """Mount the image file system under a local directory"""
@@ -447,15 +471,13 @@ class Image(object):
 
         assert self._mount_thread is None, "Image is already mounted"
 
-        def do_mount():
-            """Use libguestfs's guestmount API"""
-            with self.os.mount(readonly=readonly, silent=True):
-                if self.g.mount_local(mpoint, readonly=readonly) == -1:
-                    return
-                # The thread will block in mount_local_run until the file
-                self.g.mount_local_run()
+        self.os.mount(readonly=readonly, silent=True)
 
-        self._mount_thread = threading.Thread(target=do_mount)
+        if self.g.mount_local(mpoint, readonly=readonly) == -1:
+            return
+
+        # The thread will block in mount_local_run until the file
+        self._mount_thread = threading.Thread(target=self.g.mount_local_run)
         self._mount_thread.mpoint = mpoint
         self._mount_thread.start()
 
@@ -482,26 +504,29 @@ class Image(object):
 
         assert self._mount_thread is not None, "Image is not mounted"
 
-        # Maybe the image was umounted externally
-        if not self._mount_thread.is_alive():
+        try:
+            # Maybe the image was umounted externally
+            if not self._mount_thread.is_alive():
+                self._mount_thread = None
+                return True
+
+            try:
+                args = (['-l'] if lazy else []) + [self._mount_thread.mpoint]
+                get_command('umount')(*args)
+            except:
+                return False
+
+            # Wait for a little while. If the image is umounted,
+            # mount_local_run should have terminated
+            self._mount_thread.join(5)
+
+            if self._mount_thread.is_alive():
+                raise FatalError('Unable to join the mount thread')
+
             self._mount_thread = None
             return True
-
-        try:
-            args = (['-l'] if lazy else []) + [self._mount_thread.mpoint]
-            get_command('umount')(*args)
-        except:
-            return False
-
-        # Wait for a little while. If the image is umounted, mount_local_run
-        # should have terminated
-        self._mount_thread.join(5)
-
-        if self._mount_thread.is_alive():
-            raise FatalError('Unable to join the mount thread')
-
-        self._mount_thread = None
-        return True
+        finally:
+            self.os.umount()
 
     def dump(self, outfile):
         """Dumps the content of the image into a file.
