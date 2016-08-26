@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -79,7 +79,8 @@ class Linux(Unix):
         # Remove users from /etc/passwd
         if self.image.g.is_file('/etc/passwd'):
             passwd = []
-            metadata_users = self.meta['USERS'].split()
+            metadata_users = self.meta['USERS'].split() \
+                if 'USERS' in self.meta else []
             for line in self.image.g.cat('/etc/passwd').splitlines():
                 fields = line.split(':')
                 if int(fields[2]) > 1000:
@@ -179,16 +180,15 @@ class Linux(Unix):
                 continue
 
             if action == -1:
-                self.out.warn("Corrupted acpid event file: `%'" % fullpath)
+                self.out.warn("Corrupted acpid event file: `%s'" % fullpath)
                 continue
 
             entry = content[event].split('=')[1].strip()
             if entry in ("button[ /]power", "button/power.*"):
-                    content[action] = "action=%s" % powerbtn_action
-                    self.image.g.write(
-                        fullpath, "\n".join(content) +
-                        '\n\n### Edited by snf-image-creator ###\n')
-                    return
+                content[action] = "action=%s" % powerbtn_action
+                self.image.g.write(fullpath, "\n".join(content) +
+                                   '\n\n### Edited by snf-image-creator ###\n')
+                return
             elif entry == ".*":
                 self.out.warn("Found action `.*'. Don't know how to handle "
                               "this. Please edit `%s' image file manually to "
@@ -257,7 +257,7 @@ class Linux(Unix):
             try:
                 for line in self.image.g.cat(remote).splitlines():
                     if regexp.match(line):
-                        line = re.sub('\d+', str(timeout), line)
+                        line = re.sub(r'\d+', str(timeout), line)
                     os.write(tmpfd, line + '\n')
                 os.close(tmpfd)
                 tmpfd = None
@@ -288,6 +288,9 @@ class Linux(Unix):
         """Scan fstab & grub configuration files and replace all non-persistent
         device references with UUIDs.
         """
+
+        if not self.image.g.is_file('/etc/fstab'):
+            self.out.warn("Omitted! File: `/etc/fstab' does not exist")
 
         # convert all devices in fstab to persistent
         persistent_root = self._persistent_fstab()
@@ -329,6 +332,16 @@ class Linux(Unix):
         finally:
             self.image.g.aug_save()
             self.image.g.aug_close()
+
+    @sysprep('Removing local machine ID configuration file',
+             display="Remove local machine ID configuration file")
+    def _remove_local_machine_id_configuration_file(self):
+        """Remove the /etc/machine-id file if present. This file is used by
+        systemd to uniquelly identify systems and will be created automatically
+        on the next boot if not present."""
+
+        if self.image.g.is_file('/etc/machine-id'):
+            self.image.g.rm('/etc/machine-id')
 
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent

@@ -97,6 +97,10 @@ class GaugeOutput(Output):
             self.parent.index = dest
             self.parent.percent = self.parent.index * 100 // self.parent.size
 
+            # In newer implementations of python dialog the gauge_update()
+            # function will raise an exception if the value is not an int.
+            self.parent.percent = int(self.parent.percent)
+
             postfix = self.template[self.bar_type] % self.parent.__dict__
             msg = "%s %s" % (self.parent.msg, postfix)
             self.parent.d.gauge_update(self.parent.percent, msg,

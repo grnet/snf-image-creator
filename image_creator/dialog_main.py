@@ -21,11 +21,13 @@ snf-image-creator program. The main function will create a dialog where the
 user is asked if he wants to use the program in expert or wizard mode.
 """
 
+from __future__ import unicode_literals
+
 import dialog
 import sys
 import os
 import signal
-import optparse
+import argparse
 import types
 import termios
 import traceback
@@ -91,7 +93,7 @@ def create_image(d, media, out, tmp, snapshot):
                 "you still want to continue with the image creation process." \
                 % image._unsupported
 
-            if not d.yesno(msg, width=WIDTH, defaultno=1, height=12):
+            if d.yesno(msg, width=WIDTH, defaultno=1, height=12) == d.OK:
                 main_menu(session)
 
             d.infobox("Thank you for using snf-image-creator. Bye", width=53)
@@ -111,10 +113,10 @@ def create_image(d, media, out, tmp, snapshot):
         while True:
             code = d.yesno(msg, width=WIDTH, height=12, yes_label="Wizard",
                            no_label="Expert")
-            if code == d.DIALOG_OK:
+            if code == d.OK:
                 if start_wizard(session):
                     break
-            elif code == d.DIALOG_CANCEL:
+            elif code == d.CANCEL:
                 main_menu(session)
                 break
 
@@ -128,30 +130,37 @@ def create_image(d, media, out, tmp, snapshot):
     return 0
 
 
-def _dialog_form(self, text, height=20, width=60, form_height=15, fields=[],
+def _dialog_form(self, text, elements, height=20, width=60, form_height=15,
                  **kwargs):
     """Display a form box.
-
-    fields is in the form: [(label1, item1, item_length1), ...]
+       Each element of *elements* must itself be a sequence
+       :samp:`({label}, {yl}, {xl}, {item}, {yi}, {xi}, {field_length},
+       {input_length})` containing the various parameters concerning a
+       given field and the associated label.
+       *label* is a string that will be displayed at row *yl*, column
+       *xl*. *item* is a string giving the initial value for the field,
+       which will be displayed at row *yi*, column *xi* (row and column
+       numbers starting from 1).
+       *field_length* and *input_length* are integers that respectively
+       specify the number of characters used for displaying the field
+       and the maximum number of characters that can be entered for
+       this field. These two integers also determine whether the
+       contents of the field can be modified, as follows:
+         - if *field_length* is zero, the field cannot be altered and
+           its contents determines the displayed length;
+         - if *field_length* is negative, the field cannot be altered
+           and the opposite of *field_length* gives the displayed
+           length;
+         - if *input_length* is zero, it is set to *field_length*.
     """
 
     cmd = ["--form", text, str(height), str(width), str(form_height)]
 
-    label_len = 0
-    for field in fields:
-        if len(field[0]) > label_len:
-            label_len = len(field[0])
+    for element in elements:
+        label, yl, xl, item, yi, xi, field_len, input_len = element[:8]
 
-    input_len = width - label_len - 1
-
-    line = 1
-    for field in fields:
-        label = field[0]
-        item = field[1]
-        item_len = field[2]
-        cmd.extend((label, str(line), str(1), item, str(line),
-                    str(label_len + 1), str(input_len), str(item_len)))
-        line += 1
+        cmd.extend((label, unicode(yl), unicode(xl), item, unicode(yi),
+                    unicode(xi), unicode(field_len), unicode(input_len)))
 
     code, output = self._perform(*(cmd,), **kwargs)
 
@@ -175,25 +184,46 @@ def dialog_main(media, **kwargs):
 
     d = dialog.Dialog(dialog="dialog")
 
-    # Add extra button in dialog library
-    dialog._common_args_syntax["extra_button"] = \
-        lambda enable: dialog._simple_option("--extra-button", enable)
-    dialog._common_args_syntax["extra_label"] = \
-        lambda string: ("--extra-label", string)
+    # Add extra button in dialog library if missing
+    if 'extra_button' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["extra_button"] = \
+            lambda enable: dialog._simple_option("--extra-button", enable)
+    if 'extra_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["extra_label"] = \
+            lambda string: ("--extra-label", string)
 
-    # Allow yes-no label overwriting
-    dialog._common_args_syntax["yes_label"] = \
-        lambda string: ("--yes-label", string)
-    dialog._common_args_syntax["no_label"] = \
-        lambda string: ("--no-label", string)
+    # Allow yes-no label overwriting if missing
+    if 'yes_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["yes_label"] = \
+            lambda string: ("--yes-label", string)
+    if 'no_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["no_label"] = \
+            lambda string: ("--no-label", string)
 
-    # Add exit label overwriting
-    dialog._common_args_syntax["exit_label"] = \
-        lambda string: ("--exit-label", string)
+    # Add exit label overwriting if missing
+    if 'exit_label' not in dialog._common_args_syntax:
+        dialog._common_args_syntax["exit_label"] = \
+            lambda string: ("--exit-label", string)
 
     # Monkey-patch pythondialog to include support for form dialog boxes
-    if not hasattr(dialog, 'form'):
+    if not hasattr(d, 'form'):
         d.form = types.MethodType(_dialog_form, d)
+
+    # Add sort dialog constants if missing
+    if not hasattr(d, 'OK'):
+        d.OK = d.DIALOG_OK
+
+    if not hasattr(d, 'CANCEL'):
+        d.CANCEL = d.DIALOG_CANCEL
+
+    if not hasattr(d, 'ESC'):
+        d.ESC = d.DIALOG_ESC
+
+    if not hasattr(d, 'EXTRA'):
+        d.EXTRA = d.DIALOG_EXTRA
+
+    if not hasattr(d, 'HELP'):
+        d.HELP = d.DIALOG_HELP
 
     d.setBackgroundTitle('snf-image-creator')
 
@@ -214,7 +244,8 @@ def dialog_main(media, **kwargs):
     logs = []
     try:
         stream = logfile if logfile else tmplog
-        logs.append(SimpleOutput(colored=False, stderr=stream, stdout=stream))
+        logs.append(SimpleOutput(colored=False, stderr=stream, stdout=stream,
+                                 timestamp=True))
         if syslog:
             logs.append(SyslogOutput())
 
@@ -249,27 +280,22 @@ def main():
         sys.stderr.write("Error: You must run %s as root\n" % PROGNAME)
         sys.exit(2)
 
-    usage = "Usage: %prog [options] [<input_media>]"
-    parser = optparse.OptionParser(version=version, usage=usage)
-    parser.add_option("-l", "--logfile", type="string", dest="logfile",
-                      default=None, help="log all messages to FILE",
-                      metavar="FILE")
-    parser.add_option("--no-snapshot", dest="snapshot", default=True,
-                      help="don't snapshot the input media. (THIS IS "
-                      "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
-                      action="store_false")
-    parser.add_option("--syslog", dest="syslog", default=False,
-                      help="log to syslog", action="store_true")
-    parser.add_option("--tmpdir", type="string", dest="tmp", default=None,
-                      help="create large temporary image files under DIR",
-                      metavar="DIR")
+    description = "Dialog-based tool for creating OS images"
+    parser = argparse.ArgumentParser(version=version, description=description)
+    parser.add_argument("-l", "--logfile", dest="logfile", metavar="FILE",
+                        default=None, help="log all messages to FILE")
+    parser.add_argument("--no-snapshot", dest="snapshot", default=True,
+                        help="don't snapshot the input media. (THIS IS "
+                        "DANGEROUS AS IT WILL ALTER THE ORIGINAL MEDIA!!!)",
+                        action="store_false")
+    parser.add_argument("--syslog", dest="syslog", default=False,
+                        help="log to syslog", action="store_true")
+    parser.add_argument("--tmpdir", dest="tmp", default=None, metavar="DIR",
+                        help="create large temporary image files under DIR")
+    parser.add_argument("source", metavar="SOURCE", default=None, nargs='?',
+                        help="Image file, block device or /")
 
-    opts, args = parser.parse_args(sys.argv[1:])
-
-    if len(args) > 1:
-        parser.error("Wrong number of arguments")
-
-    media = args[0] if len(args) == 1 else None
+    opts = parser.parse_args()
 
     if opts.tmp is not None and not os.path.isdir(opts.tmp):
         parser.error("Directory: `%s' specified with --tmpdir is not valid"
@@ -285,7 +311,7 @@ def main():
         # Save the terminal attributes
         attr = termios.tcgetattr(sys.stdin.fileno())
         try:
-            ret = dialog_main(media, logfile=logfile, tmpdir=opts.tmp,
+            ret = dialog_main(opts.source, logfile=logfile, tmpdir=opts.tmp,
                               snapshot=opts.snapshot, syslog=opts.syslog)
         finally:
             # Restore the terminal attributes. If an error occurs make sure

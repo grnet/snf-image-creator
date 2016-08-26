@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,15 +16,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import image_creator
-
+from os.path import dirname, abspath, join
 from setuptools import setup, find_packages
+from imp import load_source
+
+CWD = dirname(abspath(__file__))
+README = join(CWD, 'README.md')
+VERSION = join(CWD, 'image_creator', 'version.py')
 
 setup(
     name='snf_image_creator',
-    version=image_creator.__version__,
+    version=getattr(load_source('version', VERSION), "__version__"),
     description='Command line tool for creating images',
-    long_description=open('README.md').read(),
+    long_description=open(README).read(),
     url='https://github.com/grnet/snf-image',
     download_url='https://pypi.python.org/pypi/snf_image_creator',
     author='Synnefo development team',
@@ -34,7 +38,8 @@ setup(
     license='GNU GPLv3',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'kamaki>=0.9'],
+    install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'kamaki>=0.9',
+                      'argparse'],
     # Unresolvable dependencies:
     #   pysendfile|py-sendfile, hivex, guestfs, parted, rsync,
     entry_points={
@@ -52,6 +57,6 @@ setup(
         'Operating System :: POSIX :: Linux',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7'],
-    keywords = 'cloud IaaS OS images'
+    keywords='cloud IaaS OS images'
 )
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
