@@ -1,3 +1,6 @@
+2016-09-27, v0.10.1
+	* Clear /etc/machine-id instead of removing it
+
 2016-07-28, v0.10
 	* Detect Bitnami images
 	* Support changing the default "images" container when registering an
