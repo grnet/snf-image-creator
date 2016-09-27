@@ -333,15 +333,15 @@ class Linux(Unix):
             self.image.g.aug_save()
             self.image.g.aug_close()
 
-    @sysprep('Removing local machine ID configuration file',
-             display="Remove local machine ID configuration file")
-    def _remove_local_machine_id_configuration_file(self):
-        """Remove the /etc/machine-id file if present. This file is used by
-        systemd to uniquelly identify systems and will be created automatically
-        on the next boot if not present."""
+    @sysprep('Clearing local machine ID configuration file',
+             display='Clear local machine ID configuration file')
+    def _clear_local_machine_id_configuration_file(self):
+        """Clear the /etc/machine-id file if present. This file is used by
+        systemd to uniquelly identify systems and will be automatically
+        populated on the next boot if empty."""
 
         if self.image.g.is_file('/etc/machine-id'):
-            self.image.g.rm('/etc/machine-id')
+            self.image.g.truncate('/etc/machine-id')
 
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent
