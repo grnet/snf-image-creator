@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -176,7 +176,7 @@ def upload_image(session):
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         cloud["uploaded"] = \
-                            kamaki.upload(f, image.size, name, container,
+                            kamaki.upload(f, image.size, name, container, None,
                                           "Calculating block hashes",
                                           "Uploading missing blocks")
                 # Upload md5sum file
