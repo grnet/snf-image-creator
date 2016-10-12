@@ -337,11 +337,14 @@ class Linux(Unix):
              display='Clear local machine ID configuration file')
     def _clear_local_machine_id_configuration_file(self):
         """Clear the /etc/machine-id file if present. This file is used by
-        systemd to uniquelly identify systems and will be automatically
+        systemd to uniquely identify systems and will be automatically
         populated on the next boot if empty."""
 
         if self.image.g.is_file('/etc/machine-id'):
             self.image.g.truncate('/etc/machine-id')
+
+        if self.image.g.is_file('/var/lib/dbus/machine-id'):
+            self.image.g.truncate('/var/lib/dbus/machine-id')
 
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent
