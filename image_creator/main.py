@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -448,9 +448,10 @@ def image_creator(options, out):
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         remote = kamaki.upload(
-                            f, image.size, options.upload, options.container,
-                            "(1/3)  Calculating block hashes",
-                            "(2/3)  Uploading missing blocks")
+                                    f, image.size, options.upload,
+                                    options.container, None,
+                                    "(1/3)  Calculating block hashes",
+                                    "(2/3)  Uploading missing blocks")
 
                 out.info("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,
