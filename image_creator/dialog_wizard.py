@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2016 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -477,9 +477,10 @@ def create_image(session, answers):
                                        time.strftime("%Y%m%d%H%M"))
             with image.raw_device() as raw:
                 with open(raw, 'rb') as device:
-                    remote = kamaki.upload(device, image.size, name, CONTAINER,
-                                           "(1/3)  Calculating block hashes",
-                                           "(2/3)  Uploading image blocks")
+                    remote = kamaki.upload(
+                                device, image.size, name, CONTAINER, None,
+                                "(1/3)  Calculating block hashes",
+                                "(2/3)  Uploading image blocks")
 
             image.out.info("(3/3)  Uploading md5sum file ...", False)
             md5sumstr = '%s %s\n' % (session['checksum'], name)
