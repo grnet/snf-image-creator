@@ -322,6 +322,9 @@ def modify_clouds(session):
         if not len(clouds):
             if not add_cloud(session):
                 break
+            else:
+                # Select the newly added cloud
+                session['current_cloud'] = Kamaki.get_clouds().keys()[0]
             continue
 
         choices = []
@@ -515,7 +518,10 @@ def kamaki_menu(session):
 
         if choice == "Add/Edit":
             if modify_clouds(session):
-                default_item = "Cloud"
+                if len(Kamaki.get_clouds()) == 1:
+                    default_item = "Upload"
+                else:
+                    default_item = "Cloud"
         elif choice == "Delete":
             if delete_clouds(session):
                 if len(Kamaki.get_clouds()):
