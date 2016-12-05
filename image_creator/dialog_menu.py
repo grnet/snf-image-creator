@@ -397,7 +397,7 @@ def select_cloud(session):
     try:
         current = session['current_cloud']
     except KeyError:
-        current = clouds.key()[0]
+        current = clouds.keys()[0]
         session['current_cloud'] = current
 
     choices = []
@@ -452,7 +452,7 @@ def kamaki_menu(session):
         current = Kamaki.get_default_cloud_name()
         if not current:
             try:
-                current = Kamaki.get_clouds().key()[0]
+                current = Kamaki.get_clouds().keys()[0]
             except IndexError:
                 # No available cloud
                 pass
