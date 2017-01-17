@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2016 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -547,10 +547,16 @@ class Linux(Unix):
             for entry in self.image.g.readdir(systemd_services):
                 if entry['ftyp'] not in ('l', 'f'):
                     continue
+
                 service_file = "%s/%s" % (systemd_services, entry['name'])
-                for line in self.image.g.cat(service_file).splitlines():
-                    if exec_start.search(line):
-                        return True
+
+                # Could be a broken link
+                if self.image.g.is_file(service_file, followsymlinks=True):
+                    for line in self.image.g.cat(service_file).splitlines():
+                        if exec_start.search(line):
+                            return True
+                else:
+                    self.out.warn("Unable to open file: %s" % service_file)
 
         found = set()
 
