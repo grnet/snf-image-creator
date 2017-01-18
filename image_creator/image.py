@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -377,10 +377,17 @@ class Image(object):
             self.size = min(self.size, new_size)
             break
 
-        if not re.match("ext[234]", fstype):
-            if not silent:
-                self.out.warn(
-                    "Don't know how to shrink %s partitions." % fstype)
+        if not (fstype or silent):
+            self.out.warn(
+                "Unable to shrink partition: %s. Reason: "
+                "Could not detect file system." % last_part['part_num'])
+            return None
+
+        if not (re.match("ext[234]", fstype) or silent):
+            self.out.warn(
+                "Unable to shrink partition: %s. Reason: "
+                "Don't know how to shrink %s file systems." %
+                (last_part['part_num'], fstype))
             return None
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
