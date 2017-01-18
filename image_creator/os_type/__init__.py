@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -485,6 +485,10 @@ class OSBase(object):
         """Shrink the last file system and update the partition table"""
         device = self.image.shrink()
         self.shrinked = True
+
+        if not device:
+            # Shrinking failed. No need to proceed.
+            return
 
         # Check the Volume Boot Record of the shrinked partition to determine
         # if a bootloader is present on it.
