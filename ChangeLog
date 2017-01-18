@@ -1,3 +1,8 @@
+2017-01-18, v0.10.4
+	* Fix a bug that triggered RuntimeError if the image contained broken
+	  links
+	* Fix a bug that triggered TypeError if shrinking failed
+
 2016-12-05, v0.10.3
 	* Fix a bug in expert mode triggered if .kamakirc is missing
 
