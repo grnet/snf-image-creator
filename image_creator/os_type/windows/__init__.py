@@ -663,6 +663,23 @@ class Windows(OSBase):
 
         self.registry.enable_autologon(self.vm.admin.name)
 
+    def _do_inspect(self):
+        """Run various diagnostics to check if the medium is supported"""
+
+        self.out.info(
+            'Checking if this version of Windows is supported ...', False)
+
+        # TODO: Check if PowerShell is installed. By default this is installed
+        # in every version after Windows Vista. Maybe we could support a
+        # Windows Vista medium if it has PowerShell installed.
+        if self.nt_version >= (6, 1):
+            self.out.success('yes')
+        else:
+            self.out.info()
+            self.image.set_unsupported(
+                '%s is too old. Versions prior to Windows 7 are not supported.'
+                % self.meta['DESCRIPTION'])
+
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Windows, self)._do_collect_metadata()
