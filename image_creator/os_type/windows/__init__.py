@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -279,21 +279,27 @@ class Windows(OSBase):
              self.admins) = self.registry.enum_users()
             assert ADMIN_RID in self.usernames, "Administrator account missing"
 
-            # If the image is already sysprepped we cannot further customize it
-            self.sysprepped = self.registry.get_setup_state() > 0
-
             self.virtio_state = self.compute_virtio_state()
 
-            arch = self.image.g.inspect_get_arch(self.root)
-            if arch == 'x86_64':
-                arch = 'amd64'
-            elif arch == 'i386':
-                arch = 'x86'
-            major = self.image.g.inspect_get_major_version(self.root)
-            minor = self.image.g.inspect_get_minor_version(self.root)
-            # This is the OS version as defined in INF files to check if a
-            # driver is valid for this OS.
-            self.windows_version = "nt%s.%s.%s" % (arch, major, minor)
+            self.arch = self.image.g.inspect_get_arch(self.root)
+            if self.arch == 'x86_64':
+                self.arch = 'amd64'
+            elif self.arch == 'i386':
+                self.arch = 'x86'
+            major = int(self.image.g.inspect_get_major_version(self.root))
+            minor = int(self.image.g.inspect_get_minor_version(self.root))
+            self.nt_version = (major, minor)
+
+            # The get_setup_state() command does not work for old windows
+            if self.nt_version[0] >= 6:
+                # If the image is already sysprepped, we cannot further
+                # customize it.
+                self.sysprepped = self.registry.get_setup_state() > 0
+            else:
+                # Fallback to NO although we done know
+                # TODO: Add support for detecting the setup state on XP
+                self.sysprepped = False
+
             self.out.success("done")
 
         # If the image is sysprepped no driver mappings will be present.
@@ -682,13 +688,11 @@ class Windows(OSBase):
                 self.meta['REMOTE_CONNECTION'] += " ".join(rdp)
             else:
                 self.meta['REMOTE_CONNECTION'] += "rdp:port=%d" % port
-
-        major = self.image.g.inspect_get_major_version(self.root)
-        minor = self.image.g.inspect_get_minor_version(self.root)
-
-        self.meta["KERNEL"] = "Windows NT %d.%d" % (major, minor)
-        self.meta['SORTORDER'] += (100 * major + minor) * 100
+        self.meta["KERNEL"] = "Windows NT %d.%d" % self.nt_version
         self.meta['GUI'] = 'Windows'
+
+        major, minor = self.nt_version
+        self.meta['SORTORDER'] += (100 * major + minor) * 100
 
     def _check_connectivity(self):
         """Check if winexe works on the Windows VM"""
@@ -770,6 +774,10 @@ class Windows(OSBase):
         files = set([f.lower() for f in os.listdir(dirname)
                      if os.path.isfile(dirname + os.sep + f)])
 
+        # This is the OS version as defined in INF files to check if a driver
+        # is valid for this OS.
+        version = "nt%s.%d.%d" % ((self.arch,) + self.nt_version)
+
         num = 0
         for drv_type, drvs in collection.items():
             for inf, content in drvs.items():
@@ -777,10 +785,10 @@ class Windows(OSBase):
                 found_match = False
                 # Check if the driver is suitable for the input media
                 for target in content['TargetOSVersions']:
-                    if len(target) > len(self.windows_version):
-                        match = target.startswith(self.windows_version)
+                    if len(target) > len(version):
+                        match = target.startswith(version)
                     else:
-                        match = self.windows_version.startswith(target)
+                        match = version.startswith(target)
                     if match:
                         found_match = True
 
