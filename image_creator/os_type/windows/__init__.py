@@ -116,6 +116,9 @@ VIRTIO = set(ID_2_VIO.values())
 # The Administrator's Relative ID
 ADMIN_RID = 500
 
+TARGET_OS_VERSION = re.compile(
+    r'nt(x86|ia64|amd64|arm)(?:.(\d*)(?:.(\d*)?)?)?', re.I)
+
 
 def parse_inf(inf):
     """Parse the content of a Windows INF file and fetch all information found
@@ -819,13 +822,16 @@ class Windows(OSBase):
                 found_match = False
                 # Check if the driver is suitable for the input media
                 for target in content['TargetOSVersions']:
-                    if len(target) > len(version):
-                        match = target.startswith(version)
-                    else:
-                        match = version.startswith(target)
+                    match = TARGET_OS_VERSION.match(target)
                     if match:
-                        found_match = True
-
+                        arch = match.group(1).lower()
+                        major = int(match.group(2)) if match.group(2) else 0
+                        minor = int(match.group(3)) if match.group(3) else 0
+                        if self.arch != arch:
+                            continue
+                        if self.nt_version >= (major, minor):
+                            found_match = True
+                            break
                 if not found_match:  # Wrong Target
                     self.out.warn(
                         'Ignoring %s. Driver not targeted for this OS.' % inf)
