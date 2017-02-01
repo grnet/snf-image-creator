@@ -88,15 +88,30 @@ KMS_CLIENT_SETUP_KEYS = {
     "Windows Server 2008 for Itanium-Based Systems":
     "4DWFP-JF3DJ-B7DTH-78FJB-PDRHK"}
 
+ID_2_VIO = {
+    "1000": "netkvm",     # Virtio network device
+    "1001": "viostor",    # Virtio block device
+    "1002": "ballon",     # Virtio memory balloon
+    "1003": "vioserial",  # Virtio console
+    "1004": "vioscsi",    # Virtio SCSI
+    "1005": "viorng",     # Virtio RNG
+    "1009": "vio9p",      # Virtio filesystem
+    "1041": "netkvm",     # Virtio network device
+    "1042": "viostor",    # Virtio block device
+    "1043": "vioserial",  # Virtio console
+    "1044": "viorng",     # Virtio RNG
+    "1045": "ballon",     # Virtio memory balloon
+    "1048": "vioscsi",    # Virtio SCSI
+    "1049": "vio9p",      # Virtio filesystem
+    "1050": "viogpu",     # Virtio GPU
+    "1052": "vioinput",   # Virtio input
+}
+
 # The PCI Device ID for VirtIO devices. 1af4 is the Vendor ID for Red Hat, Inc
-VIRTIO_DEVICE_ID = re.compile(r'pci\\ven_1af4&dev_100[0-5]')
-VIRTIO = (      # id    Name
-    "netkvm",   # 1000	Virtio network device
-    "viostor",  # 1001	Virtio block device
-    "balloon",  # 1002	Virtio memory balloon
-    "vioser",   # 1003	Virtio console
-    "vioscsi",  # 1004	Virtio SCSI
-    "viorng")   # 1005	Virtio RNG
+PCI_DEV_ID = re.compile(r'pci\\ven_1af4&dev_(%s)' % "|".join(ID_2_VIO.keys()))
+
+# A set of the available VirtIO drivers
+VIRTIO = set(ID_2_VIO.values())
 
 # The Administrator's Relative ID
 ADMIN_RID = 500
@@ -115,7 +130,7 @@ def parse_inf(inf):
     target_os = set()
 
     sections = {}
-    current = {}
+    current = []
 
     prev_line = ""
     for line in iter(inf):
@@ -133,22 +148,22 @@ def parse_inf(inf):
 
         # Does the line denote a section?
         if line.startswith('[') and line.endswith(']'):
-            section = line[1:-1].strip().lower()
-            if section not in sections:
-                current = {}
-                sections[section] = current
+            section_name = line[1:-1].strip().lower()
+            if section_name not in sections:
+                current = []
+                sections[section_name] = current
             else:
-                current = sections[section]
+                current = sections[section_name]
             continue
 
         # We only care about param = value lines
         if line.find('=') > 0:
             param, value = line.split('=', 1)
-            current[param.strip()] = value.strip()
+            current.append((param.strip(), value.strip()))
 
     models = []
     if 'manufacturer' in sections:
-        for value in sections['manufacturer'].values():
+        for _, value in sections['manufacturer']:
             value = value.split(',')
             if len(value) == 0:
                 continue
@@ -163,7 +178,7 @@ def parse_inf(inf):
         models_section_name = \
             re.compile('^(' + "|".join(models) + ')(\\..+)?$')
         for model in [s for s in sections if models_section_name.match(s)]:
-            for value in sections[model].values():
+            for _, value in sections[model]:
                 value = value.split(',')
                 if len(value) == 1:
                     continue
@@ -172,22 +187,24 @@ def parse_inf(inf):
                 #   install-section-name[,hw-id][,compatible-id...]
                 hw_id = value[1].strip().lower()
                 # If this matches a VirtIO device, then this is a VirtIO driver
-                id_match = VIRTIO_DEVICE_ID.match(hw_id)
+                id_match = PCI_DEV_ID.match(hw_id)
                 if id_match:
-                    driver = VIRTIO[int(id_match.group(0)[-1])]
+                    driver = ID_2_VIO[id_match.group(1)]
 
-    if 'version' in sections and 'strings' in sections:
+    strings = dict(sections['strings']) if 'strings' in sections else {}
+    version = {}
+    if 'version' in sections:
         # Replace all strkey tokens with their actual value
-        for key, val in sections['version'].items():
+        for key, val in sections['version']:
             if val.startswith('%') and val.endswith('%'):
-                strkey = val[1:-1]
-                if strkey in sections['strings']:
-                    sections['version'][key] = sections['strings'][strkey]
+                try:
+                    val = strings[val[1:-1]]
+                except KeyError:
+                    pass
+            version[key] = val
 
     if len(target_os) == 0:
         target_os.add('ntx86')
-
-    version = sections['version'] if 'version' in sections else {}
 
     return driver, target_os, version
 
