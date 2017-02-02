@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,6 +30,15 @@ import tempfile
 class FatalError(Exception):
     """Fatal Error exception of snf-image-creator"""
     pass
+
+
+def static_vars(**kwargs):
+    """Decorator for adding static variables to functions"""
+    def decorate(func):
+        for k in kwargs:
+            setattr(func, k, kwargs[k])
+        return func
+    return decorate
 
 
 def get_command(command):
