@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2016 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ from __future__ import unicode_literals
 
 from image_creator import __version__ as version
 from image_creator.disk import Disk
-from image_creator.util import FatalError
+from image_creator.util import FatalError, static_vars
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.output.composite import CompositeOutput
@@ -41,6 +41,20 @@ import tempfile
 import subprocess
 import time
 import re
+import locale
+
+
+@static_vars(enc=locale.getdefaultlocale()[1])
+def get_encoding():
+    """Returns the default encoding or fallbacks to ascii"""
+    if get_encoding.enc:
+        return get_encoding.enc
+
+    # this encoding is valid for all 256 values of each byte
+    get_encoding.enc = 'ascii'
+    sys.stderr.write(
+        "Warning: Unable to find default encoding. Using ascii!\n")
+    return get_encoding.enc
 
 
 class CheckWritableDir(argparse.Action):
@@ -67,7 +81,7 @@ class CheckWritableDir(argparse.Action):
             raise argparse.ArgumentError(
                 self, "`%s' is not a valid file name" % dirname)
 
-        setattr(namespace, self.dest, value.decode(sys.stdin.encoding))
+        setattr(namespace, self.dest, value.decode(get_encoding()))
 
 
 class AddKeyValue(argparse.Action):
@@ -78,7 +92,7 @@ class AddKeyValue(argparse.Action):
         if not dest:
             dest = {}
 
-        value = value.decode(sys.stdin.encoding)
+        value = value.decode(get_encoding())
         try:
             key, val = value.split('=', 1)
         except ValueError:
@@ -229,9 +243,9 @@ def parse_options():
                 'tmp', 'upload', 'virtio'):
         attr = getattr(options, opt)
         if attr:
-            setattr(options, opt, attr.decode(sys.stdin.encoding))
+            setattr(options, opt, attr.decode(get_encoding()))
 
-    options.host_run = [h.decode(sys.stdin.encoding) for h in options.host_run]
+    options.host_run = [h.decode(get_encoding()) for h in options.host_run]
 
     metadata_regexp = re.compile('^[A-Za-z_]+$')
     for m in options.metadata:
