@@ -297,7 +297,7 @@ class OSBase(object):
         """Run the cleanup tasks that are defined under a specific namespace"""
 
         if namespace not in self._cleanup_jobs:
-            self.out.warn("Cleanup namespace: `%s' is not defined", namespace)
+            self.out.warn("Cleanup namespace: `%s' is not defined" % namespace)
             return
 
         while len(self._cleanup_jobs[namespace]):

@@ -377,17 +377,19 @@ class Image(object):
             self.size = min(self.size, new_size)
             break
 
-        if not (fstype or silent):
-            self.out.warn(
-                "Unable to shrink partition: %s. Reason: "
-                "Could not detect file system." % last_part['part_num'])
+        if not fstype:
+            if not silent:
+                self.out.warn(
+                    "Unable to shrink partition: %s. Reason: "
+                    "Could not detect file system." % last_part['part_num'])
             return None
 
-        if not (re.match("ext[234]", fstype) or silent):
-            self.out.warn(
-                "Unable to shrink partition: %s. Reason: "
-                "Don't know how to shrink %s file systems." %
-                (last_part['part_num'], fstype))
+        if not re.match("ext[234]", fstype):
+            if not silent:
+                self.out.warn(
+                    "Unable to shrink partition: %s. Reason: "
+                    "Don't know how to shrink %s file systems." %
+                    (last_part['part_num'], fstype))
             return None
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
