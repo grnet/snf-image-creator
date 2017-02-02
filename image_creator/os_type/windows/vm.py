@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -149,6 +149,7 @@ class VM(object):
             if not self.isalive():
                 return
 
+            # pylint: disable=unused-argument
             def handler(signum, frame):
                 """Signal handler"""
                 self.process.terminate()
@@ -188,7 +189,7 @@ class VM(object):
                         if current == self._ntokens:
                             return True
             if not self.isalive():
-                (stdout, stderr, rc) = self.wait()
+                (_, stderr, rc) = self.wait()
                 raise FatalError("Windows VM died unexpectedly!\n\n"
                                  "(rc=%d)\n%s" % (rc, stderr))
 
@@ -197,6 +198,7 @@ class VM(object):
     def wait(self, timeout=0):
         """Wait for the VM to shutdown by itself"""
 
+        # pylint: disable=unused-argument
         def handler(signum, frame):
             """Signal handler"""
             raise FatalError("VM wait timed-out.")

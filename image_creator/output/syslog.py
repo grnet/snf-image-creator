@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,8 +18,9 @@
 """This module provides the Syslog output class"""
 
 from __future__ import absolute_import
-from image_creator.output import Output
 import syslog
+
+from image_creator.output import Output
 
 
 class SyslogOutput(Output):

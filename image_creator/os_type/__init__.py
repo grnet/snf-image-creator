@@ -19,13 +19,13 @@
 Systems for image creation.
 """
 
-from image_creator.util import FatalError
-from image_creator.bootloader import mbr_bootinfo, vbr_bootinfo
-
 import textwrap
 import re
 from collections import namedtuple
 from functools import wraps
+
+from image_creator.util import FatalError
+from image_creator.bootloader import mbr_bootinfo, vbr_bootinfo
 
 OSTYPE_ORDER = {
     "windows": 8,
@@ -562,6 +562,7 @@ class OSBase(object):
                 self.umount()
 
             def umount(self):
+                """umount all"""
                 output("Umounting the media ...", False)
                 parent.image.g.umount_all()
                 parent._mounted = None

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,12 +17,12 @@
 
 """This package hosts code for manipulating the windows registry."""
 
-from image_creator.util import FatalError
-
 import hivex
 import tempfile
 import os
 import struct
+
+from image_creator.util import FatalError
 
 # The Administrators group RID
 ADMINS = 0x00000220
@@ -108,6 +108,7 @@ class Registry(object):
         class OpenHive(object):
             """The OpenHive context manager"""
             def __enter__(self):
+                # pylint: disable=attribute-defined-outside-init
                 localfd, self.localpath = tempfile.mkstemp()
                 try:
                     os.close(localfd)
@@ -133,6 +134,7 @@ class Registry(object):
     def current_control_set(self):
         """Returns the current control set of the registry"""
 
+        # pylint: disable=access-member-before-definition
         if hasattr(self, '_current_control_set'):
             return self._current_control_set
 
@@ -144,6 +146,7 @@ class Registry(object):
             assert hive.value_type(current_value)[1] == 4
             current = "%03d" % hive.value_dword(current_value)
 
+            # pylint: disable=attribute-defined-outside-init
             self._current_control_set = 'ControlSet%s' % current
 
         return self._current_control_set

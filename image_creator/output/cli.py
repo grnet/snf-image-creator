@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,12 +17,12 @@
 
 """Normal Command-line interface output"""
 
-from image_creator.output import Output
-
 import sys
 import time
 from colors import red, green, yellow
 from progress.bar import Bar
+
+from image_creator.output import Output
 
 
 def write(msg, new_line, decorate, stream):
@@ -87,8 +87,7 @@ class SimpleOutput(SilentOutput):
 
     def info(self, msg='', new_line=True):
         """Print msg as normal program output"""
-        decorator = (lambda x: self.timestamp(x)) \
-            if self.linestart else lambda x: x
+        decorator = self.timestamp if self.linestart else lambda x: x
         write(msg, new_line, decorator, self.stderr)
         self.linestart = new_line
 
@@ -123,12 +122,14 @@ class OutputWthProgress(SimpleOutput):
             self.bar_suffix = '] '
             self.suffix = self.template[bar_type]
             self.max = size
+            # pylint: disable=no-member
             self.title = self.parent.timestamp(title)
             self.message = ("%s:" % self.title).ljust(self.MESSAGE_LENGTH)
 
             # print empty progress bar
             self.start()
 
+        # pylint: disable=no-member
         def success(self, result):
             """Print result after progress has finished"""
             self.parent.info("\r%s ...\033[K" % self.title, False)

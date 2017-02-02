@@ -17,19 +17,19 @@
 
 """Module hosting the Image class."""
 
-from image_creator.util import FatalError, QemuNBD, get_command
-from image_creator.gpt import GPTPartitionTable
-from image_creator.os_type import os_cls
-
 import os
 import re
 import hashlib
 from sendfile import sendfile
 import threading
 
+from image_creator.util import FatalError, QemuNBD, get_command
+from image_creator.gpt import GPTPartitionTable
+from image_creator.os_type import os_cls
+
 # Make sure libguestfs runs qemu directly to launch an appliance.
 os.environ['LIBGUESTFS_BACKEND'] = 'direct'
-import guestfs  # noqa
+import guestfs  # noqa pylint: disable=wrong-import-position,wrong-import-order
 
 
 class Image(object):
@@ -84,6 +84,7 @@ class Image(object):
 
         return 0
 
+    # pylint: disable= attribute-defined-outside-init
     def enable(self):
         """Enable a newly created Image instance"""
 
@@ -211,7 +212,7 @@ class Image(object):
     def os(self):
         """Return an OS class instance for this image"""
         if hasattr(self, "_os"):
-            return self._os
+            return self._os  # pylint: disable=access-member-before-definition
 
         if not self.guestfs_enabled:
             self.enable()
@@ -334,9 +335,9 @@ class Image(object):
             """Returns the MBR id of the partition"""
             return self.g.part_get_mbr_id(self.guestfs_device, partnum)
 
-        def part_set_id(partnum, id):
+        def part_set_id(partnum, partid):
             """Sets the MBR id of the partition"""
-            self.g.part_set_mbr_id(self.guestfs_device, partnum, id)
+            self.g.part_set_mbr_id(self.guestfs_device, partnum, partid)
 
         def part_get_bootable(partnum):
             """Returns the bootable flag of the partition"""
@@ -403,7 +404,7 @@ class Image(object):
             # There is a bug in some versions of libguestfs and a RuntimeError
             # is thrown although the command has successfully corrected the
             # found file system errors.
-            if e.message.find('***** FILE SYSTEM WAS MODIFIED *****') == -1:
+            if str(e).find('***** FILE SYSTEM WAS MODIFIED *****') == -1:
                 raise
 
         self.g.resize2fs_M(part_dev)

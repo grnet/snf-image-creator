@@ -17,12 +17,12 @@
 
 """This module hosts OS-specific code for Linux."""
 
-from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
-
 import os
 import re
 import pkg_resources
 import tempfile
+
+from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
 X2GO_DESKTOPSESSIONS = {
     'CINNAMON': 'cinnamon',

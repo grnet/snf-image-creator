@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ class CompositeOutput(Output, list):
 
         def __init__(self, size, title, bar_type='default'):
             """Create a progress on each of the added output instances"""
-            for out in self.parent:
+            for out in self.parent:  # pylint: disable=no-member
                 self.append(out.Progress(size, title, bar_type))
 
         def goto(self, dest):

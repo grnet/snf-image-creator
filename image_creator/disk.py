@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,16 +17,16 @@
 
 """Module hosting the Disk class."""
 
-from image_creator.util import get_command, try_fail_repeat, free_space, \
-    FatalError, create_snapshot, image_info
-from image_creator.bundle_volume import BundleVolume
-from image_creator.image import Image
-
 import stat
 import os
 import tempfile
 import uuid
 import shutil
+
+from image_creator.util import get_command, try_fail_repeat, free_space, \
+    FatalError, create_snapshot, image_info
+from image_creator.bundle_volume import BundleVolume
+from image_creator.image import Image
 
 dd = get_command('dd')
 dmsetup = get_command('dmsetup')

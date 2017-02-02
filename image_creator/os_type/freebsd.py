@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,9 +17,9 @@
 
 """This module hosts OS-specific code for FreeBSD."""
 
-from image_creator.os_type.bsd import Bsd
-
 import re
+
+from image_creator.os_type.bsd import Bsd
 
 
 class Freebsd(Bsd):

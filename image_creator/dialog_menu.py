@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2016 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -157,8 +157,7 @@ def upload_image(session):
         if len(overwrite) > 0:
             if d.yesno("The following storage service object(s) already "
                        "exist(s):\n%s\nDo you want to overwrite them?" %
-                       "\n".join(overwrite), width=WIDTH, defaultno=1
-                       ) != d.OK:
+                       "\n".join(overwrite), width=WIDTH, defaultno=1) != d.OK:
                 continue
         break
 
@@ -575,8 +574,8 @@ def show_info(session):
 
             if os.path.exists(path):
                 if d.yesno("File: `%s' already exists. Do you want to "
-                           "overwrite it?" % path, width=WIDTH, defaultno=1
-                           ) != d.OK:
+                           "overwrite it?" % path, width=WIDTH,
+                           defaultno=1) != d.OK:
                     continue
 
             with open(path, 'w') as f:
@@ -980,7 +979,7 @@ def sysprep(session):
         sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
         for task in syspreps:
-            name, descr, display = image.os.sysprep_info(task)
+            _, descr, display = image.os.sysprep_info(task)
             sysprep_help += "%s\n" % display
             sysprep_help += "%s\n" % ('-' * len(display))
             sysprep_help += "%s\n\n" % wrapper.fill(" ".join(descr.split()))
@@ -1006,7 +1005,7 @@ def sysprep(session):
             d.scrollbox(sysprep_help, width=WIDTH)
         elif code == d.OK:
             # Enable selected syspreps and disable the rest
-            for i in range(len(syspreps)):
+            for i, _ in enumerate(syspreps):
                 if str(i + 1) in tags:
                     image.os.enable_sysprep(syspreps[i])
                 else:

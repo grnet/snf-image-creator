@@ -18,19 +18,19 @@
 """This package hosts OS-specific code common for the various Microsoft
 Windows OSes."""
 
-from image_creator.os_type import OSBase, sysprep, add_sysprep_param
-from image_creator.util import FatalError
-from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
-from image_creator.os_type.windows.registry import Registry
-from image_creator.os_type.windows.winexe import WinEXE
-from image_creator.os_type.windows import powershell
-
 import tempfile
 import re
 import os
 import uuid
 import time
 from collections import namedtuple
+
+from image_creator.os_type import OSBase, sysprep, add_sysprep_param
+from image_creator.util import FatalError
+from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
+from image_creator.os_type.windows.registry import Registry
+from image_creator.os_type.windows.winexe import WinEXE
+from image_creator.os_type.windows import powershell
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {
@@ -435,7 +435,7 @@ class Windows(OSBase):
             r'IF NOT !ERRORLEVEL! EQU 0 EXIT /B 1 & ' +
             r'DEL /Q %SCRIPT%"')
 
-        stdout, stderr, rc = self.vm.rexec(cmd, fatal=False)
+        stdout, _, rc = self.vm.rexec(cmd, fatal=False)
 
         if rc != 0:
             raise FatalError(
@@ -810,10 +810,6 @@ class Windows(OSBase):
 
         files = set([f.lower() for f in os.listdir(dirname)
                      if os.path.isfile(dirname + os.sep + f)])
-
-        # This is the OS version as defined in INF files to check if a driver
-        # is valid for this OS.
-        version = "nt%s.%d.%d" % ((self.arch,) + self.nt_version)
 
         num = 0
         for drv_type, drvs in collection.items():

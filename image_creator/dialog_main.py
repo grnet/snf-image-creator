@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,6 +56,7 @@ def create_image(d, media, out, tmp, snapshot):
     out.append(gauge)
     disk = Disk(media, out, tmp)
 
+    # pylint: disable=unused-argument
     def signal_handler(signum, frame):
         gauge.cleanup()
         disk.cleanup()
@@ -72,7 +73,7 @@ def create_image(d, media, out, tmp, snapshot):
         out.remove(gauge)
 
         # Make sure the signal handler does not call gauge.cleanup again
-        def dummy(self):
+        def dummy(self):  # pylint: disable=unused-argument
             pass
         gauge.cleanup = type(GaugeOutput.cleanup)(dummy, gauge, GaugeOutput)
 
