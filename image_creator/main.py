@@ -247,7 +247,7 @@ def parse_options():
 
     options.host_run = [h.decode(get_encoding()) for h in options.host_run]
 
-    metadata_regexp = re.compile('^[A-Za-z_]+$')
+    metadata_regexp = re.compile('^[A-Za-z0-9_]+$')
     for m in options.metadata:
         if not re.match(metadata_regexp, m):
             parser.error("Metadata key: `%s' is not valid. Allowed characters "

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2016 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -588,7 +588,7 @@ def add_property(session):
     d = session['dialog']
     image = session['image']
 
-    regexp = re.compile('^[A-Za-z_]+$')
+    regexp = re.compile('^[A-Za-z0-9_]+$')
 
     while 1:
         (code, answer) = d.inputbox("Please provide a case-insensitive name "
