@@ -66,25 +66,38 @@ class Linux(Unix):
     @add_sysprep_param(
         'powerbtn_action', 'string', '/sbin/shutdown -h now',
         "The action that should be executed if the power button is pressed")
+    @add_sysprep_param(
+        'default_user', 'string', 'user', "Name of default cloud-init user")
     def __init__(self, image, **kwargs):
         super(Linux, self).__init__(image, **kwargs)
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
         self.cloud_init = False
 
-    def cloud_init_config(self):
-        """Returns a dictionary with the cloud-init configuration"""
+    def get_cloud_init_config_files(self):
+        """Returns the cloud-init configuration files of the image"""
 
-        cfg = {}
+        files = []
+
         if self.image.g.is_file('/etc/cloud/cloud.cfg'):
-            cfg.update(yaml.load(self.image.g.cat('/etc/cloud/cloud.cfg')))
+            files.append('/etc/cloud/cloud.cfg')
 
         if self.image.g.is_dir('/etc/cloud/cloud.cfg.d'):
             for c in self.image.g.readdir('/etc/cloud/cloud.cfg.d'):
                 if not (c['ftyp'] == 'r' and c['name'].endswith('.cfg')):
                     continue
-                fname = "/etc/cloud/cloud.cfg.d/%s" % c['name']
-                cfg.update(yaml.load(self.image.g.cat(fname)))
+                files.append('/etc/cloud/cloud.cfg.d/%s' % c['name'])
+
+        files.sort()
+        return files
+
+    def cloud_init_config(self):
+        """Returns a dictionary with the cloud-init configuration"""
+
+        cfg = {}
+        for c in self.get_cloud_init_config_files():
+            cfg.update(yaml.load(self.image.g.cat(c)))
+
         return cfg
 
     @sysprep('Removing user accounts with id greater that 1000', enabled=False)
@@ -145,6 +158,39 @@ class Linux(Unix):
         for home in [field[5] for field in removed_users.values()]:
             if self.image.g.is_dir(home) and home.startswith('/home/'):
                 self.image.g.rm_rf(home)
+
+    @sysprep('Renaming default cloud-init user to "%(default_user)s"',
+             enabled=False)
+    def _rename_default_cloud_init_user(self):
+        """Rename the default cloud-init user"""
+
+        if not self.cloud_init:
+            self.out.warn("Not a cloud-init enabled image")
+            return
+
+        old_name = None
+        new_name = self.sysprep_params['default_user'].value
+
+        for f in self.get_cloud_init_config_files():
+            cfg = yaml.load(self.image.g.cat(f))
+            try:
+                old_name = cfg['system_info']['default_user']['name']
+            except KeyError:
+                continue
+
+            if old_name != new_name:
+                self.image.g.mv(f, f + ".bak")
+                cfg['system_info']['default_user']['name'] = new_name
+                self.image.g.write(f, yaml.dump(cfg, default_flow_style=False))
+            else:
+                self.out.warn(
+                    'The default cloud-init user is already named: "%s"' %
+                    new_name)
+
+        if old_name is None:
+            self.out.warn("No default cloud-init user was found!")
+        else:
+            self._collect_cloud_init_metadata()
 
     @sysprep('Cleaning up password & locking all user accounts')
     def _cleanup_passwords(self):
