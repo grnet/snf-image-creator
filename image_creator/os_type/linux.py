@@ -21,6 +21,7 @@ import os
 import re
 import pkg_resources
 import tempfile
+import yaml
 
 from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
@@ -65,10 +66,39 @@ class Linux(Unix):
     @add_sysprep_param(
         'powerbtn_action', 'string', '/sbin/shutdown -h now',
         "The action that should be executed if the power button is pressed")
+    @add_sysprep_param(
+        'default_user', 'string', 'user', "Name of default cloud-init user")
     def __init__(self, image, **kwargs):
         super(Linux, self).__init__(image, **kwargs)
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
+        self.cloud_init = False
+
+    def get_cloud_init_config_files(self):
+        """Returns the cloud-init configuration files of the image"""
+
+        files = []
+
+        if self.image.g.is_file('/etc/cloud/cloud.cfg'):
+            files.append('/etc/cloud/cloud.cfg')
+
+        if self.image.g.is_dir('/etc/cloud/cloud.cfg.d'):
+            for c in self.image.g.readdir('/etc/cloud/cloud.cfg.d'):
+                if not (c['ftyp'] == 'r' and c['name'].endswith('.cfg')):
+                    continue
+                files.append('/etc/cloud/cloud.cfg.d/%s' % c['name'])
+
+        files.sort()
+        return files
+
+    def cloud_init_config(self):
+        """Returns a dictionary with the cloud-init configuration"""
+
+        cfg = {}
+        for c in self.get_cloud_init_config_files():
+            cfg.update(yaml.load(self.image.g.cat(c)))
+
+        return cfg
 
     @sysprep('Removing user accounts with id greater that 1000', enabled=False)
     def _remove_user_accounts(self):
@@ -128,6 +158,39 @@ class Linux(Unix):
         for home in [field[5] for field in removed_users.values()]:
             if self.image.g.is_dir(home) and home.startswith('/home/'):
                 self.image.g.rm_rf(home)
+
+    @sysprep('Renaming default cloud-init user to "%(default_user)s"',
+             enabled=False)
+    def _rename_default_cloud_init_user(self):
+        """Rename the default cloud-init user"""
+
+        if not self.cloud_init:
+            self.out.warn("Not a cloud-init enabled image")
+            return
+
+        old_name = None
+        new_name = self.sysprep_params['default_user'].value
+
+        for f in self.get_cloud_init_config_files():
+            cfg = yaml.load(self.image.g.cat(f))
+            try:
+                old_name = cfg['system_info']['default_user']['name']
+            except KeyError:
+                continue
+
+            if old_name != new_name:
+                self.image.g.mv(f, f + ".bak")
+                cfg['system_info']['default_user']['name'] = new_name
+                self.image.g.write(f, yaml.dump(cfg, default_flow_style=False))
+            else:
+                self.out.warn(
+                    'The default cloud-init user is already named: "%s"' %
+                    new_name)
+
+        if old_name is None:
+            self.out.warn("No default cloud-init user was found!")
+        else:
+            self._collect_cloud_init_metadata()
 
     @sysprep('Cleaning up password & locking all user accounts')
     def _cleanup_passwords(self):
@@ -469,6 +532,49 @@ class Linux(Unix):
         else:
             self.out.success('no')
 
+    def _collect_cloud_init_metadata(self):
+        """Collect metadata regarding cloud-init"""
+
+        def warn(msg):
+            self.out.warn("Cloud-init: " + msg)
+
+        self.meta['CLOUD_INIT'] = 'yes'
+        cfg = self.cloud_init_config()
+        try:
+            default_user = cfg['system_info']['default_user']['name']
+        except KeyError:
+            default_user = None
+            warn("No default user defined")
+
+        users = []
+        if 'users' in cfg:
+            for u in cfg['users']:
+                if isinstance(u, (str, unicode)):
+                    if u == 'default':
+                        if default_user:
+                            users.append(default_user)
+                        else:
+                            warn("Ignoring undefined default user")
+                    else:
+                        users.append(u)
+                elif isinstance(u, dict):
+                    if 'snapuser' in u:
+                        warn("Ignoring snapuser: %s" % u['snapuser'])
+                    elif 'inactive' in u and u['inactive'] is True:
+                        try:
+                            warn("Ignoring inactive user: %s" % u['name'])
+                        except KeyError:
+                            pass
+                    elif 'system' in u and u['system'] is True:
+                        try:
+                            warn("Ignoring system user: %s" % u['name'])
+                        except KeyError:
+                            pass
+        if users:
+            self.meta['USERS'] = " ".join(users)
+        if default_user:
+            self.meta['CLOUD_INIT_DEFAULT_USER'] = default_user
+
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Linux, self)._do_collect_metadata()
@@ -537,6 +643,36 @@ class Linux(Unix):
                         " ".join(["x2go:session=%s" % d for d in desktops])
         else:
             self.out.warn("OpenSSH Daemon is not configured to run on boot")
+
+        if self.is_enabled('cloud-init'):
+            self.cloud_init = True
+        else:
+            # Many OSes use a systemd generator for cloud-init:
+            #
+            # When booting under systemd, a generator will run that determines
+            # if cloud-init.target should be included in the boot goals. By
+            # default, this generator will enable cloud-init. It will not
+            # enable cloud-init if either:
+            #
+            #   * A file exists: /etc/cloud/cloud-init.disabled
+            #   * The kernel command line as found in /proc/cmdline contains
+            #     cloud-init=disabled. When running in a container, the kernel
+            #     command line is not honored, but cloud-init will read an
+            #     environment variable named KERNEL_CMDLINE in its place.
+            #
+            # http://cloudinit.readthedocs.io/en/latest/topics/boot.html
+
+            generator_found = False
+            for i in ("/run", "/etc", "/usr/local/lib", "/usr/lib"):
+                if self.image.g.is_file("%s/systemd/system-generators/"
+                                        "cloud-init-generator" % i):
+                    generator_found = True
+                    break
+            if generator_found:
+                self.cloud_init = \
+                    not self.image.g.is_file("/etc/cloud/cloud-init.disabled")
+        if self.cloud_init:
+            self._collect_cloud_init_metadata()
 
     def is_enabled(self, service):
         """Check if a service is enabled to run on boot"""
