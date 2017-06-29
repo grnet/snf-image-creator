@@ -39,7 +39,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'kamaki>=0.9',
-                      'argparse', 'yaml'],
+                      'argparse', 'pyyaml'],
     # Unresolvable dependencies:
     #   pysendfile|py-sendfile, hivex, guestfs, parted, rsync,
     entry_points={
