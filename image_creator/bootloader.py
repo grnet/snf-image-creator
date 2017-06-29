@@ -57,7 +57,7 @@ MBR_LDR = [
     # Paragon Partition Manager
     "paragon",
     # Testdisk MBR
-    "testdist",
+    "testdisk",
     # GAG Graphical Boot Manager
     "gag",
     # BootIt Boot Manager
