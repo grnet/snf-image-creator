@@ -394,6 +394,9 @@ class Image(object):
             return None
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
+        out = self.g.tune2fs_l(part_dev)
+        block_size = int(filter(lambda x: x[0] == 'Block size', out)[0][1])
+        old_block_cnt = int(filter(lambda x: x[0] == 'Block count', out)[0][1])
 
         try:
             if self.check_guestfs_version(1, 15, 17) >= 0:
@@ -410,8 +413,12 @@ class Image(object):
         self.g.resize2fs_M(part_dev)
 
         out = self.g.tune2fs_l(part_dev)
-        block_size = int(filter(lambda x: x[0] == 'Block size', out)[0][1])
+        assert block_size == \
+            int(filter(lambda x: x[0] == 'Block size', out)[0][1])
         block_cnt = int(filter(lambda x: x[0] == 'Block count', out)[0][1])
+
+        # Add some extra space for the image to be able to run.
+        block_cnt = min(old_block_cnt, block_cnt + 8388608/block_size)
 
         start = last_part['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
@@ -455,6 +462,9 @@ class Image(object):
 
             if self.meta['PARTITION_TABLE'] == 'msdos':
                 part_set_id(last_part['part_num'], last_part['id'])
+
+        # Enlarge the underlying file system to consume the available space
+        self.g.resize2fs(part_dev)
 
         new_size = (end + 1) * sector_size
 
