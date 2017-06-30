@@ -351,7 +351,6 @@ class Linux(Unix):
 
         grub1_config = '/boot/grub/menu.lst'
         grub2_config = '/boot/grub/grub.cfg'
-        syslinux_config = '/boot/syslinux/syslinux.cfg'
 
         if self.image.g.is_file(grub1_config):
             regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
@@ -360,10 +359,11 @@ class Linux(Unix):
             regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
             replace_timeout(grub2_config, regexp, timeout)
 
-        if self.image.g.is_file(syslinux_config):
-            regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
-            # In syslinux the timeout unit is 0.1 seconds
-            replace_timeout(syslinux_config, regexp, timeout * 10)
+        regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
+        for syslinux_config in self.syslinux.search_paths:
+            if self.image.g.is_file(syslinux_config):
+                # In syslinux the timeout unit is 0.1 seconds
+                replace_timeout(syslinux_config, regexp, timeout * 10)
 
     @sysprep('Replacing fstab & grub non-persistent device references')
     def _use_persistent_block_device_names(self):
@@ -539,28 +539,28 @@ class Linux(Unix):
         ones in the syslinux configuration files.
         """
 
-        config = '/boot/syslinux/syslinux.cfg'
         append_regexp = re.compile(
             r'\s*APPEND\s+.*\broot=/dev/[hsv]d[a-z][1-9]*\b', re.IGNORECASE)
 
-        if not self.image.g.is_file(config):
-            return
+        for config in self.syslinux.search_paths:
+            if not self.image.g.is_file(config):
+                continue
 
-        # There is no augeas lense for syslinux :-(
-        tmpfd, tmp = tempfile.mkstemp()
-        try:
-            for line in self.image.g.cat(config).splitlines():
-                if append_regexp.match(line):
-                    line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
-                                  'root=%s' % new_root, line)
-                os.write(tmpfd, line + '\n')
-            os.close(tmpfd)
-            tmpfd = None
-            self.image.g.upload(tmp, config)
-        finally:
-            if tmpfd is not None:
+            # There is no augeas lense for syslinux :-(
+            tmpfd, tmp = tempfile.mkstemp()
+            try:
+                for line in self.image.g.cat(config).splitlines():
+                    if append_regexp.match(line):
+                        line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
+                                      'root=%s' % new_root, line)
+                    os.write(tmpfd, line + '\n')
                 os.close(tmpfd)
-            os.unlink(tmp)
+                tmpfd = None
+                self.image.g.upload(tmp, config)
+            finally:
+                if tmpfd is not None:
+                    os.close(tmpfd)
+                os.unlink(tmp)
 
     def _persistent_fstab(self):
         """Replaces non-persistent device name occurrences in /etc/fstab with
