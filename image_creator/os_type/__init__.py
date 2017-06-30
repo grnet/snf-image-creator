@@ -25,7 +25,7 @@ from collections import namedtuple
 from functools import wraps
 
 from image_creator.util import FatalError
-from image_creator.bootloader import mbr_bootinfo, vbr_bootinfo
+from image_creator.bootloader import mbr_bootinfo
 
 OSTYPE_ORDER = {
     "windows": 8,
@@ -485,29 +485,6 @@ class OSBase(object):
         """Shrink the last file system and update the partition table"""
         device = self.image.shrink()
         self.shrinked = True
-
-        if not device:
-            # Shrinking failed. No need to proceed.
-            return
-
-        # Check the Volume Boot Record of the shrinked partition to determine
-        # if a bootloader is present on it.
-        vbr = self.image.g.pread_device(device, 512, 0)
-        bootloader = vbr_bootinfo(vbr)
-
-        if bootloader == 'syslinux':
-            # EXTLINUX needs to be reinstalled after shrinking
-            with self.mount(silent=True):
-                self.out.info("Reinstalling extlinux ...", False)
-                if self.image.g.is_dir('/boot/extlinux'):
-                    extdir = '/boot/extlinux'
-                elif self.image.g.is_dir('/boot/syslinux'):
-                    extdir = '/boot/syslinux'
-                else:
-                    extdir = '/boot'
-
-                self.image.g.command(['extlinux', '--install', extdir])
-                self.out.success("done")
 
     @property
     def ismounted(self):
