@@ -18,11 +18,15 @@
 """This module hosts OS-specific code for Linux."""
 
 import os
+import os.path
 import re
 import pkg_resources
 import tempfile
 import yaml
+from collections import namedtuple
 
+from image_creator.util import FatalError
+from image_creator.bootloader import vbr_bootinfo
 from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
 X2GO_DESKTOPSESSIONS = {
@@ -73,6 +77,21 @@ class Linux(Unix):
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
         self.cloud_init = False
+
+        # As of 4.00, *SYSLINUX* will search for extlinux.conf then
+        # syslinux.cfg in each directory before falling back to the next
+        # directory
+        #
+        # http://repo.or.cz/syslinux.git/blob/syslinux-6.01: \
+        #        /txt/syslinux.cfg.txt#l32
+        #
+        dirs = ('/boot/extlinux/', '/boot/syslinux/', '/boot/',
+                '/extlinux/', '/syslinux/', '/')
+        files = ('extlinux.conf', 'syslinux.cfg')
+
+        paths = ["%s%s" % (d, c) for d in dirs for c in files]
+        self.syslinux = namedtuple(
+            'syslinux', ['search_dirs', 'search_paths'])(dirs, paths)
 
     def get_cloud_init_config_files(self):
         """Returns the cloud-init configuration files of the image"""
@@ -332,7 +351,6 @@ class Linux(Unix):
 
         grub1_config = '/boot/grub/menu.lst'
         grub2_config = '/boot/grub/grub.cfg'
-        syslinux_config = '/boot/syslinux/syslinux.cfg'
 
         if self.image.g.is_file(grub1_config):
             regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
@@ -341,10 +359,11 @@ class Linux(Unix):
             regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
             replace_timeout(grub2_config, regexp, timeout)
 
-        if self.image.g.is_file(syslinux_config):
-            regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
-            # In syslinux the timeout unit is 0.1 seconds
-            replace_timeout(syslinux_config, regexp, timeout * 10)
+        regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
+        for syslinux_config in self.syslinux.search_paths:
+            if self.image.g.is_file(syslinux_config):
+                # In syslinux the timeout unit is 0.1 seconds
+                replace_timeout(syslinux_config, regexp, timeout * 10)
 
     @sysprep('Replacing fstab & grub non-persistent device references')
     def _use_persistent_block_device_names(self):
@@ -409,6 +428,86 @@ class Linux(Unix):
         if self.image.g.is_file('/var/lib/dbus/machine-id'):
             self.image.g.truncate('/var/lib/dbus/machine-id')
 
+    @sysprep('Shrinking image (may take a while)', nomount=True)
+    def _shrink(self):
+        """Shrink the last file system and update the partition table"""
+        device = self.image.shrink()
+        self.shrinked = True
+
+        if not device:
+            # Shrinking failed. No need to proceed.
+            return
+
+        # Check the Volume Boot Record of the shrinked partition to determine
+        # if a bootloader is present on it.
+        vbr = self.image.g.pread_device(device, 512, 0)
+        bootloader = vbr_bootinfo(vbr)
+
+        if bootloader == 'syslinux':
+            # EXTLINUX needs to be reinstalled after shrinking
+
+            with self.mount(silent=True):
+                basedir = self._get_syslinux_base_dir()
+
+                self.out.info("Updating the EXTLINUX installation under %s ..."
+                              % basedir, False)
+                self.image.g.command(['extlinux', '-U', basedir])
+                self.out.success("done")
+
+    def _get_syslinux_base_dir(self):
+        """Find the installation directory we need to use to when updating
+        syslinux
+        """
+        cfg = None
+
+        for path in self.syslinux.search_paths:
+            if self.image.g.is_file(path):
+                cfg = path
+            break
+
+        if not cfg:
+            # Maybe we should fail here
+            self.out.warn("Unable to find syslinux configuration file!")
+            return "/boot"
+
+        kernel_regexp = re.compile(r'\s*kernel\s+(.+)', re.IGNORECASE)
+        initrd_regexp = re.compile(r'\s*initrd\s+(.+)', re.IGNORECASE)
+        append_regexp = re.compile(
+            r'\s*[Aa][Pp][Pp][Ee][Nn][Dd]\s+.*\binitrd=([^\s]+)')
+
+        kernel = None
+        initrd = None
+
+        for line in self.image.g.cat(cfg).splitlines():
+            kernel_match = kernel_regexp.match(line)
+            if kernel_match:
+                kernel = kernel_match.group(1).strip()
+                continue
+
+            initrd_match = initrd_regexp.match(line)
+            if initrd_match:
+                initrd = initrd_match.group(1).strip()
+                continue
+
+            append_match = append_regexp.match(line)
+            if append_match:
+                initrd = append_match.group(1)
+
+        if kernel and kernel[0] != '/':
+            relative_path = kernel
+        elif initrd and initrd[0] != '/':
+            relative_path = initrd
+        else:
+            # The config does not contain relative paths. Use the directory of
+            # the config.
+            return os.path.dirname(cfg)
+
+        for d in self.syslinux.search_dirs:
+            if self.image.g.is_file(d+relative_path):
+                return d
+
+        raise FatalError("Unable to find the working directory of extlinux")
+
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent
         ones in GRUB1 configuration files.
@@ -440,28 +539,28 @@ class Linux(Unix):
         ones in the syslinux configuration files.
         """
 
-        config = '/boot/syslinux/syslinux.cfg'
         append_regexp = re.compile(
             r'\s*APPEND\s+.*\broot=/dev/[hsv]d[a-z][1-9]*\b', re.IGNORECASE)
 
-        if not self.image.g.is_file(config):
-            return
+        for config in self.syslinux.search_paths:
+            if not self.image.g.is_file(config):
+                continue
 
-        # There is no augeas lense for syslinux :-(
-        tmpfd, tmp = tempfile.mkstemp()
-        try:
-            for line in self.image.g.cat(config).splitlines():
-                if append_regexp.match(line):
-                    line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
-                                  'root=%s' % new_root, line)
-                os.write(tmpfd, line + '\n')
-            os.close(tmpfd)
-            tmpfd = None
-            self.image.g.upload(tmp, config)
-        finally:
-            if tmpfd is not None:
+            # There is no augeas lense for syslinux :-(
+            tmpfd, tmp = tempfile.mkstemp()
+            try:
+                for line in self.image.g.cat(config).splitlines():
+                    if append_regexp.match(line):
+                        line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
+                                      'root=%s' % new_root, line)
+                    os.write(tmpfd, line + '\n')
                 os.close(tmpfd)
-            os.unlink(tmp)
+                tmpfd = None
+                self.image.g.upload(tmp, config)
+            finally:
+                if tmpfd is not None:
+                    os.close(tmpfd)
+                os.unlink(tmp)
 
     def _persistent_fstab(self):
         """Replaces non-persistent device name occurrences in /etc/fstab with

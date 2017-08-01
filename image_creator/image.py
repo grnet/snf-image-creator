@@ -269,18 +269,21 @@ class Image(object):
 
     def _last_partition(self):
         """Return the last partition of the image disk"""
-        if self.meta['PARTITION_TABLE'] not in 'msdos' 'gpt':
-            msg = "Unsupported partition table: %s. Only msdos and gpt " \
-                "partition tables are supported" % self.meta['PARTITION_TABLE']
-            raise FatalError(msg)
 
         def is_extended(partition):
+            """Returns True if the partition is an extended partition"""
             return self.g.part_get_mbr_id(
                 self.guestfs_device, partition['part_num']) in (0x5, 0xf)
 
         def is_logical(partition):
+            """Returns True if the partition is a logical partition"""
             return self.meta['PARTITION_TABLE'] == 'msdos' and \
                 partition['part_num'] > 4
+
+        if self.meta['PARTITION_TABLE'] not in 'msdos' 'gpt':
+            msg = "Unsupported partition table: %s. Only msdos and gpt " \
+                "partition tables are supported" % self.meta['PARTITION_TABLE']
+            raise FatalError(msg)
 
         partitions = self.g.part_list(self.guestfs_device)
         last_partition = partitions[-1]
@@ -296,32 +299,18 @@ class Image(object):
 
         return last_partition
 
-    def shrink(self, silent=False):
-        """Shrink the image.
+    def _resize_partition(self, end):
+        """Resize a partition to a new boundary"""
 
-        This is accomplished by shrinking the last file system of the
-        image and then updating the partition table. The shrinked device is
-        returned.
-
-        ATTENTION: make sure umount is called before shrink
-        """
-        def get_fstype(partition):
-            """Get file system type"""
-            device = "%s%d" % (self.guestfs_device, partition['part_num'])
-            return self.g.vfs_type(device)
+        def is_extended(partition):
+            """Returns True if the partition is an extended partition"""
+            return self.g.part_get_mbr_id(
+                self.guestfs_device, partition['part_num']) in (0x5, 0xf)
 
         def is_logical(partition):
             """Returns True if the partition is a logical partition"""
             return self.meta['PARTITION_TABLE'] == 'msdos' and \
                 partition['part_num'] > 4
-
-        def is_extended(partition):
-            """Returns True if the partition is an extended partition"""
-            if self.meta['PARTITION_TABLE'] == 'msdos':
-                mbr_id = self.g.part_get_mbr_id(self.guestfs_device,
-                                                partition['part_num'])
-                return mbr_id in (0x5, 0xf)
-            return False
 
         def part_add(ptype, start, stop):
             """Add partition"""
@@ -346,6 +335,76 @@ class Image(object):
         def part_set_bootable(partnum, bootable):
             """Sets the bootable flag for a partition"""
             self.g.part_set_bootable(self.guestfs_device, partnum, bootable)
+
+        last_part = self._last_partition()
+        sector_size = self.g.blockdev_getss(self.guestfs_device)
+        start = last_part['part_start'] / sector_size
+
+        if is_logical(last_part):
+            partitions = self.g.part_list(self.guestfs_device)
+
+            logical = []  # logical partitions
+            for partition in partitions:
+                if partition['part_num'] < 4:
+                    continue
+                logical.append({
+                    'num': partition['part_num'],
+                    'start': partition['part_start'] / sector_size,
+                    'end': partition['part_end'] / sector_size,
+                    'id': part_get_id(partition['part_num']),
+                    'bootable': part_get_bootable(partition['part_num'])
+                })
+
+            logical[-1]['end'] = end  # new end after resize
+
+            # Recreate the extended partition
+            extended = filter(is_extended, partitions)[0]
+            part_del(extended['part_num'])
+            part_add('e', extended['part_start'] / sector_size, end)
+
+            # Create all the logical partitions back
+            for l in logical:
+                part_add('l', l['start'], l['end'])
+                part_set_id(l['num'], l['id'])
+                part_set_bootable(l['num'], l['bootable'])
+        else:
+            # Recreate the last partition
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                last_part['id'] = part_get_id(last_part['part_num'])
+
+            last_part['bootable'] = part_get_bootable(last_part['part_num'])
+            part_del(last_part['part_num'])
+            part_add('p', start, end)
+            part_set_bootable(last_part['part_num'], last_part['bootable'])
+
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                part_set_id(last_part['part_num'], last_part['id'])
+
+    def shrink(self, silent=False):
+        """Shrink the image.
+
+        This is accomplished by shrinking the last file system of the
+        image and then updating the partition table. The shrinked device is
+        returned.
+
+        ATTENTION: make sure umount is called before shrink
+        """
+        def get_fstype(partition):
+            """Get file system type"""
+            device = "%s%d" % (self.guestfs_device, partition['part_num'])
+            return self.g.vfs_type(device)
+
+        def is_extended(partition):
+            """Returns True if the partition is an extended partition"""
+            if self.meta['PARTITION_TABLE'] == 'msdos':
+                mbr_id = self.g.part_get_mbr_id(self.guestfs_device,
+                                                partition['part_num'])
+                return mbr_id in (0x5, 0xf)
+            return False
+
+        def part_del(partnum):
+            """Delete a partition"""
+            self.g.part_del(self.guestfs_device, partnum)
 
         MB = 2 ** 20
 
@@ -394,6 +453,9 @@ class Image(object):
             return None
 
         part_dev = "%s%d" % (self.guestfs_device, last_part['part_num'])
+        out = self.g.tune2fs_l(part_dev)
+        block_size = int(filter(lambda x: x[0] == 'Block size', out)[0][1])
+        old_block_cnt = int(filter(lambda x: x[0] == 'Block count', out)[0][1])
 
         try:
             if self.check_guestfs_version(1, 15, 17) >= 0:
@@ -410,51 +472,20 @@ class Image(object):
         self.g.resize2fs_M(part_dev)
 
         out = self.g.tune2fs_l(part_dev)
-        block_size = int(filter(lambda x: x[0] == 'Block size', out)[0][1])
+        assert block_size == \
+            int(filter(lambda x: x[0] == 'Block size', out)[0][1])
         block_cnt = int(filter(lambda x: x[0] == 'Block count', out)[0][1])
+
+        # Add some extra space for the image to be able to run.
+        block_cnt = min(old_block_cnt, block_cnt + 8388608/block_size)
 
         start = last_part['part_start'] / sector_size
         end = start + (block_size * block_cnt) / sector_size - 1
 
-        if is_logical(last_part):
-            partitions = self.g.part_list(self.guestfs_device)
+        self._resize_partition(end)
 
-            logical = []  # logical partitions
-            for partition in partitions:
-                if partition['part_num'] < 4:
-                    continue
-                logical.append({
-                    'num': partition['part_num'],
-                    'start': partition['part_start'] / sector_size,
-                    'end': partition['part_end'] / sector_size,
-                    'id': part_get_id(partition['part_num']),
-                    'bootable': part_get_bootable(partition['part_num'])
-                })
-
-            logical[-1]['end'] = end  # new end after resize
-
-            # Recreate the extended partition
-            extended = filter(is_extended, partitions)[0]
-            part_del(extended['part_num'])
-            part_add('e', extended['part_start'] / sector_size, end)
-
-            # Create all the logical partitions back
-            for l in logical:
-                part_add('l', l['start'], l['end'])
-                part_set_id(l['num'], l['id'])
-                part_set_bootable(l['num'], l['bootable'])
-        else:
-            # Recreate the last partition
-            if self.meta['PARTITION_TABLE'] == 'msdos':
-                last_part['id'] = part_get_id(last_part['part_num'])
-
-            last_part['bootable'] = part_get_bootable(last_part['part_num'])
-            part_del(last_part['part_num'])
-            part_add('p', start, end)
-            part_set_bootable(last_part['part_num'], last_part['bootable'])
-
-            if self.meta['PARTITION_TABLE'] == 'msdos':
-                part_set_id(last_part['part_num'], last_part['id'])
+        # Enlarge the underlying file system to consume the available space
+        self.g.resize2fs(part_dev)
 
         new_size = (end + 1) * sector_size
 
