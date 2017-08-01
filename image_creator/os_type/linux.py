@@ -463,7 +463,7 @@ class Linux(Unix):
         for path in self.syslinux.search_paths:
             if self.image.g.is_file(path):
                 cfg = path
-            break
+                break
 
         if not cfg:
             # Maybe we should fail here
