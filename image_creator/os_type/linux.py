@@ -415,6 +415,55 @@ class Linux(Unix):
             self.image.g.aug_save()
             self.image.g.aug_close()
 
+    @sysprep('Disabling predictable network interface naming')
+    def _disable_predictable_network_interface_naming(self):
+        """Disable predictable network interface naming"""
+
+        # Predictable Network Interface Names are explained here:
+        #
+        # https://www.freedesktop.org/wiki/Software/systemd/
+        #                                   PredictableNetworkInterfaceNames/
+        # Creating a link to disable them:
+        #    ln -s /dev/null /etc/systemd/network/99-default.link
+        # is not enough. We would also need to recreate the initramfs. Passing
+        # net.ifnames=0 on the kernel command line seems easier.
+
+        def repl(match):
+            """Append net.ifnames=0"""
+            if 'net.ifnames=0' in match.group(1):
+                return match.group(1)
+            else:
+                return "%s net.ifnames=0" % match.group(1)
+
+        if self.image.g.is_file('/boot/grub/grub.cfg'):
+            cfg = re.sub(r'^(\s*linux\s+.*)', repl,
+                         self.image.g.cat('/boot/grub/grub.cfg'),
+                         flags=re.MULTILINE)
+            self.image.g.write('/boot/grub/grub.cfg', cfg)
+
+        if self.image.g.is_file('/etc/default/grub'):
+            self.image.g.aug_init('/', 0)
+            path = '/files/etc/default/grub/GRUB_CMDLINE_LINUX'
+            try:
+                cmdline = ""
+                if self.image.g.aug_match(path):
+                    cmdline = self.image.g.aug_get(path)
+                # This looks a little bit weird but its a good way to append
+                # text to a variable without messing up with the quoting. The
+                # variable could have a value foo or 'foo' or "foo". Appending
+                # ' bar' will lead to a valid result.
+                cmdline = "%s%s" % (cmdline.strip(), "' net.ifname=0'")
+                self.image.g.aug_set(path, cmdline)
+            finally:
+                self.image.g.aug_save()
+                self.image.g.aug_close()
+
+        for path in self.syslinux.search_paths:
+            if self.image.g.is_file(path):
+                cfg = re.sub(r'^(\s*append\s+.*)', repl,
+                             self.image.g.cat(path), flags=re.MULTILINE)
+                self.image.g.write(path, cfg)
+
     @sysprep('Clearing local machine ID configuration file',
              display='Clear local machine ID configuration file')
     def _clear_local_machine_id_configuration_file(self):
