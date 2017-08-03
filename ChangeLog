@@ -1,3 +1,9 @@
+2017-08-03, v0.11
+	* Add support for detecting cloud-init images
+	* Add sysprep for renaming the default cloud-init user
+	* Add sysprep for disabling predictable network interface naming
+	* Fix bugs
+
 2017-02-01, v0.10.5
 	* Fix encoding issues that are triggered when the standard input is
 	  not a TTY.

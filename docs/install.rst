@@ -35,14 +35,14 @@ Install snf-image-creator using packages
 Debian
 ------
 
-For *Debian 7.0 (wheezy)* you can use our official packages found in our
+For *Debian 8.0 (jessie)* you can use our official packages found in our
 development repository.
 
 Add the following line to */etc/apt/sources.list*:
 
 .. code-block:: console
 
-   deb http://apt.dev.grnet.gr wheezy/
+   deb http://apt.dev.grnet.gr jessie/
 
 Add the apt-dev GPG key to the list of trusted keys:
 
@@ -71,8 +71,8 @@ And install the package with this command:
 Ubuntu
 ------
 
-For *Ubuntu 12.04 LTS* and *14.04 LTS* systems, you can use our official
-packages found in *grnet/synnefo* Lauchpad PPA.
+For *Ubuntu 12.04 LTS*, *14.04 LTS* or *16.04 LTS* systems, you can use our
+official packages found in *grnet/synnefo* Lauchpad PPA.
 
 Add the Synnefo PPA in your system:
 
@@ -115,15 +115,15 @@ Install the package by issuing:
 Fedora
 ------
 
-For *Fedora 20* you can use our official packages hosted at the *synnefo*
+For *Fedora 21* you can use our official packages hosted at the *synnefo*
 repository of the openSUSE Build Service.
 
-Add the *synnefo* repository for *Fedora 20* to *yum*:
+Add the *synnefo* repository for *Fedora 21* to *yum*:
 
 .. code-block:: console
 
    # cd /etc/yum.repos.d
-   # curl -O http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_20/home:GRNET:synnefo.repo
+   # curl -O http://download.opensuse.org/repositories/home:/GRNET:/synnefo/Fedora_21/home:GRNET:synnefo.repo
 
 To list the *snf-image-creator* package use the following command:
 
