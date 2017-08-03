@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -109,7 +109,7 @@ class Rsync(object):
             progress.success('done')
 
         finally:
-            def handler(signum, frame):
+            def handler(signum, frame):  # pylint: disable=unused-argument
                 """Signal handler"""
                 run.terminate()
                 time.sleep(1)

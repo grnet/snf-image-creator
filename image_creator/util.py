@@ -35,6 +35,7 @@ class FatalError(Exception):
 def static_vars(**kwargs):
     """Decorator for adding static variables to functions"""
     def decorate(func):
+        """inner"""
         for k in kwargs:
             setattr(func, k, kwargs[k])
         return func
@@ -52,7 +53,7 @@ def get_command(command):
         raise exception
 
     try:
-        return sh.__getattr__(command)
+        return sh.__getattr__(command)  # pylint: disable=no-member
     except sh.CommandNotFound as e:
         return find_sbin_command(command, e)
 
@@ -63,13 +64,13 @@ def image_info(image):
     qemu_img = get_command('qemu-img')
     try:
         info = qemu_img('info', '--output', 'json', image)
-    except sh.ErrorReturnCode_1:
+    except sh.ErrorReturnCode_1:  # pylint: disable=no-member
         # Old version of qemu-img that does not support --output json
         info = qemu_img('info', image)
         for line in str(info).splitlines():
             if line.startswith('file format:'):
-                format = line.split(':')[1].strip()
-                return {'format': format}
+                fmt = line.split(':')[1].strip()
+                return {'format': fmt}
         raise FatalError("Unable to determine the image format")
     return json.loads(str(info))
 

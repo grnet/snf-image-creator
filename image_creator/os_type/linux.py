@@ -17,12 +17,17 @@
 
 """This module hosts OS-specific code for Linux."""
 
-from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
-
 import os
+import os.path
 import re
 import pkg_resources
 import tempfile
+import yaml
+from collections import namedtuple
+
+from image_creator.util import FatalError
+from image_creator.bootloader import vbr_bootinfo
+from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
 
 X2GO_DESKTOPSESSIONS = {
     'CINNAMON': 'cinnamon',
@@ -65,10 +70,54 @@ class Linux(Unix):
     @add_sysprep_param(
         'powerbtn_action', 'string', '/sbin/shutdown -h now',
         "The action that should be executed if the power button is pressed")
+    @add_sysprep_param(
+        'default_user', 'string', 'user', "Name of default cloud-init user")
     def __init__(self, image, **kwargs):
         super(Linux, self).__init__(image, **kwargs)
         self._uuid = dict()
         self._persistent = re.compile('/dev/[hsv]d[a-z][1-9]*')
+        self.cloud_init = False
+
+        # As of 4.00, *SYSLINUX* will search for extlinux.conf then
+        # syslinux.cfg in each directory before falling back to the next
+        # directory
+        #
+        # http://repo.or.cz/syslinux.git/blob/syslinux-6.01: \
+        #        /txt/syslinux.cfg.txt#l32
+        #
+        dirs = ('/boot/extlinux/', '/boot/syslinux/', '/boot/',
+                '/extlinux/', '/syslinux/', '/')
+        files = ('extlinux.conf', 'syslinux.cfg')
+
+        paths = ["%s%s" % (d, c) for d in dirs for c in files]
+        self.syslinux = namedtuple(
+            'syslinux', ['search_dirs', 'search_paths'])(dirs, paths)
+
+    def get_cloud_init_config_files(self):
+        """Returns the cloud-init configuration files of the image"""
+
+        files = []
+
+        if self.image.g.is_file('/etc/cloud/cloud.cfg'):
+            files.append('/etc/cloud/cloud.cfg')
+
+        if self.image.g.is_dir('/etc/cloud/cloud.cfg.d'):
+            for c in self.image.g.readdir('/etc/cloud/cloud.cfg.d'):
+                if not (c['ftyp'] == 'r' and c['name'].endswith('.cfg')):
+                    continue
+                files.append('/etc/cloud/cloud.cfg.d/%s' % c['name'])
+
+        files.sort()
+        return files
+
+    def cloud_init_config(self):
+        """Returns a dictionary with the cloud-init configuration"""
+
+        cfg = {}
+        for c in self.get_cloud_init_config_files():
+            cfg.update(yaml.load(self.image.g.cat(c)))
+
+        return cfg
 
     @sysprep('Removing user accounts with id greater that 1000', enabled=False)
     def _remove_user_accounts(self):
@@ -128,6 +177,39 @@ class Linux(Unix):
         for home in [field[5] for field in removed_users.values()]:
             if self.image.g.is_dir(home) and home.startswith('/home/'):
                 self.image.g.rm_rf(home)
+
+    @sysprep('Renaming default cloud-init user to "%(default_user)s"',
+             enabled=False)
+    def _rename_default_cloud_init_user(self):
+        """Rename the default cloud-init user"""
+
+        if not self.cloud_init:
+            self.out.warn("Not a cloud-init enabled image")
+            return
+
+        old_name = None
+        new_name = self.sysprep_params['default_user'].value
+
+        for f in self.get_cloud_init_config_files():
+            cfg = yaml.load(self.image.g.cat(f))
+            try:
+                old_name = cfg['system_info']['default_user']['name']
+            except KeyError:
+                continue
+
+            if old_name != new_name:
+                self.image.g.mv(f, f + ".bak")
+                cfg['system_info']['default_user']['name'] = new_name
+                self.image.g.write(f, yaml.dump(cfg, default_flow_style=False))
+            else:
+                self.out.warn(
+                    'The default cloud-init user is already named: "%s"' %
+                    new_name)
+
+        if old_name is None:
+            self.out.warn("No default cloud-init user was found!")
+        else:
+            self._collect_cloud_init_metadata()
 
     @sysprep('Cleaning up password & locking all user accounts')
     def _cleanup_passwords(self):
@@ -269,7 +351,6 @@ class Linux(Unix):
 
         grub1_config = '/boot/grub/menu.lst'
         grub2_config = '/boot/grub/grub.cfg'
-        syslinux_config = '/boot/syslinux/syslinux.cfg'
 
         if self.image.g.is_file(grub1_config):
             regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
@@ -278,10 +359,11 @@ class Linux(Unix):
             regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
             replace_timeout(grub2_config, regexp, timeout)
 
-        if self.image.g.is_file(syslinux_config):
-            regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
-            # In syslinux the timeout unit is 0.1 seconds
-            replace_timeout(syslinux_config, regexp, timeout * 10)
+        regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
+        for syslinux_config in self.syslinux.search_paths:
+            if self.image.g.is_file(syslinux_config):
+                # In syslinux the timeout unit is 0.1 seconds
+                replace_timeout(syslinux_config, regexp, timeout * 10)
 
     @sysprep('Replacing fstab & grub non-persistent device references')
     def _use_persistent_block_device_names(self):
@@ -333,6 +415,55 @@ class Linux(Unix):
             self.image.g.aug_save()
             self.image.g.aug_close()
 
+    @sysprep('Disabling predictable network interface naming')
+    def _disable_predictable_network_interface_naming(self):
+        """Disable predictable network interface naming"""
+
+        # Predictable Network Interface Names are explained here:
+        #
+        # https://www.freedesktop.org/wiki/Software/systemd/
+        #                                   PredictableNetworkInterfaceNames/
+        # Creating a link to disable them:
+        #    ln -s /dev/null /etc/systemd/network/99-default.link
+        # is not enough. We would also need to recreate the initramfs. Passing
+        # net.ifnames=0 on the kernel command line seems easier.
+
+        def repl(match):
+            """Append net.ifnames=0"""
+            if 'net.ifnames=0' in match.group(1):
+                return match.group(1)
+            else:
+                return "%s net.ifnames=0" % match.group(1)
+
+        if self.image.g.is_file('/boot/grub/grub.cfg'):
+            cfg = re.sub(r'^(\s*linux\s+.*)', repl,
+                         self.image.g.cat('/boot/grub/grub.cfg'),
+                         flags=re.MULTILINE)
+            self.image.g.write('/boot/grub/grub.cfg', cfg)
+
+        if self.image.g.is_file('/etc/default/grub'):
+            self.image.g.aug_init('/', 0)
+            path = '/files/etc/default/grub/GRUB_CMDLINE_LINUX'
+            try:
+                cmdline = ""
+                if self.image.g.aug_match(path):
+                    cmdline = self.image.g.aug_get(path)
+                # This looks a little bit weird but its a good way to append
+                # text to a variable without messing up with the quoting. The
+                # variable could have a value foo or 'foo' or "foo". Appending
+                # ' bar' will lead to a valid result.
+                cmdline = "%s%s" % (cmdline.strip(), "' net.ifname=0'")
+                self.image.g.aug_set(path, cmdline)
+            finally:
+                self.image.g.aug_save()
+                self.image.g.aug_close()
+
+        for path in self.syslinux.search_paths:
+            if self.image.g.is_file(path):
+                cfg = re.sub(r'^(\s*append\s+.*)', repl,
+                             self.image.g.cat(path), flags=re.MULTILINE)
+                self.image.g.write(path, cfg)
+
     @sysprep('Clearing local machine ID configuration file',
              display='Clear local machine ID configuration file')
     def _clear_local_machine_id_configuration_file(self):
@@ -345,6 +476,86 @@ class Linux(Unix):
 
         if self.image.g.is_file('/var/lib/dbus/machine-id'):
             self.image.g.truncate('/var/lib/dbus/machine-id')
+
+    @sysprep('Shrinking image (may take a while)', nomount=True)
+    def _shrink(self):
+        """Shrink the last file system and update the partition table"""
+        device = self.image.shrink()
+        self.shrinked = True
+
+        if not device:
+            # Shrinking failed. No need to proceed.
+            return
+
+        # Check the Volume Boot Record of the shrinked partition to determine
+        # if a bootloader is present on it.
+        vbr = self.image.g.pread_device(device, 512, 0)
+        bootloader = vbr_bootinfo(vbr)
+
+        if bootloader == 'syslinux':
+            # EXTLINUX needs to be reinstalled after shrinking
+
+            with self.mount(silent=True):
+                basedir = self._get_syslinux_base_dir()
+
+                self.out.info("Updating the EXTLINUX installation under %s ..."
+                              % basedir, False)
+                self.image.g.command(['extlinux', '-U', basedir])
+                self.out.success("done")
+
+    def _get_syslinux_base_dir(self):
+        """Find the installation directory we need to use to when updating
+        syslinux
+        """
+        cfg = None
+
+        for path in self.syslinux.search_paths:
+            if self.image.g.is_file(path):
+                cfg = path
+                break
+
+        if not cfg:
+            # Maybe we should fail here
+            self.out.warn("Unable to find syslinux configuration file!")
+            return "/boot"
+
+        kernel_regexp = re.compile(r'\s*kernel\s+(.+)', re.IGNORECASE)
+        initrd_regexp = re.compile(r'\s*initrd\s+(.+)', re.IGNORECASE)
+        append_regexp = re.compile(
+            r'\s*[Aa][Pp][Pp][Ee][Nn][Dd]\s+.*\binitrd=([^\s]+)')
+
+        kernel = None
+        initrd = None
+
+        for line in self.image.g.cat(cfg).splitlines():
+            kernel_match = kernel_regexp.match(line)
+            if kernel_match:
+                kernel = kernel_match.group(1).strip()
+                continue
+
+            initrd_match = initrd_regexp.match(line)
+            if initrd_match:
+                initrd = initrd_match.group(1).strip()
+                continue
+
+            append_match = append_regexp.match(line)
+            if append_match:
+                initrd = append_match.group(1)
+
+        if kernel and kernel[0] != '/':
+            relative_path = kernel
+        elif initrd and initrd[0] != '/':
+            relative_path = initrd
+        else:
+            # The config does not contain relative paths. Use the directory of
+            # the config.
+            return os.path.dirname(cfg)
+
+        for d in self.syslinux.search_dirs:
+            if self.image.g.is_file(d+relative_path):
+                return d
+
+        raise FatalError("Unable to find the working directory of extlinux")
 
     def _persistent_grub1(self, new_root):
         """Replaces non-persistent device name occurrences with persistent
@@ -377,28 +588,28 @@ class Linux(Unix):
         ones in the syslinux configuration files.
         """
 
-        config = '/boot/syslinux/syslinux.cfg'
         append_regexp = re.compile(
             r'\s*APPEND\s+.*\broot=/dev/[hsv]d[a-z][1-9]*\b', re.IGNORECASE)
 
-        if not self.image.g.is_file(config):
-            return
+        for config in self.syslinux.search_paths:
+            if not self.image.g.is_file(config):
+                continue
 
-        # There is no augeas lense for syslinux :-(
-        tmpfd, tmp = tempfile.mkstemp()
-        try:
-            for line in self.image.g.cat(config).splitlines():
-                if append_regexp.match(line):
-                    line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
-                                  'root=%s' % new_root, line)
-                os.write(tmpfd, line + '\n')
-            os.close(tmpfd)
-            tmpfd = None
-            self.image.g.upload(tmp, config)
-        finally:
-            if tmpfd is not None:
+            # There is no augeas lense for syslinux :-(
+            tmpfd, tmp = tempfile.mkstemp()
+            try:
+                for line in self.image.g.cat(config).splitlines():
+                    if append_regexp.match(line):
+                        line = re.sub(r'\broot=/dev/[hsv]d[a-z][1-9]*\b',
+                                      'root=%s' % new_root, line)
+                    os.write(tmpfd, line + '\n')
                 os.close(tmpfd)
-            os.unlink(tmp)
+                tmpfd = None
+                self.image.g.upload(tmp, config)
+            finally:
+                if tmpfd is not None:
+                    os.close(tmpfd)
+                os.unlink(tmp)
 
     def _persistent_fstab(self):
         """Replaces non-persistent device name occurrences in /etc/fstab with
@@ -469,6 +680,49 @@ class Linux(Unix):
         else:
             self.out.success('no')
 
+    def _collect_cloud_init_metadata(self):
+        """Collect metadata regarding cloud-init"""
+
+        def warn(msg):
+            self.out.warn("Cloud-init: " + msg)
+
+        self.meta['CLOUD_INIT'] = 'yes'
+        cfg = self.cloud_init_config()
+        try:
+            default_user = cfg['system_info']['default_user']['name']
+        except KeyError:
+            default_user = None
+            warn("No default user defined")
+
+        users = []
+        if 'users' in cfg:
+            for u in cfg['users']:
+                if isinstance(u, (str, unicode)):
+                    if u == 'default':
+                        if default_user:
+                            users.append(default_user)
+                        else:
+                            warn("Ignoring undefined default user")
+                    else:
+                        users.append(u)
+                elif isinstance(u, dict):
+                    if 'snapuser' in u:
+                        warn("Ignoring snapuser: %s" % u['snapuser'])
+                    elif 'inactive' in u and u['inactive'] is True:
+                        try:
+                            warn("Ignoring inactive user: %s" % u['name'])
+                        except KeyError:
+                            pass
+                    elif 'system' in u and u['system'] is True:
+                        try:
+                            warn("Ignoring system user: %s" % u['name'])
+                        except KeyError:
+                            pass
+        if users:
+            self.meta['USERS'] = " ".join(users)
+        if default_user:
+            self.meta['CLOUD_INIT_DEFAULT_USER'] = default_user
+
     def _do_collect_metadata(self):
         """Collect metadata about the OS"""
         super(Linux, self)._do_collect_metadata()
@@ -537,6 +791,36 @@ class Linux(Unix):
                         " ".join(["x2go:session=%s" % d for d in desktops])
         else:
             self.out.warn("OpenSSH Daemon is not configured to run on boot")
+
+        if self.is_enabled('cloud-init'):
+            self.cloud_init = True
+        else:
+            # Many OSes use a systemd generator for cloud-init:
+            #
+            # When booting under systemd, a generator will run that determines
+            # if cloud-init.target should be included in the boot goals. By
+            # default, this generator will enable cloud-init. It will not
+            # enable cloud-init if either:
+            #
+            #   * A file exists: /etc/cloud/cloud-init.disabled
+            #   * The kernel command line as found in /proc/cmdline contains
+            #     cloud-init=disabled. When running in a container, the kernel
+            #     command line is not honored, but cloud-init will read an
+            #     environment variable named KERNEL_CMDLINE in its place.
+            #
+            # http://cloudinit.readthedocs.io/en/latest/topics/boot.html
+
+            generator_found = False
+            for i in ("/run", "/etc", "/usr/local/lib", "/usr/lib"):
+                if self.image.g.is_file("%s/systemd/system-generators/"
+                                        "cloud-init-generator" % i):
+                    generator_found = True
+                    break
+            if generator_found:
+                self.cloud_init = \
+                    not self.image.g.is_file("/etc/cloud/cloud-init.disabled")
+        if self.cloud_init:
+            self._collect_cloud_init_metadata()
 
     def is_enabled(self, service):
         """Check if a service is enabled to run on boot"""

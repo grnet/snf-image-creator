@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2015 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,9 +17,10 @@
 
 """This module provides various dialog-based Output classes"""
 
-from image_creator.output import Output
 import time
 import fcntl
+
+from image_creator.output import Output
 
 
 class GaugeOutput(Output):
@@ -103,6 +104,7 @@ class GaugeOutput(Output):
 
             postfix = self.template[self.bar_type] % self.parent.__dict__
             msg = "%s %s" % (self.parent.msg, postfix)
+            # pylint: disable=no-member
             self.parent.d.gauge_update(self.parent.percent, msg,
                                        update_text=True)
 
