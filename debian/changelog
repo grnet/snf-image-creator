@@ -1,3 +1,9 @@
+snf-image-creator (0.11-1~stretch) stretch; urgency=medium
+
+  * New upstream version
+
+ -- Nikos Skalkotos <skalkoto@grnet.gr>  Thu, 03 Aug 2017 11:15:22 +0300
+
 snf-image-creator (0.10.5-1~jessie) jessie; urgency=medium
 
   * New upstream version
