@@ -22,14 +22,6 @@ snf-image-creator program.
 
 from __future__ import unicode_literals
 
-from image_creator import __version__ as version
-from image_creator.disk import Disk
-from image_creator.util import FatalError, static_vars
-from image_creator.output.cli import SilentOutput, SimpleOutput, \
-    OutputWthProgress
-from image_creator.output.composite import CompositeOutput
-from image_creator.output.syslog import SyslogOutput
-from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 import sys
 import os
 import argparse
@@ -42,6 +34,15 @@ import subprocess
 import time
 import re
 import locale
+
+from image_creator import __version__ as version
+from image_creator.disk import Disk
+from image_creator.util import FatalError, static_vars
+from image_creator.output.cli import SilentOutput, SimpleOutput, \
+    OutputWthProgress
+from image_creator.output.composite import CompositeOutput
+from image_creator.output.syslog import SyslogOutput
+from image_creator.kamaki_wrapper import Kamaki, ClientError, CONTAINER
 
 
 @static_vars(enc=locale.getdefaultlocale()[1])
@@ -59,6 +60,7 @@ def get_encoding():
 
 class CheckWritableDir(argparse.Action):
     """Check if a directory is writable"""
+    # pylint: disable=signature-differs
     def __call__(self, parser, namespace, value, option):
 
         if getattr(namespace, self.dest):
@@ -86,6 +88,7 @@ class CheckWritableDir(argparse.Action):
 
 class AddKeyValue(argparse.Action):
     """Add key value options"""
+    # pylint: disable=signature-differs
     def __call__(self, parser, namespace, value, option):
 
         dest = getattr(namespace, self.dest)
@@ -325,6 +328,7 @@ def image_creator(options, out):
 
     disk = Disk(options.source, out, options.tmp)
 
+    # pylint: disable=unused-argument
     def signal_handler(signum, frame):
         disk.cleanup()
 
@@ -462,10 +466,9 @@ def image_creator(options, out):
                 with image.raw_device() as raw:
                     with open(raw, 'rb') as f:
                         remote = kamaki.upload(
-                                    f, image.size, options.upload,
-                                    options.container, None,
-                                    "(1/3)  Calculating block hashes",
-                                    "(2/3)  Uploading missing blocks")
+                            f, image.size, options.upload, options.container,
+                            None, "(1/3)  Calculating block hashes",
+                            "(2/3)  Uploading missing blocks")
 
                 out.info("(3/3)  Uploading md5sum file ...", False)
                 md5sumstr = '%s %s\n' % (checksum,

@@ -157,8 +157,7 @@ def upload_image(session):
         if len(overwrite) > 0:
             if d.yesno("The following storage service object(s) already "
                        "exist(s):\n%s\nDo you want to overwrite them?" %
-                       "\n".join(overwrite), width=WIDTH, defaultno=1
-                       ) != d.OK:
+                       "\n".join(overwrite), width=WIDTH, defaultno=1) != d.OK:
                 continue
         break
 
@@ -322,6 +321,9 @@ def modify_clouds(session):
         if not len(clouds):
             if not add_cloud(session):
                 break
+            else:
+                # Select the newly added cloud
+                session['current_cloud'] = Kamaki.get_clouds().keys()[0]
             continue
 
         choices = []
@@ -515,7 +517,10 @@ def kamaki_menu(session):
 
         if choice == "Add/Edit":
             if modify_clouds(session):
-                default_item = "Cloud"
+                if len(Kamaki.get_clouds()) == 1:
+                    default_item = "Upload"
+                else:
+                    default_item = "Cloud"
         elif choice == "Delete":
             if delete_clouds(session):
                 if len(Kamaki.get_clouds()):
@@ -569,8 +574,8 @@ def show_info(session):
 
             if os.path.exists(path):
                 if d.yesno("File: `%s' already exists. Do you want to "
-                           "overwrite it?" % path, width=WIDTH, defaultno=1
-                           ) != d.OK:
+                           "overwrite it?" % path, width=WIDTH,
+                           defaultno=1) != d.OK:
                     continue
 
             with open(path, 'w') as f:
@@ -974,7 +979,7 @@ def sysprep(session):
         sysprep_help = "%s\n%s\n\n" % (help_title, '=' * len(help_title))
 
         for task in syspreps:
-            name, descr, display = image.os.sysprep_info(task)
+            _, descr, display = image.os.sysprep_info(task)
             sysprep_help += "%s\n" % display
             sysprep_help += "%s\n" % ('-' * len(display))
             sysprep_help += "%s\n\n" % wrapper.fill(" ".join(descr.split()))
@@ -1000,7 +1005,7 @@ def sysprep(session):
             d.scrollbox(sysprep_help, width=WIDTH)
         elif code == d.OK:
             # Enable selected syspreps and disable the rest
-            for i in range(len(syspreps)):
+            for i, _ in enumerate(syspreps):
                 if str(i + 1) in tags:
                     image.os.enable_sysprep(syspreps[i])
                 else:

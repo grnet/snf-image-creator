@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2015 GRNET S.A.
+# Copyright (C) 2015-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ MBR_LDR = [
     # Paragon Partition Manager
     "paragon",
     # Testdisk MBR
-    "testdist",
+    "testdisk",
     # GAG Graphical Boot Manager
     "gag",
     # BootIt Boot Manager
@@ -93,7 +93,6 @@ MBR_SIG2 = {
     "\x33\xff": 13,
     "\xb8\x00": 14,
     "\xea\x1e": 15,
-    "\xeb\x04":        11,
     "\xeb\x31": 16,
     "\xfa\x33": 10,
     "\xfa\xeb": 2,

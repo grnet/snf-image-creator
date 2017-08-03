@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2016 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=['sh', 'ansicolors', 'progress>=1.0.2', 'kamaki>=0.9',
-                      'argparse'],
+                      'argparse', 'pyyaml'],
     # Unresolvable dependencies:
     #   pysendfile|py-sendfile, hivex, guestfs, parted, rsync,
     entry_points={

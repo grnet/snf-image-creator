@@ -19,13 +19,13 @@
 Systems for image creation.
 """
 
-from image_creator.util import FatalError
-from image_creator.bootloader import mbr_bootinfo, vbr_bootinfo
-
 import textwrap
 import re
 from collections import namedtuple
 from functools import wraps
+
+from image_creator.util import FatalError
+from image_creator.bootloader import mbr_bootinfo
 
 OSTYPE_ORDER = {
     "windows": 8,
@@ -486,29 +486,6 @@ class OSBase(object):
         device = self.image.shrink()
         self.shrinked = True
 
-        if not device:
-            # Shrinking failed. No need to proceed.
-            return
-
-        # Check the Volume Boot Record of the shrinked partition to determine
-        # if a bootloader is present on it.
-        vbr = self.image.g.pread_device(device, 512, 0)
-        bootloader = vbr_bootinfo(vbr)
-
-        if bootloader == 'syslinux':
-            # EXTLINUX needs to be reinstalled after shrinking
-            with self.mount(silent=True):
-                self.out.info("Reinstalling extlinux ...", False)
-                if self.image.g.is_dir('/boot/extlinux'):
-                    extdir = '/boot/extlinux'
-                elif self.image.g.is_dir('/boot/syslinux'):
-                    extdir = '/boot/syslinux'
-                else:
-                    extdir = '/boot'
-
-                self.image.g.command(['extlinux', '--install', extdir])
-                self.out.success("done")
-
     @property
     def ismounted(self):
         return self._mounted is not None
@@ -562,6 +539,7 @@ class OSBase(object):
                 self.umount()
 
             def umount(self):
+                """umount all"""
                 output("Umounting the media ...", False)
                 parent.image.g.umount_all()
                 parent._mounted = None

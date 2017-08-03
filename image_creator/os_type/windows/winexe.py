@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -93,6 +93,7 @@ class WinEXE(object):
     def debug_stderr(self):
         """Send debug output to STDERR"""
         self._opts.append('--debug-stderr')
+        return self
 
     def run(self, command, timeout=0):
         """Run a command on a remote windows system"""

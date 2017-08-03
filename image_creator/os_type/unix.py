@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -196,7 +196,7 @@ class Unix(OSBase):
         config = sshd_config()
         try:
             port = int(config['Port'][0])
-        except:
+        except KeyError:
             port = 22
 
         if 'PermitRootLogin' in config and config['PermitRootLogin'] == 'no':

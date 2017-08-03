@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2016 GRNET S.A.
+# Copyright (C) 2011-2017 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ UUID_UPDATE = {
 def mkfs(fs, device, uuid=None, label=None):
     """Create a filesystem on the device"""
 
-    mkfs = get_command('mkfs.%s' % fs)
+    cmd = get_command('mkfs.%s' % fs)
 
     args = []
 
@@ -86,7 +86,7 @@ def mkfs(fs, device, uuid=None, label=None):
 
     args.append(device)
 
-    mkfs(*args)
+    cmd(*args)
 
     if 'uuid' not in MKFS_OPTS[fs] and 'uuid':
         UUID_UPDATE[fs](device, uuid)
@@ -256,7 +256,7 @@ class BundleVolume(object):
         # Extended boot records precede the logical partitions they describe
         logical = self.disk.getLogicalPartitions()
         start = extended.geometry.start
-        for i in range(len(logical)):
+        for i, _ in enumerate(logical):
             end = logical[i].geometry.start - 1
             dd('if=%s' % self.disk.device.path, 'of=%s' % image,
                'count=%d' % (end - start + 1), 'conv=notrunc',
