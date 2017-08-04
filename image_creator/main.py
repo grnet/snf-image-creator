@@ -438,8 +438,12 @@ def image_creator(options, out):
 
         checksum = image.md5()
 
+        image_meta = {}
+        for k, v in image.meta.items():
+            image_meta[str(k)] = str(v)
+
         metastring = json.dumps(
-            {'properties': image.meta, 'disk-format': 'diskdump'},
+            {'properties': image_meta, 'disk-format': 'diskdump'},
             ensure_ascii=False)
 
         if options.outfile is not None:

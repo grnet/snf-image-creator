@@ -143,7 +143,9 @@ class Reset(Exception):
 def extract_metadata_string(session):
     """Convert image metadata to text"""
     metadata = {}
-    metadata.update(session['image'].meta)
+    for k, v in session['image'].meta.items():
+        metadata[str(k)] = str(v)
+
     if 'task_metadata' in session:
         for key in session['task_metadata']:
             metadata[key] = 'yes'
