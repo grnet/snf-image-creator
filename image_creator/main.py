@@ -37,7 +37,7 @@ import locale
 
 from image_creator import __version__ as version
 from image_creator.disk import Disk
-from image_creator.util import FatalError, static_vars
+from image_creator.util import FatalError, static_vars, to_shell
 from image_creator.output.cli import SilentOutput, SimpleOutput, \
     OutputWthProgress
 from image_creator.output.composite import CompositeOutput
@@ -446,6 +446,8 @@ def image_creator(options, out):
             {'properties': image_meta, 'disk-format': 'diskdump'},
             ensure_ascii=False)
 
+        img_properties = json.dumps(image_meta, ensure_ascii=False)
+
         if options.outfile is not None:
             if os.path.realpath(options.outfile) == '/dev/null':
                 out.warn('Not dumping file to /dev/null')
@@ -461,6 +463,13 @@ def image_creator(options, out):
                 with open('%s.%s' % (options.outfile, 'md5sum'), 'w') as f:
                     f.write('%s %s\n' % (checksum,
                                          os.path.basename(options.outfile)))
+                out.success('done')
+
+                out.info('Dumping variant file ...', False)
+                with open('%s.%s' % (options.outfile, 'variant'), 'w') as f:
+                    f.write(to_shell(IMG_ID=options.outfile,
+                                     IMG_FORMAT="diskdump",
+                                     IMG_PROPERTIES=img_properties))
                 out.success('done')
 
         out.info()

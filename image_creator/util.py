@@ -25,6 +25,9 @@ import os
 import re
 import json
 import tempfile
+import subprocess
+import random
+import string
 
 
 class FatalError(Exception):
@@ -142,6 +145,16 @@ def virtio_versions(virtio_state):
 
     return ret
 
+def to_shell(**kwargs):
+    """Convert values to shell sourceable code"""
+
+    prefix = ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
+    for k, v in kwargs.items():
+        os.environ["%s_%s" % (prefix, k)] = str(v)
+
+    return subprocess.check_output(
+        "set | grep ^%s_ | sed -e 's/^%s_//'" % (prefix, prefix),
+        shell=True)
 
 class QemuNBD(object):
     """Wrapper class for the qemu-nbd tool"""

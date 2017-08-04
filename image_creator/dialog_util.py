@@ -27,6 +27,7 @@ import shutil
 
 from image_creator.output.dialog import GaugeOutput
 from image_creator.kamaki_wrapper import Kamaki
+from image_creator.util import to_shell
 
 SMALL_WIDTH = 60
 WIDTH = 70
@@ -153,6 +154,18 @@ def extract_metadata_string(session):
     return json.dumps({'properties': metadata, 'disk-format': 'diskdump'},
                       ensure_ascii=False)
 
+def extract_variant_string(session, path):
+    """Convert image metadata to a shell sourceable string"""
+    metadata = {}
+    for k, v in session['image'].meta.items():
+        metadata[str(k)] = str(v)
+
+    if 'task_metadata' in session:
+        for key in session['task_metadata']:
+            metadata[key] = 'yes'
+
+    return to_shell(IMG_ID=os.path.basename(path), IMG_FORMAT='diskdump',
+                    IMG_PROPERTIES=json.dumps(metadata))
 
 def extract_image(session):
     """Dump the image to a local file"""
@@ -221,12 +234,19 @@ def extract_image(session):
                     f.write(extract_metadata_string(session))
                 out.success('done')
 
+                # Extract variant file
+                out.info("Extracting variant file ...", False)
+                with open('%s.meta' % path, 'w') as f:
+                    f.write(extract_variant_string(session, path))
+                out.success('done')
+
                 # Extract md5sum file
                 out.info("Extracting md5sum file ...", False)
                 md5str = "%s %s\n" % (session['checksum'], name)
                 with open('%s.md5sum' % path, 'w') as f:
                     f.write(md5str)
                 out.success("done")
+
             finally:
                 out.remove(gauge)
         finally:
