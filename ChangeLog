@@ -1,3 +1,7 @@
+2017-08-28, v0.11.1
+	* Dump an Ganeti variant file file for snf-image along with the image
+	* Make sure all exported metadata are strings
+
 2017-08-03, v0.11
 	* Add support for detecting cloud-init images
 	* Add sysprep for renaming the default cloud-init user
