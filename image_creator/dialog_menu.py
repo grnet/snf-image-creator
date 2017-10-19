@@ -254,7 +254,7 @@ def register_image(session):
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
 
-        answer = d.yesno("Make the image public?\\nA public image is "
+        answer = d.yesno("Make the image public?\nA public image is "
                          "accessible by every user of the service.",
                          defaultno=1, width=WIDTH)
         if answer == d.ESC:
