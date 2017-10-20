@@ -231,7 +231,7 @@ def register_image(session):
 
     is_public = False
     _, _, _, container, remote = cloud['uploaded'].split('/')
-    name = "" if 'registered' not in cloud else cloud['registered']
+    name = "" if 'registered' not in cloud else cloud['registered']['name']
     descr = image.meta['DESCRIPTION'] if 'DESCRIPTION' in image.meta else ""
 
     while 1:
@@ -553,7 +553,7 @@ def show_info(session):
 
     assert 'current_cloud' in session
     assert session['current_cloud'] in session['clouds']
-    cloud = session['clouds']['current_cloud']
+    cloud = session['clouds'][session['current_cloud']]
 
     assert 'registered' in cloud
 
