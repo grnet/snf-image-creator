@@ -435,11 +435,7 @@ class Linux(Unix):
             else:
                 return "%s net.ifnames=0" % match.group(1)
 
-        if self.image.g.is_file('/boot/grub/grub.cfg'):
-            cfg = re.sub(r'^(\s*linux\s+.*)', repl,
-                         self.image.g.cat('/boot/grub/grub.cfg'),
-                         flags=re.MULTILINE)
-            self.image.g.write('/boot/grub/grub.cfg', cfg)
+        self._replace_kernel_params(repl)
 
         if self.image.g.is_file('/etc/default/grub'):
             self.image.g.aug_init('/', 0)
@@ -458,11 +454,30 @@ class Linux(Unix):
                 self.image.g.aug_save()
                 self.image.g.aug_close()
 
-        for path in self.syslinux.search_paths:
-            if self.image.g.is_file(path):
-                cfg = re.sub(r'^(\s*append\s+.*)', repl,
-                             self.image.g.cat(path), flags=re.MULTILINE)
-                self.image.g.write(path, cfg)
+    @sysprep('Disable serial console')
+    def _disable_serial_console(self):
+        """Disable outputting to the serial console"""
+
+        regexp = re.compile(
+            r'(\s+(console=tty[SU]|earlyprintk=(serial|ttyS))[^\s"'"'"']*)+')
+
+        def repl(match):
+            """Remove console options containing serial ports"""
+            return regexp.sub(" ", match.group(1))
+
+        self._replace_kernel_params(repl)
+
+        if self.image.g.is_file('/etc/default/grub'):
+            self.image.g.aug_init('/', 0)
+            try:
+                for var in ('', '_DEFAULT'):
+                    path = '/files/etc/default/grub/GRUB_CMDLINE_LINUX' + var
+                    if self.image.g.aug_match(path):
+                        cmdline = self.image.g.aug_get(path)
+                        self.image.g.aug_set(path, regexp.sub(" ", cmdline))
+            finally:
+                self.image.g.aug_save()
+                self.image.g.aug_close()
 
     @sysprep('Clearing local machine ID configuration file',
              display='Clear local machine ID configuration file')
@@ -916,5 +931,21 @@ class Linux(Unix):
         assert len(uuid)
         self._uuid[dev] = uuid
         return uuid
+
+    def _replace_kernel_params(self, repl):
+        """Change the kernel parameters passed by the boot loader"""
+
+        if self.image.g.is_file('/boot/grub/grub.cfg'):
+            cfg = re.sub(r'^(\s*linux\s+.*)', repl,
+                         self.image.g.cat('/boot/grub/grub.cfg'),
+                         flags=re.MULTILINE)
+            self.image.g.write('/boot/grub/grub.cfg', cfg)
+
+        for path in self.syslinux.search_paths:
+            if self.image.g.is_file(path):
+                cfg = re.sub(r'^(\s*append\s+.*)', repl,
+                             self.image.g.cat(path), flags=re.MULTILINE)
+                self.image.g.write(path, cfg)
+
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
