@@ -428,28 +428,44 @@ class Linux(Unix):
         # is not enough. We would also need to recreate the initramfs. Passing
         # net.ifnames=0 on the kernel command line seems easier.
 
+        ifnames = re.compile(r'\s+net\.ifnames=\d+\b')
         def repl(match):
             """Append net.ifnames=0"""
-            if 'net.ifnames=0' in match.group(1):
-                return match.group(1)
+            if ifnames.search(match.group(1)):
+                return ifnames.sub(' net.ifnames=0', match.group(1))
             else:
-                return "%s net.ifnames=0" % match.group(1)
+                return "%s %s" % (match.group(1), 'net.ifnames=0')
 
         self._replace_kernel_params(repl)
 
         if self.image.g.is_file('/etc/default/grub'):
             self.image.g.aug_init('/', 0)
             path = '/files/etc/default/grub/GRUB_CMDLINE_LINUX'
+            path_default = path + '_DEFAULT'
             try:
                 cmdline = ""
+                cmdline_default = ""
                 if self.image.g.aug_match(path):
                     cmdline = self.image.g.aug_get(path)
-                # This looks a little bit weird but its a good way to append
-                # text to a variable without messing up with the quoting. The
-                # variable could have a value foo or 'foo' or "foo". Appending
-                # ' bar' will lead to a valid result.
-                cmdline = "%s%s" % (cmdline.strip(), "' net.ifname=0'")
-                self.image.g.aug_set(path, cmdline)
+                    if ifnames.search(cmdline):
+                        self.image.g.aug_set(
+                            path, ifnames.sub(' net.ifnames=0', cmdline))
+                if self.image.g.aug_match(path_default):
+                    cmdline_default = self.image.g.aug_get(path_default)
+                    if ifnames.search(cmdline_default):
+                        self.image.g.aug_set(
+                            path_default,
+                            ifnames.sub(' net.ifnames=0', cmdline_default))
+
+                if not (ifnames.search(cmdline) or
+                        ifnames.search(cmdline_default)):
+                    # This looks a little bit weird but its a good way to
+                    # append text to a variable without messing up with the
+                    # quoting. The variable could have a value foo or 'foo' or
+                    # "foo". Appending ' bar' will lead to a valid result.
+
+                    self.image.g.aug_set(path, "%s' %s'" % (cmdline.strip(),
+                                                            'net.ifnames=0'))
             finally:
                 self.image.g.aug_save()
                 self.image.g.aug_close()
