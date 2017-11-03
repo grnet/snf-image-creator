@@ -24,6 +24,7 @@ import pkg_resources
 import tempfile
 import yaml
 from collections import namedtuple
+from functools import wraps
 
 from image_creator.util import FatalError
 from image_creator.bootloader import vbr_bootinfo
@@ -61,6 +62,17 @@ DISTRO_ORDER = {
     "cirros": 15,
     "pardus": 10
 }
+
+
+def cloudinit(method):
+    """Decorator that adds a check to run only on cloud-init enabled images"""
+    @wraps(method)
+    def inner(self):
+        if not self.cloud_init:
+            self.out.warn("Not a cloud-init enabled image")
+            return
+        return method(self)
+    return inner
 
 
 class Linux(Unix):
@@ -180,12 +192,9 @@ class Linux(Unix):
 
     @sysprep('Renaming default cloud-init user to "%(default_user)s"',
              enabled=False)
+    @cloudinit
     def _rename_default_cloud_init_user(self):
         """Rename the default cloud-init user"""
-
-        if not self.cloud_init:
-            self.out.warn("Not a cloud-init enabled image")
-            return
 
         old_name = None
         new_name = self.sysprep_params['default_user'].value
