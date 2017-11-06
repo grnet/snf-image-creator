@@ -63,6 +63,8 @@ DISTRO_ORDER = {
     "pardus": 10
 }
 
+CLOUDINIT_FILE_PRIORITY = 60
+
 
 def cloudinit(method):
     """Decorator that adds a check to run only on cloud-init enabled images"""
@@ -219,6 +221,38 @@ class Linux(Unix):
             self.out.warn("No default cloud-init user was found!")
         else:
             self._collect_cloud_init_metadata()
+
+    @sysprep('Enable root account in cloud-init', enabled=False)
+    @cloudinit
+    def _enable_root_in_cloud_init(self):
+        """Enable root in cloud-init"""
+
+        cfg = self.cloud_init_config()
+        new_cfg = {}
+        if 'disable_root' not in cfg or cfg['disable_root'] is True:
+            new_cfg['disable_root'] = False
+
+        enabled_users = cfg['users'] if 'users' in cfg else []
+        if 'root' not in enabled_users:
+            new_cfg['users'] = enabled_users + ['root']
+
+        if not new_cfg:
+            self.out.warn('Root is already enabled')
+            return
+
+        fname = "%d_snf-image-creator-EnableRoot.cfg" % CLOUDINIT_FILE_PRIORITY
+        if not self.image.g.is_dir('/etc/cloud/cloud.cfg.d'):
+            self.image.g.mkdir('/etc/cloud/cloud.cfg.d')
+
+        self.image.g.write('/etc/cloud/cloud.cfg.d/%s' % fname,
+                           yaml.dump(new_cfg))
+
+        metadata_users = self.meta['USERS'].split() if 'USERS' in self.meta \
+                else []
+        metadata_users.insert(0, 'root')
+        self.meta['USERS'] = " ".join(metadata_users)
+        if not len(self.meta['USERS']):
+            del self.meta['USERS']
 
     @sysprep('Cleaning up password & locking all user accounts')
     def _cleanup_passwords(self):
