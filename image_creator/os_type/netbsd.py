@@ -40,7 +40,7 @@ class Netbsd(Bsd):
             for line in self.image.g.cat(rc_conf).splitlines():
                 line = line.split('#')[0].strip()
                 if sshd_service.match(line):
-                    sshd_enabled = len(sshd_yes.findall(line)) > 0
+                    sshd_enabled = bool(sshd_yes.findall(line))
 
         return sshd_enabled
 

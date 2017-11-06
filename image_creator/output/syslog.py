@@ -38,7 +38,7 @@ class SyslogOutput(Output):
     def error(self, msg):
         """Print an error to syslog"""
 
-        if len(self.line):
+        if self.line:
             syslog.syslog(syslog.LOG_INFO, " ".join(self.line))
             self.line = []
 
@@ -47,7 +47,7 @@ class SyslogOutput(Output):
     def warn(self, msg):
         """Print a warning"""
 
-        if len(self.line):
+        if self.line:
             syslog.syslog(syslog.LOG_INFO, "[INFO] %s " % " ".join(self.line))
             self.line = []
 
@@ -63,7 +63,7 @@ class SyslogOutput(Output):
     def info(self, msg='', new_line=True):
         """Print normal program output"""
 
-        if len(msg) == 0:
+        if not msg:
             return
 
         self.line.append(msg)

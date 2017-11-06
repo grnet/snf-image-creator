@@ -116,13 +116,13 @@ class Disk(object):
         program ends.
         """
         try:
-            while len(self._images):
+            while self._images:
                 image = self._images.pop()
                 image.destroy()
         finally:
             # Make sure those are executed even if one of the device.destroy
             # methods throws exeptions.
-            while len(self._cleanup_jobs):
+            while self._cleanup_jobs:
                 job, args = self._cleanup_jobs.pop()
                 job(*args)
 

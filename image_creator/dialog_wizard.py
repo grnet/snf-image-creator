@@ -268,7 +268,7 @@ class WizardMenuPage(WizardPageWthChoices):
 
         choices = self.choices()
 
-        if len(choices) == 0:
+        if not choices:
             assert self.fallback, "Zero choices and no fallback"
             if self.fallback():
                 raise WizardReloadPage
@@ -373,8 +373,8 @@ def start_wizard(session):
 
         if netkvm is False or viostor is False:
             new = image.os.compute_virtio_state(drv_dir) if drv_dir else None
-            new_viostor = len(new['viostor']) != 0 if new else False
-            new_netkvm = len(new['netkvm']) != 0 if new else False
+            new_viostor = bool(new['viostor']) if new else False
+            new_netkvm = bool(new['netkvm']) if new else False
 
             dialog = session['dialog']
             title = "VirtIO driver missing"

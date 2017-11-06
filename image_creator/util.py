@@ -141,7 +141,7 @@ def virtio_versions(virtio_state):
         driver_ver = [drv['DriverVer'].split(',', 1) if 'DriverVer' in drv
                       else [] for drv in infs.values()]
         vers = [v[1] if len(v) > 1 else " " for v in driver_ver]
-        ret[name] = "<not found>" if len(infs) == 0 else ", ".join(vers)
+        ret[name] = "<not found>" if not infs else ", ".join(vers)
 
     return ret
 
@@ -181,12 +181,12 @@ class QemuNBD(object):
 
         devs = self._list_devices()
 
-        if len(devs) == 0:  # Is nbd module loaded?
+        if not devs:  # Is nbd module loaded?
             self.modprobe('nbd', 'max_part=16')
             # Wait a second for /dev to be populated
             time.sleep(1)
             devs = self._list_devices()
-            if len(devs) == 0:
+            if not devs:
                 raise FatalError("/dev/nbd* devices not present!")
 
         # Ignore the nbd block devices that are in use
@@ -198,7 +198,7 @@ class QemuNBD(object):
                 if entry[3] in devs:
                     devs.remove(entry[3])
 
-        if len(devs) == 0:
+        if not devs:
             raise FatalError("All NBD block devices are busy!")
 
         device = '/dev/%s' % devs.pop()

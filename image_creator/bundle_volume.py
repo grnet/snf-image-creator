@@ -186,7 +186,7 @@ def mount_all(target, devs):
         if not os.path.exists(absmpoint):
             os.makedirs(absmpoint)
 
-        if len(options) > 0:
+        if options:
             mount(dev, absmpoint, '-o', ",".join(options))
         else:
             mount(dev, absmpoint)
@@ -357,7 +357,7 @@ class BundleVolume(object):
                 continue
 
             descendants = [e for e in excluded if e.startswith(mpoint + '/')]
-            if len(descendants):
+            if descendants:
                 for d in descendants:
                     excluded.remove(d)
                 excluded.append(mpoint)

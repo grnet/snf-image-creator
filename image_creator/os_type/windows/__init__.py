@@ -141,7 +141,7 @@ def parse_inf(inf):
         line = prev_line + line.split(';')[0].strip()
         prev_line = ""
 
-        if not len(line):
+        if not line:
             continue
 
         # Does the directive span more lines?
@@ -168,7 +168,7 @@ def parse_inf(inf):
     if 'manufacturer' in sections:
         for _, value in sections['manufacturer']:
             value = value.split(',')
-            if len(value) == 0:
+            if not value:
                 continue
 
             # %strkey%=models-section-name [,TargetOSVersion] ...
@@ -176,7 +176,7 @@ def parse_inf(inf):
             for i in range(len(value) - 1):
                 target_os.add(value[i+1].strip().lower())
 
-    if len(models):
+    if models:
         # [models-section-name] | [models-section-name.TargetOSVersion]
         models_section_name = \
             re.compile('^(' + "|".join(models) + ')(\\..+)?$')
@@ -206,7 +206,7 @@ def parse_inf(inf):
                     pass
             version[key] = val
 
-    if len(target_os) == 0:
+    if not target_os:
         target_os.add('ntx86')
 
     return driver, target_os, version
@@ -329,7 +329,7 @@ class Windows(OSBase):
                 self.systemdrive = drive
 
         active_admins = [u for u in self.admins if u in self.active_users]
-        if ADMIN_RID in self.active_users or len(active_admins) == 0:
+        if ADMIN_RID in self.active_users or not active_admins:
             admin = ADMIN_RID
         else:
             active_admins.sort()
@@ -443,7 +443,7 @@ class Windows(OSBase):
 
         for line in stdout.splitlines():
             line = line.strip()
-            if not len(line):
+            if not line:
                 continue
             self.out.info(" %s" % line)
 
@@ -465,12 +465,12 @@ class Windows(OSBase):
                 "Microsoft's System Preparation Tool has ran on the media. "
                 "Further image customization is not possible.")
 
-        if len(self.virtio_state['viostor']) == 0:
+        if not self.virtio_state['viostor']:
             raise FatalError(
                 "The media has no VirtIO SCSI controller driver installed. "
                 "Further image customization is not possible.")
 
-        if len(self.virtio_state['netkvm']) == 0:
+        if not self.virtio_state['netkvm']:
             raise FatalError(
                 "The media has no VirtIO Ethernet Adapter driver installed. "
                 "Further image customization is not possible.")
@@ -720,7 +720,7 @@ class Windows(OSBase):
                 self.meta['REMOTE_CONNECTION'] += " "
 
             port = settings['port']
-            if len(active):
+            if active:
                 rdp = ["rdp:port=%d,user=%s" % (port, user) for user in active]
                 self.meta['REMOTE_CONNECTION'] += " ".join(rdp)
             else:
@@ -845,7 +845,7 @@ class Windows(OSBase):
                     continue
 
                 num += 1
-            if len(drvs) == 0:
+            if not drvs:
                 del collection[drv_type]
 
         self.out.info('Found %d valid driver%s' %
@@ -864,7 +864,7 @@ class Windows(OSBase):
         self.out.info('Installing VirtIO drivers:')
 
         valid_drvs = self._fetch_virtio_drivers(dirname)
-        if not len(valid_drvs):
+        if not valid_drvs:
             self.out.warn('No suitable driver found to install!')
             return
 
@@ -928,8 +928,8 @@ class Windows(OSBase):
         certs = kwargs['certs'] if 'certs' in kwargs else []
         remove = kwargs['remove'] if 'remove' in kwargs else []
 
-        assert len(add) == 0 or upload is not None
-        assert len(install) == 0 or upload is not None
+        assert not add or upload is not None
+        assert not install or upload is not None
 
         with self.mount(readonly=False, silent=True):
             # Reset admin password

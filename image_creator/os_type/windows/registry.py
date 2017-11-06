@@ -71,7 +71,7 @@ def traverse(hive, path):
 
     for name in path.split('/'):
 
-        if len(name) == 0:
+        if not name:
             continue
 
         node = hive.node_get_child(node, name)
@@ -584,7 +584,7 @@ class Registry(object):
                 name = hive.node_name(node)
                 rid = hive.value_type(hive.node_get_value(node, ""))[0]
 
-                if len(ridlist) != 0 and rid not in ridlist:
+                if ridlist and rid not in ridlist:
                     continue
 
                 # if RID is 500 (=0x1f4), the corresponding node name is

@@ -70,7 +70,7 @@ class CheckWritableDir(argparse.Action):
         dirname = os.path.dirname(value)
         name = os.path.basename(value)
 
-        if len(dirname) == 0:
+        if not dirname:
             dirname = '.'
 
         if dirname and not os.path.isdir(dirname):
@@ -350,11 +350,11 @@ def image_creator(options, out):
                               "not be cleared out of sensitive data and will "
                               "not get customized during the deployment."))
 
-        if len(options.host_run) != 0 and not image.mount_local_support:
+        if options.host_run and not image.mount_local_support:
             raise FatalError("Running scripts against the guest media is not "
                              "supported for this build of libguestfs.")
 
-        if len(options.host_run) != 0:
+        if options.host_run:
             for script in options.host_run:
                 if not os.path.isfile(script):
                     raise FatalError("File: `%s' does not exist." % script)
@@ -401,7 +401,7 @@ def image_creator(options, out):
                 hasattr(image.os, 'install_virtio_drivers'):
             image.os.install_virtio_drivers()
 
-        if len(options.host_run) != 0:
+        if options.host_run:
             # Export image metadata as environment variables to make them
             # visible by the scripts
             for key, value in image.meta.items():

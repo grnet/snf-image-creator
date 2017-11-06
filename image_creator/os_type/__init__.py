@@ -160,7 +160,7 @@ class SysprepParam(object):
         """Check if the value is a valid filename"""
 
         value = str(value)
-        if len(value) == 0:
+        if not value:
             return ""
 
         import os
@@ -181,7 +181,7 @@ class SysprepParam(object):
         """Check if the value is a valid directory"""
 
         value = str(value)
-        if len(value) == 0:
+        if not value:
             return ""
 
         import os
@@ -300,7 +300,7 @@ class OSBase(object):
             self.out.warn("Cleanup namespace: `%s' is not defined" % namespace)
             return
 
-        while len(self._cleanup_jobs[namespace]):
+        while self._cleanup_jobs[namespace]:
             job, args = self._cleanup_jobs[namespace].pop()
             job(*args)
 
@@ -404,7 +404,7 @@ class OSBase(object):
         wrapper.width = 72
 
         self.out.info("Enabled system preparation operations:")
-        if len(enabled) == 0:
+        if not enabled:
             self.out.info("(none)")
         else:
             for sysprep in enabled:
@@ -413,7 +413,7 @@ class OSBase(object):
                 self.out.info('    %s:\n%s\n' % (name, descr))
 
         self.out.info("Disabled system preparation operations:")
-        if len(disabled) == 0:
+        if not disabled:
             self.out.info("(none)")
         else:
             for sysprep in disabled:
@@ -429,7 +429,7 @@ class OSBase(object):
 
         public_params = [(n, p) for n, p in self.sysprep_params.items()
                          if not p.hidden]
-        if len(public_params) == 0:
+        if not public_params:
             self.out.info("(none)")
             return
 

@@ -93,7 +93,7 @@ class Image(object):
         self.out.info('Inspecting Operating System ...', False)
         roots = self.g.inspect_os()
 
-        if len(roots) == 0 or len(roots) > 1:
+        if not roots or len(roots) > 1:
             self.root = None
             self.ostype = "unsupported"
             self.distro = "unsupported"

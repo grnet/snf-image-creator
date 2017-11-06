@@ -84,12 +84,12 @@ class MetadataMonitor(object):
             return
 
         msg = "The last action has changed some image properties:\n\n"
-        if len(added):
+        if added:
             msg += "New image properties:\n"
             for (k, v) in added.items():
                 msg += '    %s: "%s"\n' % (k, v)
             msg += "\n"
-        if len(altered):
+        if altered:
             msg += "Updated image properties:\n"
             for (k, v) in altered.items():
                 msg += '    %s: "%s" -> "%s"\n' % (k, self.old[k], v)
@@ -140,11 +140,11 @@ def upload_image(session):
         name = name.strip()
         container = container.strip()
 
-        if len(name) == 0:
+        if not name:
             d.msgbox("Remote Name cannot be empty", width=SMALL_WIDTH)
             continue
 
-        if len(container) == 0:
+        if not container:
             d.msgbox("Container cannot be empty", width=SMALL_WIDTH)
             continue
 
@@ -154,7 +154,7 @@ def upload_image(session):
             if kamaki.object_exists(container, f):
                 overwrite.append(f)
 
-        if len(overwrite) > 0:
+        if overwrite:
             if d.yesno("The following storage service object(s) already "
                        "exist(s):\n%s\nDo you want to overwrite them?" %
                        "\n".join(overwrite), width=WIDTH, defaultno=1) != d.OK:
@@ -250,7 +250,7 @@ def register_image(session):
         name = name.strip()
         descr = descr.strip()
 
-        if len(name) == 0:
+        if not name:
             d.msgbox("Registration name cannot be empty", width=SMALL_WIDTH)
             continue
 
@@ -318,7 +318,7 @@ def modify_clouds(session):
 
     while 1:
         clouds = Kamaki.get_clouds()
-        if not len(clouds):
+        if not clouds:
             if not add_cloud(session):
                 break
             else:
@@ -355,7 +355,7 @@ def delete_clouds(session):
         descr = cloud['description'] if 'description' in cloud else ''
         choices.append((name, descr, 0))
 
-    if len(choices) == 0:
+    if not choices:
         d.msgbox("No available clouds to delete!", width=SMALL_WIDTH)
         return True
 
@@ -366,7 +366,7 @@ def delete_clouds(session):
     if code in (d.CANCEL, d.ESC):
         return False
 
-    if not len(to_delete):
+    if not to_delete:
         d.msgbox("Nothing selected!", width=SMALL_WIDTH)
         return False
 
@@ -391,7 +391,7 @@ def select_cloud(session):
     d = session['dialog']
 
     clouds = Kamaki.get_clouds()
-    if not len(clouds):
+    if not clouds:
         d.msgbox("No clouds available. Please add a new cloud!",
                  width=SMALL_WIDTH)
         return False
@@ -523,7 +523,7 @@ def kamaki_menu(session):
                     default_item = "Cloud"
         elif choice == "Delete":
             if delete_clouds(session):
-                if len(Kamaki.get_clouds()):
+                if Kamaki.get_clouds():
                     default_item = "Cloud"
                 else:
                     default_item = "Add/Edit"
@@ -602,7 +602,7 @@ def add_property(session):
             return False
 
         name = answer.strip()
-        if len(name) == 0:
+        if not name:
             d.msgbox("A property name cannot be empty", width=SMALL_WIDTH)
             continue
 
@@ -626,7 +626,7 @@ def add_property(session):
             return False
 
         value = answer.strip()
-        if len(value) == 0:
+        if not value:
             d.msgbox("Value cannot be empty", width=SMALL_WIDTH)
             continue
 
@@ -656,7 +656,7 @@ def modify_properties(session):
         for (key, val) in image.meta.items():
             choices.append((str(key), str(val)))
 
-        if len(choices) == 0:
+        if not choices:
             code = d.yesno(
                 "No image properties are available. "
                 "Would you like to add a new one?", width=WIDTH, help_button=1)
@@ -689,7 +689,7 @@ def modify_properties(session):
                 extra_label="Delete")
             if code == d.OK:
                 value = answer.strip()
-                if len(value) == 0:
+                if not value:
                     d.msgbox("Value cannot be empty!")
                     continue
                 else:
@@ -740,7 +740,7 @@ def exclude_tasks(session):
             displayed_index += 1
         index += 1
 
-    if len(choices) == 0:
+    if not choices:
         d.msgbox("No configuration tasks available", width=WIDTH)
         return True
 
@@ -801,11 +801,11 @@ def sysprep_params(session):
 
             value = "|".join([str(i) for i in param.value]) if param.is_list \
                 else str(param.value)
-            if len(value) == 0:
+            if not value:
                 value = "<not_set>"
             choices.append((name, value))
 
-        if len(choices) == 0:
+        if not choices:
             d.msgbox("No customization parameters available", width=WIDTH)
             return True
 
@@ -897,7 +897,7 @@ def virtio(session):
                 details += "Type:      %s\n" % dtype
                 details += "Class:     %s\n\n" % dclass
 
-            if len(details):
+            if details:
                 d.scrollbox(details, width=WIDTH)
         else:  # Update button
             title = "Please select a directory that hosts VirtIO drivers."
@@ -966,7 +966,7 @@ def sysprep(session):
 
     syspreps = image.os.list_syspreps()
 
-    if len(syspreps) == 0:
+    if not syspreps:
         d.msgbox("No system preparation task available to run!",
                  title="System Preparation", width=SMALL_WIDTH)
         return
@@ -1011,8 +1011,8 @@ def sysprep(session):
                 else:
                     image.os.disable_sysprep(syspreps[i])
 
-            if len([s for s in image.os.list_syspreps()
-                    if image.os.sysprep_enabled(s)]) == 0:
+            if not [s for s in image.os.list_syspreps()
+                    if image.os.sysprep_enabled(s)]:
                 d.msgbox("No system preparation task is selected!",
                          title="System Preparation", width=SMALL_WIDTH)
                 continue
@@ -1173,7 +1173,7 @@ def main_menu(session):
         elif choice in actions:
             actions[choice](session)
 
-        if len(choice):
+        if choice:
             default_item = choice
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :

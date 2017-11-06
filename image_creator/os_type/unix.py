@@ -96,7 +96,7 @@ SENSITIVE_USERDATA = [
 def check_sensitive_userdata(value):
     "Do not allow a zero string"
 
-    if len(value) == 0:
+    if not value:
         raise ValueError("Filename cannot be empty")
 
     return value
@@ -171,7 +171,7 @@ class Unix(OSBase):
                 if self.image.g.is_file(path):
                     desktop.append(session)
                     break
-        if gui and len(desktop) != 0:
+        if gui and desktop:
             self.meta['GUI'] = " | ".join(desktop)
 
     def ssh_connection_options(self, users):
@@ -187,7 +187,7 @@ class Unix(OSBase):
 
             for line in self.image.g.cat(fname).splitlines():
                 line = line.split('#')[0].strip()
-                if not len(line):
+                if not line:
                     continue
                 line = line.split()
                 config[line[0]] = line[1:]

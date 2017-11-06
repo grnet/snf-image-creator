@@ -39,7 +39,7 @@ class Bsd(Unix):
         for line in self.image.g.cat('/etc/master.passwd').splitlines():
 
             # Check for empty or comment lines
-            if len(line.split('#')[0]) == 0:
+            if not line.split('#')[0]:
                 master_passwd.append(line)
                 continue
 
@@ -72,7 +72,7 @@ class Bsd(Unix):
             self.meta['DESCRIPTION'].split('#')[0].strip()
 
         # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
+        if not self.meta['USERS']:
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
 
@@ -97,7 +97,7 @@ class Bsd(Unix):
             else:
                 self.meta['REMOTE_CONNECTION'] += " "
 
-            if len(users):
+            if users:
                 self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
             else:
                 self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
@@ -124,7 +124,7 @@ class Bsd(Unix):
                 continue
 
             user, passwd = match.groups()
-            if len(passwd) > 0 and passwd[0] == '!':
+            if passwd and passwd[0] == '!':
                 self.out.warn("Ignoring locked %s account." % user)
             else:
                 # Put root in the beginning.

@@ -204,13 +204,13 @@ def extract_image(session):
             continue
 
         dir = basedir
-        if len(name) == 0:
+        if not name:
             continue
 
         files = ["%s%s" % (path, ext) for ext in ('', '.meta', '.md5sum')]
         overwrite = filter(os.path.exists, files)
 
-        if len(overwrite) > 0:
+        if overwrite:
             if d.yesno("The following file(s) exist:\n"
                        "%s\nDo you want to overwrite them?" %
                        "\n".join(overwrite), width=SMALL_WIDTH) != d.OK:
@@ -267,11 +267,11 @@ def _check_cloud(session, name, url, token):
         d.msgbox("Allowed characters for name: a-zA-Z0-9_~@#$:-", width=WIDTH)
         return False
 
-    if len(url) == 0:
+    if not url:
         d.msgbox("URL cannot be empty!", width=WIDTH)
         return False
 
-    if len(token) == 0:
+    if not token:
         d.msgbox("Token cannot be empty!", width=WIDTH)
         return False
 
@@ -416,7 +416,7 @@ def update_sysprep_param(session, name, title=None):
                 value.append(i)
 
             choices = [(str(i+1), str(value[i])) for i in xrange(len(value))]
-            if len(choices) == 0:
+            if not choices:
                 action = 'add'
                 default_value = ""
             else:
@@ -446,7 +446,7 @@ def update_sysprep_param(session, name, title=None):
             delete=(param.is_list and action == 'edit'))
 
         if new_value is None:
-            if not param.is_list or len(param.value) == 0:
+            if not param.is_list or not param.value:
                 return False
             continue
 
@@ -471,7 +471,7 @@ def update_sysprep_param(session, name, title=None):
             elif delete:
                 default_item = (default_item - 1) if default_item > 1 else 1
 
-        if not param.is_list or len(param.value) == 0:
+        if not param.is_list or not param.value:
             break
 
     return True
@@ -497,7 +497,7 @@ def create_form_elements(fields, width=WIDTH):
     to the element format that dialog.form() expects.
     """
 
-    assert len(fields) > 0
+    assert fields
     assert width > 0
 
     max_label = max([len(f[0]) for f in fields])

@@ -57,7 +57,7 @@ class Kamaki(object):
         clouds = config.keys('cloud')
         default = config.get('global', 'default_cloud')
         if not default:
-            return clouds[0] if len(clouds) else ""
+            return clouds[0] if clouds else ""
         return default if default in clouds else ""
 
     @staticmethod
@@ -86,7 +86,7 @@ class Kamaki(object):
     def save_cloud(name, url, token, description=""):
         """Save a new cloud account"""
         cloud = {'url': url, 'token': token}
-        if len(description):
+        if description:
             cloud['description'] = description
         config.set('cloud', name, cloud)
 

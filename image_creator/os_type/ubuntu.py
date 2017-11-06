@@ -50,7 +50,7 @@ class Ubuntu(Linux):
             readme = '/opt/bitnami/README.txt'
             if self.image.g.is_file(readme):
                 content = self.image.g.cat(readme).splitlines()
-                if len(content):
+                if content:
                     self.meta['OSVERSION'] = self.meta['DESCRIPTION']
                     self.meta['DESCRIPTION'] = content[0].strip()
 

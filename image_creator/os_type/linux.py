@@ -157,7 +157,7 @@ class Linux(Unix):
             self.meta['USERS'] = " ".join(metadata_users)
 
             # Delete the USERS metadata if empty
-            if not len(self.meta['USERS']):
+            if not self.meta['USERS']:
                 del self.meta['USERS']
 
             self.image.g.write('/etc/passwd', '\n'.join(passwd) + '\n')
@@ -251,7 +251,7 @@ class Linux(Unix):
                 else []
         metadata_users.insert(0, 'root')
         self.meta['USERS'] = " ".join(metadata_users)
-        if not len(self.meta['USERS']):
+        if not self.meta['USERS']:
             del self.meta['USERS']
 
     @sysprep('Cleaning up password & locking all user accounts')
@@ -442,13 +442,13 @@ class Linux(Unix):
             all = self.image.g.aug_match(file_path % 'all') + \
                 self.image.g.aug_match(dir_path % 'all')
 
-            if len(default) == 0:
+            if not default:
                 self.image.g.aug_set(file_path % 'default', '0')
             else:
                 for token in default:
                     self.image.g.aug_set(token, '0')
 
-            if len(all) == 0:
+            if not all:
                 self.image.g.aug_set(file_path % 'all', '0')
             else:
                 for token in all:
@@ -690,7 +690,7 @@ class Linux(Unix):
         persistent ones.
         """
         mpoints = self.image.g.mountpoints()
-        if len(mpoints) == 0:
+        if not mpoints:
             pass  # TODO: error handling
 
         device_dict = dict([[mpoint, dev] for dev, mpoint in mpoints])
@@ -718,7 +718,7 @@ class Linux(Unix):
         """
         orig = line
         line = line.split('#')[0].strip()
-        if len(line) == 0:
+        if not line:
             return orig, "", ""
 
         entry = line.split()
@@ -746,7 +746,7 @@ class Linux(Unix):
         self.out.info(
             'Checking if the media contains logical volumes (LVM)...', False)
 
-        has_lvm = True if len(self.image.g.lvs()) else False
+        has_lvm = True if self.image.g.lvs() else False
 
         if has_lvm:
             self.out.info()
@@ -804,7 +804,7 @@ class Linux(Unix):
         self.meta["USERS"] = " ".join(users)
 
         # Delete the USERS metadata if empty
-        if not len(self.meta['USERS']):
+        if not self.meta['USERS']:
             self.out.warn("No passworded users found!")
             del self.meta['USERS']
 
@@ -813,7 +813,7 @@ class Linux(Unix):
             if f.startswith('config-'):
                 kernels.append(f[7:])
 
-        if len(kernels):
+        if kernels:
             kernels.sort(key=pkg_resources.parse_version)
             self.meta['KERNEL'] = kernels[-1]
 
@@ -841,7 +841,7 @@ class Linux(Unix):
             else:
                 self.meta['REMOTE_CONNECTION'] += " "
 
-            if len(ssh):
+            if ssh:
                 self.meta['REMOTE_CONNECTION'] += " ".join(ssh)
             else:
                 self.meta['REMOTE_CONNECTION'] += "ssh:port=%d" % opts['port']
@@ -858,7 +858,7 @@ class Linux(Unix):
 
             if x2go_installed:
                 self.meta['REMOTE_CONNECTION'] += " "
-                if len(desktops) == 0:
+                if not desktops:
                     self.meta['REMOTE_CONNECTION'] += "x2go"
                 else:
                     self.meta['REMOTE_CONNECTION'] += \
@@ -922,7 +922,7 @@ class Linux(Unix):
             regexp = re.compile(r"[/=\s'\"]%s('\")?\s" % service)
             for line in self.image.g.cat(path).splitlines():
                 line = line.split('#', 1)[0].strip()
-                if len(line) == 0:
+                if not line:
                     continue
                 if regexp.search(line):
                     found.add(path)
@@ -933,7 +933,7 @@ class Linux(Unix):
         if self.image.g.is_dir('/etc/init'):
             self._foreach_file('/etc/init', check_file, maxdepth=1,
                                include=r'.+\.conf$')
-            if len(found):
+            if found:
                 return True
 
         # Check scripts under /etc/rc[1-5].d/ and /etc/rc.d/rc[1-5].d/
@@ -945,7 +945,7 @@ class Linux(Unix):
                         continue
                     check_file("%s/%s" % (conf, entry['name']))
 
-                    if len(found):
+                    if found:
                         return True
 
             except RuntimeError:
@@ -970,7 +970,7 @@ class Linux(Unix):
                 continue
 
             user, passwd = match.groups()
-            if len(passwd) > 0 and passwd[0] == '!':
+            if passwd and passwd[0] == '!':
                 self.out.warn("Ignoring locked %s account." % user)
             else:
                 users.append(user)
@@ -987,7 +987,7 @@ class Linux(Unix):
             return self._uuid[dev]
 
         uuid = self.image.g.vfs_uuid(dev)
-        assert len(uuid)
+        assert uuid
         self._uuid[dev] = uuid
         return uuid
 
