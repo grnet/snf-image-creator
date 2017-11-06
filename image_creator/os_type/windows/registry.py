@@ -17,10 +17,11 @@
 
 """This package hosts code for manipulating the windows registry."""
 
-import hivex
 import tempfile
 import os
 import struct
+
+import hivex
 
 from image_creator.util import FatalError
 

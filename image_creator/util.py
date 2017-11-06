@@ -19,7 +19,6 @@
 the package.
 """
 
-import sh
 import time
 import os
 import re
@@ -29,6 +28,7 @@ import subprocess
 import random
 import string
 
+import sh
 
 class FatalError(Exception):
     """Fatal Error exception of snf-image-creator"""

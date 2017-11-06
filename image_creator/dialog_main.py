@@ -23,7 +23,6 @@ user is asked if he wants to use the program in expert or wizard mode.
 
 from __future__ import unicode_literals
 
-import dialog
 import sys
 import os
 import signal
@@ -32,6 +31,8 @@ import types
 import termios
 import traceback
 import tempfile
+
+import dialog
 
 from image_creator import __version__ as version
 from image_creator.util import FatalError

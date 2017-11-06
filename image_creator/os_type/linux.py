@@ -20,11 +20,12 @@
 import os
 import os.path
 import re
-import pkg_resources
 import tempfile
-import yaml
 from collections import namedtuple
 from functools import wraps
+
+import yaml
+import pkg_resources
 
 from image_creator.util import FatalError
 from image_creator.bootloader import vbr_bootinfo

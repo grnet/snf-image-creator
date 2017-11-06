@@ -20,8 +20,9 @@
 import os
 import re
 import hashlib
-from sendfile import sendfile
 import threading
+
+from sendfile import sendfile
 
 from image_creator.util import FatalError, QemuNBD, get_command
 from image_creator.gpt import GPTPartitionTable
