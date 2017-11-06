@@ -439,7 +439,7 @@ class BundleVolume(object):
 
             target = tempfile.mkdtemp()
             devs = []
-            for i in mapped.keys():
+            for i in mapped:
                 fs = filesystem[i].fs
                 mpoint = filesystem[i].mpoint
                 opts = []
