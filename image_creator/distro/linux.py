@@ -867,6 +867,10 @@ class Linux(Unix):
         else:
             self.out.warn("OpenSSH Daemon is not configured to run on boot")
 
+        # Check if NetworkManager is enabled
+        if self.is_enabled('NetworkManager'):
+            self.meta['NM_NETWORKING'] = "yes"
+
         if self.is_enabled('cloud-init'):
             self.cloud_init = True
         else:
