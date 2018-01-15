@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 """This module hosts OS-specific code common to all Unix-like OSes."""
 
-from image_creator.os_type import OSBase, sysprep, add_sysprep_param
+from image_creator.distro import OSBase, sysprep, add_sysprep_param
 
 # Credits go to Wmconfig (https://www.arrishq.net/) for the biggest part of
 # this collection

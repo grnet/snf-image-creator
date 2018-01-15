@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 """This module hosts code to handle unknown OSes."""
 
-from image_creator.os_type import OSBase
+from image_creator.distro import OSBase
 
 
 class Unsupported(OSBase):

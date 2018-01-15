@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2014-2017 GRNET S.A.
+# Copyright (C) 2014-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 
 import re
 
-from image_creator.os_type.linux import Linux
+from image_creator.distro.linux import Linux
 
 
 class Archlinux(Linux):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2014 GRNET S.A.
+# Copyright (C) 2014-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 the windows image."""
 
 # Just a random 16 character long token
-from image_creator.os_type.windows.vm import RANDOM_TOKEN
+from image_creator.distro.windows.vm import RANDOM_TOKEN
 
 COM1_WRITE = r"""
 $port=new-Object System.IO.Ports.SerialPort COM1,9600,None,8,one

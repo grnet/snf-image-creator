@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ from sendfile import sendfile
 
 from image_creator.util import FatalError, QemuNBD, get_command
 from image_creator.gpt import GPTPartitionTable
-from image_creator.os_type import os_cls
+from image_creator.distro import distro_cls
 
 # Make sure libguestfs runs qemu directly to launch an appliance.
 os.environ['LIBGUESTFS_BACKEND'] = 'direct'
@@ -218,7 +218,7 @@ class Image(object):
         if not self.guestfs_enabled:
             self.enable()
 
-        cls = os_cls(self.distro, self.ostype)
+        cls = distro_cls(self.distro, self.ostype)
         self._os = cls(self, sysprep_params=self.sysprep_params)
 
         self._os.collect_metadata()

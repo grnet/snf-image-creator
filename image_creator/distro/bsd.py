@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 
 import re
 
-from image_creator.os_type.unix import Unix, sysprep
+from image_creator.distro.unix import Unix, sysprep
 
 
 class Bsd(Unix):

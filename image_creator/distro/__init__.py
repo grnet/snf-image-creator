@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ OSTYPE_ORDER = {
 }
 
 
-def os_cls(distro, osfamily):
+def distro_cls(distro, osfamily):
     """Given the distro name and the osfamily, return the appropriate OSBase
     derived class
     """
@@ -52,13 +52,13 @@ def os_cls(distro, osfamily):
         distro = osfamily
 
     try:
-        module = __import__("image_creator.os_type.%s" % distro,
-                            fromlist=['image_creator.os_type'])
+        module = __import__("image_creator.distro.%s" % distro,
+                            fromlist=['image_creator.distro'])
         classname = distro.capitalize()
     except ImportError:
         try:
-            module = __import__("image_creator.os_type.%s" % osfamily,
-                                fromlist=['image_creator.os_type'])
+            module = __import__("image_creator.distro.%s" % osfamily,
+                                fromlist=['image_creator.distro'])
             classname = osfamily.capitalize()
         except ImportError:
             raise FatalError("Unknown OS name: `%s'" % osfamily)
@@ -193,7 +193,7 @@ class SysprepParam(object):
 
 def add_sysprep_param(name, type, default, descr, **kwargs):
     """Decorator for __init__ that adds the definition for a system preparation
-    parameter in an instance of an os_type class
+    parameter in an instance of an distro class
     """
     extra = kwargs
 
@@ -213,7 +213,7 @@ def add_sysprep_param(name, type, default, descr, **kwargs):
 
 def del_sysprep_param(name):
     """Decorator for __init__ that deletes a previously added sysprep parameter
-    definition from an instance of a os_type class.
+    definition from an instance of a distro class.
     """
     def wrapper(func):
         @wraps(func)

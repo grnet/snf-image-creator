@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ import errno
 from string import lowercase, uppercase, digits
 
 from image_creator.util import FatalError, get_kvm_binary
-from image_creator.os_type.windows.winexe import WinEXE, WinexeTimeout
+from image_creator.distro.windows.winexe import WinEXE, WinexeTimeout
 
 # Just a random 16 character long token
 RANDOM_TOKEN = "".join(random.choice(lowercase + uppercase) for _ in range(16))

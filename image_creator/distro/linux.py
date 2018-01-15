@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ import pkg_resources
 
 from image_creator.util import FatalError
 from image_creator.bootloader import vbr_bootinfo
-from image_creator.os_type.unix import Unix, sysprep, add_sysprep_param
+from image_creator.distro.unix import Unix, sysprep, add_sysprep_param
 
 X2GO_DESKTOPSESSIONS = {
     'CINNAMON': 'cinnamon',

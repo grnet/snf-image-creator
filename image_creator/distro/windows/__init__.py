@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2017 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,12 +25,12 @@ import uuid
 import time
 from collections import namedtuple
 
-from image_creator.os_type import OSBase, sysprep, add_sysprep_param
+from image_creator.distro import OSBase, sysprep, add_sysprep_param
 from image_creator.util import FatalError
-from image_creator.os_type.windows.vm import VM, RANDOM_TOKEN as TOKEN
-from image_creator.os_type.windows.registry import Registry
-from image_creator.os_type.windows.winexe import WinEXE
-from image_creator.os_type.windows import powershell
+from image_creator.distro.windows.vm import VM, RANDOM_TOKEN as TOKEN
+from image_creator.distro.windows.registry import Registry
+from image_creator.distro.windows.winexe import WinEXE
+from image_creator.distro.windows import powershell
 
 # For more info see: http://technet.microsoft.com/en-us/library/jj612867.aspx
 KMS_CLIENT_SETUP_KEYS = {

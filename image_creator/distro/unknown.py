@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2011-2014 GRNET S.A.
+# Copyright (C) 2011-2018 GRNET S.A.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,13 +15,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""This module hosts OS-specific code for GNU Hurd."""
+"""This module hosts code to handle unknown OSes."""
 
-from image_creator.os_type.unix import Unix
+from image_creator.distro.unsupported import Unsupported
 
 
-class Hurd(Unix):
-    """OS class for GNU Hurd"""
-    pass
+class Unknown(Unsupported):
+    """OS class for Unknown OSes"""
+    def __init__(self, image, **kwargs):
+        super(Unknown, self).__init__(image, **kwargs)
+
+        self.image.set_unsupported("Unknown Operating System")
 
 # vim: set sta sts=4 shiftwidth=4 sw=4 et ai :
