@@ -552,6 +552,28 @@ class Linux(Unix):
         if self.image.g.is_file('/var/lib/dbus/machine-id'):
             self.image.g.truncate('/var/lib/dbus/machine-id')
 
+    @sysprep('Removing NetworkManager system connections',
+             display='Remove NetworkManager system connections')
+    def _remove_networkmanager_system_connections(self):
+        """Remove files under /etc/NetworkManager/system-connections. Those
+        files may cause NetworkManager to misbehave."""
+
+        connections = '/etc/NetworkManager/system-connections'
+
+        if not self.image.g.is_dir(connections):
+            return
+
+        cnt = [0]
+
+        def count(f):
+            cnt[0] += 1
+
+        self._foreach_file(connections, count, ftype='r', maxdepth=1)
+        self._foreach_file(connections, self.image.g.rm, ftype='r', maxdepth=1)
+
+        if cnt:
+            self.out.success("removed %d connections" % cnt[0])
+
     @sysprep('Shrinking image (may take a while)', nomount=True)
     def _shrink(self):
         """Shrink the last file system and update the partition table"""
