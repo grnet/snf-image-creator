@@ -66,6 +66,10 @@ DISTRO_ORDER = {
 
 CLOUDINIT_FILE_PRIORITY = 60
 
+GRUB1_CONFIG = ['/boot/grub/menu.lst']
+GRUB2_CONFIG = ['/boot/grub/grub.cfg',
+                '/boot/grub2/grub.cfg']
+
 
 def cloudinit(method):
     """Decorator that adds a check to run only on cloud-init enabled images"""
@@ -393,15 +397,16 @@ class Linux(Unix):
                     os.close(tmpfd)
                 os.unlink(tmp)
 
-        grub1_config = '/boot/grub/menu.lst'
-        grub2_config = '/boot/grub/grub.cfg'
+        grub1_regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
+        grub2_regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
 
-        if self.image.g.is_file(grub1_config):
-            regexp = re.compile(r'^\s*timeout\s+\d+\s*$')
-            replace_timeout(grub1_config, regexp, timeout)
-        elif self.image.g.is_file(grub2_config):
-            regexp = re.compile(r'^\s*set\s+timeout=\d+\s*$')
-            replace_timeout(grub2_config, regexp, timeout)
+        for path in GRUB1_CONFIG:
+            if self.image.g.is_file(path):
+                replace_timeout(path, grub1_regexp, timeout)
+
+        for path in GRUB2_CONFIG:
+            if self.image.g.is_file(path):
+                replace_timeout(path, grub2_regexp, timeout)
 
         regexp = re.compile(r'^\s*TIMEOUT\s+\d+\s*$', re.IGNORECASE)
         for syslinux_config in self.syslinux.search_paths:
@@ -1021,11 +1026,12 @@ class Linux(Unix):
     def _replace_kernel_params(self, repl):
         """Change the kernel parameters passed by the boot loader"""
 
-        if self.image.g.is_file('/boot/grub/grub.cfg'):
-            cfg = re.sub(r'^(\s*linux\s+.*)', repl,
-                         self.image.g.cat('/boot/grub/grub.cfg'),
-                         flags=re.MULTILINE)
-            self.image.g.write('/boot/grub/grub.cfg', cfg)
+        for path in GRUB2_CONFIG:
+            if self.image.g.is_file(path):
+                cfg = re.sub(r'^(\s*linux(?:16)?\s+.*)', repl,
+                             self.image.g.cat(path),
+                             flags=re.MULTILINE)
+                self.image.g.write(path, cfg)
 
         for path in self.syslinux.search_paths:
             if self.image.g.is_file(path):
