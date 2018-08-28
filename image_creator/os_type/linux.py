@@ -452,7 +452,7 @@ class Linux(Unix):
                 # text to a variable without messing up with the quoting. The
                 # variable could have a value foo or 'foo' or "foo". Appending
                 # ' bar' will lead to a valid result.
-                cmdline = "%s%s" % (cmdline.strip(), "' net.ifname=0'")
+                cmdline = "%s%s" % (cmdline.strip(), "' net.ifnames=0'")
                 self.image.g.aug_set(path, cmdline)
             finally:
                 self.image.g.aug_save()
