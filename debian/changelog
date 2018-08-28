@@ -1,3 +1,9 @@
+snf-image-creator (0.11.2-1~jessie) jessie; urgency=medium
+
+  * Hotfix version
+
+ -- Alexandros Afentoulis <alexaf@noc.grnet.gr>  Tue, 28 Aug 2018 14:26:47 +0300
+
 snf-image-creator (0.11.1-1~jessie) jessie; urgency=medium
 
   * New upstream version
