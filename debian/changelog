@@ -1,3 +1,9 @@
+snf-image-creator (0.11.2-1~stretch) stretch; urgency=medium
+
+  * New hotfix version
+
+ -- Alexandros Afentoulis <alexaf@noc.grnet.gr>  Tue, 28 Aug 2018 15:16:54 +0300
+
 snf-image-creator (0.11-1~stretch) stretch; urgency=medium
 
   * New upstream version
